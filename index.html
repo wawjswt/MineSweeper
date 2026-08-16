@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>扫雷</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="pageBackdrop" class="page-backdrop" aria-hidden="true"></div>
+    <main class="app-shell">
+      <section class="panel">
+        <header class="topbar">
+          <div class="brand">
+            <div class="brand-kicker">MINESWEEPER</div>
+            <h1>扫雷</h1>
+            <p>首点安全，理性推理，严谨通关。</p>
+          </div>
+          <button class="reset-button" id="resetButton" type="button" aria-label="重置游戏">😊</button>
+        </header>
+
+        <section class="hud" aria-label="游戏信息">
+          <div class="hud-card">
+            <span class="hud-label">剩余雷数</span>
+            <strong id="mineCount">0</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">计时</span>
+            <strong id="timer">0</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">状态</span>
+            <strong id="statusText">待开始</strong>
+          </div>
+        </section>
+
+        <section class="controls">
+          <label class="difficulty">
+            <span>难度</span>
+            <select id="difficultySelect" aria-label="选择难度">
+              <option value="easy">简单 7×7</option>
+              <option value="normal" selected>普通 9×9</option>
+              <option value="hard">困难 16×16</option>
+              <option value="extreme">极致 30×16</option>
+            </select>
+          </label>
+          <label class="difficulty">
+            <span>主题</span>
+            <select id="themeSelect" aria-label="切换主题">
+              <option value="dark" selected>深色</option>
+              <option value="light">浅色</option>
+              <option value="pink">粉色</option>
+              <option value="sky">天蓝色</option>
+            </select>
+          </label>
+          <label class="difficulty">
+            <span>背景</span>
+            <input id="bgUpload" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif" aria-label="上传背景图片" />
+          </label>
+          <label class="difficulty">
+            <span>透明度</span>
+            <input id="bgOpacity" type="range" min="0.05" max="1" step="0.05" value="0.45" aria-label="背景透明度" />
+          </label>
+          <button class="theme-action" id="clearBgButton" type="button">清除背景</button>
+          <div class="hint">
+            左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开
+          </div>
+        </section>
+
+        <section class="board-wrap">
+          <div id="board" class="board" role="grid" aria-label="扫雷棋盘"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
