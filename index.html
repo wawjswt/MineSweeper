@@ -48,8 +48,22 @@
               <option value="normal" selected>普通 9×9</option>
               <option value="hard">困难 16×16</option>
               <option value="extreme">极致 30×16</option>
+              <option value="custom">自定义</option>
             </select>
           </label>
+          <label class="difficulty">
+            <span>自定义行</span>
+            <input id="customRows" type="number" min="5" max="30" step="1" value="9" aria-label="自定义行数" />
+          </label>
+          <label class="difficulty">
+            <span>自定义列</span>
+            <input id="customCols" type="number" min="5" max="40" step="1" value="9" aria-label="自定义列数" />
+          </label>
+          <label class="difficulty">
+            <span>自定义雷</span>
+            <input id="customMines" type="number" min="1" max="999" step="1" value="10" aria-label="自定义雷数" />
+          </label>
+          <button class="theme-action" id="applyCustomDifficultyButton" type="button">应用自定义</button>
           <label class="difficulty">
             <span>主题</span>
             <select id="themeSelect" aria-label="切换主题">
@@ -79,6 +93,6 @@
       </section>
     </main>
 
-    <script src="./app.js"></script>
+    <script src="./bundle.js"></script>
   </body>
 </html>
