@@ -15,11 +15,13 @@ const HEX_DIFFICULTIES = {
 const MODES = {
   classic: { label: "经典扫雷" },
   hex: { label: "Hex 扫雷" },
+  ring: { label: "环形棋盘" },
 };
 
 const BOARD_METRICS = {
   classic: { cellSize: 34, gap: 4 },
   hex: { cellW: 42, cellH: 48, xStep: 32, yStep: 36 },
+  ring: { cellSize: 34, innerRadius: 120, radialStep: 31 },
 };
 
 const THEMES = {
@@ -91,7 +93,7 @@ function saveBackgroundUrl(backgroundUrl) { try { if (backgroundUrl) localStorag
 function saveBackgroundOpacity(backgroundOpacity) { localStorage.setItem("minesweeper-background-opacity", backgroundOpacity); }
 function saveModeKey(value) { localStorage.setItem("minesweeper-mode", value); }
 function getDifficultyRecordKey() {
-  const prefix = modeKey === "hex" ? "hex" : "classic";
+  const prefix = modeKey === "hex" ? "hex" : modeKey === "ring" ? "ring" : "classic";
   if (difficultyKey === "custom") return `minesweeper-best-${prefix}-custom-${storage.customRows}x${storage.customCols}-${storage.customMines}`;
   return `minesweeper-best-${prefix}-${difficultyKey}`;
 }
@@ -129,6 +131,7 @@ function makeState() {
   return { rows, cols, mines, started: false, ended: false, win: false, timer: 0, board: Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ mine: false, revealed: false, flagged: false, questioned: false, count: 0 }))) };
 }
 function isHexMode() { return modeKey === "hex"; }
+function isRingMode() { return modeKey === "ring"; }
 function getDifficultySpec() {
   if (difficultyKey === "custom") {
     const rows = clampInt(Number(elements.customRows.value), 5, 30, storage.customRows);
@@ -139,6 +142,9 @@ function getDifficultySpec() {
   }
   if (isHexMode()) {
     return HEX_DIFFICULTIES[difficultyKey] || HEX_DIFFICULTIES.normal;
+  }
+  if (isRingMode()) {
+    return DIFFICULTIES[difficultyKey] || DIFFICULTIES.normal;
   }
   return DIFFICULTIES[difficultyKey];
 }
@@ -175,7 +181,19 @@ function hexDirections() {
 function neighbors(r, c) {
   const out = [];
   if (!isHexMode()) {
-    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (dr || dc) { const nr = r + dr, nc = c + dc; if (inBounds(nr, nc)) out.push([nr, nc]); }
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      let nr = r + dr;
+      let nc = c + dc;
+      if (isRingMode()) {
+        nr = (nr + state.rows) % state.rows;
+        nc = (nc + state.cols) % state.cols;
+        if (nr === r && nc === c) continue;
+        out.push([nr, nc]);
+        continue;
+      }
+      if (inBounds(nr, nc)) out.push([nr, nc]);
+    }
     return out;
   }
   const cube = qoffsetToCube(c, r);
@@ -226,15 +244,26 @@ function cellText(cell) { if (!cell.revealed) return cell.flagged ? "🚩" : cel
 function render() {
   elements.boardEl.innerHTML = "";
   elements.boardEl.classList.toggle("hex-mode", isHexMode());
-  if (!isHexMode()) {
-    elements.boardEl.style.gridTemplateColumns = `repeat(${state.cols}, ${BOARD_METRICS.classic.cellSize}px)`;
-    elements.boardEl.style.width = "";
-    elements.boardEl.style.height = "";
-  } else {
+  elements.boardEl.classList.toggle("ring-mode", isRingMode());
+  if (isRingMode()) {
+    const { cellSize, innerRadius, radialStep } = BOARD_METRICS.ring;
+    const outerRadius = innerRadius + (state.rows - 1) * radialStep;
+    const size = outerRadius * 2 + cellSize + 24;
+    elements.boardEl.style.gridTemplateColumns = "none";
+    elements.boardEl.style.width = `${size}px`;
+    elements.boardEl.style.height = `${size}px`;
+    elements.boardEl.style.position = "relative";
+  } else if (isHexMode()) {
     const { cellW, cellH, xStep, yStep } = getModeMetrics();
     elements.boardEl.style.gridTemplateColumns = "none";
     elements.boardEl.style.width = `${(state.cols - 1) * xStep + cellW}px`;
     elements.boardEl.style.height = `${(state.rows - 1) * yStep + cellH + yStep / 2}px`;
+    elements.boardEl.style.position = "relative";
+  } else {
+    elements.boardEl.style.gridTemplateColumns = `repeat(${state.cols}, ${BOARD_METRICS.classic.cellSize}px)`;
+    elements.boardEl.style.width = "";
+    elements.boardEl.style.height = "";
+    elements.boardEl.style.position = "";
   }
   for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) {
     const cell = state.board[r][c]; const btn = document.createElement("button"); btn.type = "button"; btn.className = "cell"; btn.textContent = cellText(cell);
@@ -247,6 +276,20 @@ function render() {
       btn.style.top = `${r * yStep + (c % 2 ? yStep / 2 : 0)}px`;
       btn.style.width = `${cellW}px`;
       btn.style.height = `${cellH}px`;
+    } else if (isRingMode()) {
+      const { cellSize, innerRadius, radialStep } = BOARD_METRICS.ring;
+      const boardCenter = (innerRadius + (state.rows - 1) * radialStep) + cellSize / 2 + 12;
+      const radius = innerRadius + r * radialStep;
+      const angle = (c / state.cols) * Math.PI * 2 - Math.PI / 2;
+      const x = boardCenter + Math.cos(angle) * radius - cellSize / 2;
+      const y = boardCenter + Math.sin(angle) * radius - cellSize / 2;
+      btn.classList.add("ring-cell");
+      btn.style.position = "absolute";
+      btn.style.left = `${x}px`;
+      btn.style.top = `${y}px`;
+      btn.style.width = `${cellSize}px`;
+      btn.style.height = `${cellSize}px`;
+      btn.style.borderRadius = "50%";
     }
     btn.addEventListener("click", () => {
       const result = cell.revealed ? chord(r, c, renderHud) : reveal(r, c, renderHud);
