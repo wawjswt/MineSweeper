@@ -144,13 +144,70 @@ h1 { margin: 0; font-size: clamp(28px, 5vw, 44px); line-height: 1; }
 .hud-card { padding: 14px 16px; border-radius: 18px; border: 1px solid var(--panel-border); background: rgba(255,255,255,0.03); }
 .hud-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .hud-card strong { font-size: 28px; letter-spacing: 0.04em; }
-.controls { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
-.difficulty { display: inline-flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--panel-border); background: rgba(255,255,255,0.04); }
-.difficulty span, .hint { color: var(--muted); }
-select, .theme-action { border: 1px solid var(--control-border); border-radius: 12px; background: var(--control-bg); color: var(--control-text); padding: 10px 12px; font: inherit; }
+.hud-meta { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.controls {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 0.9fr;
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+.control-card {
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid var(--panel-border);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)),
+    rgba(255,255,255,0.02);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.control-card-title {
+  margin-bottom: 12px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.control-grid {
+  display: grid;
+  gap: 10px;
+}
+.control-grid--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.control-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.control-field {
+  display: grid;
+  gap: 8px;
+}
+.control-field--wide {
+  grid-column: 1 / -1;
+}
+.control-field span, .hint { color: var(--muted); }
+select, .theme-action, input[type="number"], input[type="file"], input[type="range"] {
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  background: var(--control-bg);
+  color: var(--control-text);
+  padding: 10px 12px;
+  font: inherit;
+}
+.control-action { width: 100%; }
 .theme-action { cursor: pointer; }
-input[type="range"] { width: 160px; accent-color: var(--accent); }
-input[type="file"] { max-width: 180px; color: var(--control-text); }
+input[type="number"] { width: 100%; min-width: 0; }
+input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+  color: var(--control-text);
+  overflow: hidden;
+  white-space: nowrap;
+}
 input[type="file"]::file-selector-button { border: 1px solid var(--control-border); background: var(--control-bg); color: var(--control-text); border-radius: 10px; padding: 8px 10px; margin-inline-end: 10px; font: inherit; cursor: pointer; }
 .hint { font-size: 14px; }
 kbd { padding: 2px 7px; border: 1px solid var(--panel-border); border-bottom-width: 2px; border-radius: 8px; background: #10192a; color: var(--text); }
@@ -301,6 +358,33 @@ html[data-theme="light"] .board.ring-mode .cell.questioned {
 
 html[data-theme="light"] .board.ring-mode .cell.mine {
   background: linear-gradient(180deg, #d45c73 0%, #8f3043 100%);
+}
+
+html[data-theme="light"] .control-card {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.82), rgba(245,248,252,0.92)),
+    rgba(255,255,255,0.8);
+  border-color: rgba(35,56,88,0.08);
+}
+
+html[data-theme="light"] .control-card-title {
+  color: #5e7aa0;
+}
+
+html[data-theme="light"] select,
+html[data-theme="light"] .theme-action,
+html[data-theme="light"] input[type="number"],
+html[data-theme="light"] input[type="file"] {
+  background: #ffffff;
+  border-color: rgba(74, 97, 126, 0.16);
+}
+
+html[data-theme="light"] input[type="file"]::file-selector-button {
+  background: #f2f6fb;
+}
+
+html[data-theme="light"] input[type="range"] {
+  accent-color: #2f7dd8;
 }
 
 @media (max-width: 900px) {

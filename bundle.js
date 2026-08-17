@@ -21,7 +21,7 @@ const MODES = {
 const BOARD_METRICS = {
   classic: { cellSize: 34, gap: 4 },
   hex: { cellW: 42, cellH: 48, xStep: 32, yStep: 36 },
-  ring: { cellSize: 34, innerRadius: 120, radialStep: 31 },
+  ring: { cellSize: 26, innerRadius: 86, radialStep: 22, ringGap: 3 },
 };
 
 const THEMES = {
@@ -65,6 +65,7 @@ const elements = {
   bgOpacity: document.getElementById("bgOpacity"),
   clearBgButton: document.getElementById("clearBgButton"),
   mineCountEl: document.getElementById("mineCount"),
+  mineMetaEl: document.getElementById("mineMeta"),
   timerEl: document.getElementById("timer"),
   statusTextEl: document.getElementById("statusText"),
   bestTimeEl: document.getElementById("bestTime"),
@@ -85,6 +86,7 @@ let difficultyKey = elements.difficultySelect.value;
 let modeKey = elements.modeSelect.value;
 let state = null;
 let timerId = null;
+let timerStartAt = null;
 let longPressTimer = null;
 let activePointerId = null;
 
@@ -216,8 +218,21 @@ function layMines(safeRow, safeCol) {
 function floodReveal(row, col) { const q = [[row, col]]; while (q.length) { const [r, c] = q.shift(); const cell = state.board[r][c]; if (cell.revealed || cell.flagged) continue; cell.revealed = true; if (cell.count !== 0 || cell.mine) continue; for (const [nr, nc] of neighbors(r, c)) { const next = state.board[nr][nc]; if (!next.revealed && !next.flagged && !next.mine) q.push([nr, nc]); } } }
 function revealAllMines(exploded) { for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) { const cell = state.board[r][c]; if (cell.mine) cell.revealed = true; if (exploded && exploded[0] === r && exploded[1] === c) cell.exploded = true; } }
 function checkWin() { if (state.board.flat().every((cell) => cell.mine || cell.revealed)) { state.ended = true; state.win = true; stopTimer(); for (const row of state.board) for (const cell of row) if (cell.mine) cell.flagged = true; return true; } return false; }
-function startTimer(onTick) { if (timerId) return; timerId = setInterval(() => { if (state.started && !state.ended) { state.timer = Math.min(999, state.timer + 1); onTick(); } }, 1000); }
-function stopTimer() { clearInterval(timerId); timerId = null; }
+function startTimer(onTick) {
+  if (timerId) return;
+  timerStartAt = performance.now();
+  timerId = setInterval(() => {
+    if (state.started && !state.ended && timerStartAt !== null) {
+      state.timer = (performance.now() - timerStartAt) / 1000;
+      onTick();
+    }
+  }, 100);
+}
+function stopTimer() {
+  clearInterval(timerId);
+  timerId = null;
+  timerStartAt = null;
+}
 function reveal(row, col, onTick) {
   if (state.ended) return;
   if (!state.started) { state.started = true; layMines(row, col); startTimer(onTick); }
@@ -235,7 +250,15 @@ function chord(row, col, onTick) {
   if (checkWin()) return "win"; return "continue";
 }
 function cycleMark(row, col) { if (state.ended) return; const cell = state.board[row][col]; if (cell.revealed) return; if (!cell.flagged && !cell.questioned) cell.flagged = true; else if (cell.flagged) { cell.flagged = false; cell.questioned = true; } else cell.questioned = false; }
-function renderHud() { elements.mineCountEl.textContent = String(state.mines - state.board.flat().filter((c) => c.flagged).length); elements.timerEl.textContent = String(state.timer).padStart(1, "0"); }
+function renderHud() {
+  const flagged = state.board.flat().filter((c) => c.flagged).length;
+  const remaining = Math.max(0, state.mines - flagged);
+  elements.mineCountEl.textContent = String(remaining);
+  if (elements.mineMetaEl) {
+    elements.mineMetaEl.textContent = `已标记 ${flagged} / 总雷数 ${state.mines}`;
+  }
+  elements.timerEl.textContent = state.started ? state.timer.toFixed(3) : "0.000";
+}
 function renderBestTime() {
   const best = loadBestTime();
   elements.bestTimeEl.textContent = best === null ? "--" : best.toFixed(3);
@@ -246,9 +269,9 @@ function render() {
   elements.boardEl.classList.toggle("hex-mode", isHexMode());
   elements.boardEl.classList.toggle("ring-mode", isRingMode());
   if (isRingMode()) {
-    const { cellSize, innerRadius, radialStep } = BOARD_METRICS.ring;
+    const { cellSize, innerRadius, radialStep, ringGap } = BOARD_METRICS.ring;
     const outerRadius = innerRadius + (state.rows - 1) * radialStep;
-    const size = outerRadius * 2 + cellSize + 24;
+    const size = outerRadius * 2 + cellSize + ringGap * 2 + 16;
     elements.boardEl.style.gridTemplateColumns = "none";
     elements.boardEl.style.width = `${size}px`;
     elements.boardEl.style.height = `${size}px`;
@@ -277,8 +300,8 @@ function render() {
       btn.style.width = `${cellW}px`;
       btn.style.height = `${cellH}px`;
     } else if (isRingMode()) {
-      const { cellSize, innerRadius, radialStep } = BOARD_METRICS.ring;
-      const boardCenter = (innerRadius + (state.rows - 1) * radialStep) + cellSize / 2 + 12;
+      const { cellSize, innerRadius, radialStep, ringGap } = BOARD_METRICS.ring;
+      const boardCenter = (innerRadius + (state.rows - 1) * radialStep) + cellSize / 2 + ringGap + 8;
       const radius = innerRadius + r * radialStep;
       const angle = (c / state.cols) * Math.PI * 2 - Math.PI / 2;
       const x = boardCenter + Math.cos(angle) * radius - cellSize / 2;
@@ -333,6 +356,9 @@ function setDifficulty(value) { elements.difficultySelect.value = value; difficu
 function setMode(value) { elements.modeSelect.value = value; modeKey = value; }
 function bindHandlers() {
   elements.resetButton.addEventListener("click", resetGame);
+  elements.boardEl.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+  });
   elements.difficultySelect.addEventListener("change", (e) => {
     setDifficulty(e.target.value);
     renderBestTime();

@@ -29,6 +29,7 @@
           <div class="hud-card">
             <span class="hud-label">剩余雷数</span>
             <strong id="mineCount">0</strong>
+            <small id="mineMeta" class="hud-meta">已标记 0 / 总雷数 0</small>
           </div>
           <div class="hud-card">
             <span class="hud-label">计时</span>
@@ -44,58 +45,79 @@
           </div>
         </section>
 
-        <section class="controls">
-          <label class="difficulty">
-            <span>难度</span>
-            <select id="difficultySelect" aria-label="选择难度">
-              <option value="easy">简单 7×7</option>
-              <option value="normal" selected>普通 9×9</option>
-              <option value="hard">困难 16×16</option>
-              <option value="extreme">极致 30×16</option>
-              <option value="custom">自定义</option>
-            </select>
-          </label>
-          <label class="difficulty">
-            <span>玩法</span>
-            <select id="modeSelect" aria-label="选择玩法">
-              <option value="classic" selected>经典扫雷</option>
-              <option value="hex">Hex 扫雷</option>
-              <option value="ring">环形棋盘</option>
-            </select>
-          </label>
-          <label class="difficulty">
-            <span>自定义行</span>
-            <input id="customRows" type="number" min="5" max="30" step="1" value="9" aria-label="自定义行数" />
-          </label>
-          <label class="difficulty">
-            <span>自定义列</span>
-            <input id="customCols" type="number" min="5" max="40" step="1" value="9" aria-label="自定义列数" />
-          </label>
-          <label class="difficulty">
-            <span>自定义雷</span>
-            <input id="customMines" type="number" min="1" max="999" step="1" value="10" aria-label="自定义雷数" />
-          </label>
-          <button class="theme-action" id="applyCustomDifficultyButton" type="button">应用自定义</button>
-          <label class="difficulty">
-            <span>主题</span>
-            <select id="themeSelect" aria-label="切换主题">
-              <option value="dark" selected>深色</option>
-              <option value="light">浅色</option>
-              <option value="pink">粉色</option>
-              <option value="sky">天蓝色</option>
-            </select>
-          </label>
-          <label class="difficulty">
-            <span>背景</span>
-            <input id="bgUpload" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif" aria-label="上传背景图片" />
-          </label>
-          <label class="difficulty">
-            <span>透明度</span>
-            <input id="bgOpacity" type="range" min="0.05" max="1" step="0.05" value="0.45" aria-label="背景透明度" />
-          </label>
-          <button class="theme-action" id="clearBgButton" type="button">清除背景</button>
-          <div class="hint">
-            左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开
+        <section class="controls" aria-label="游戏设置">
+          <div class="control-card control-card--play">
+            <div class="control-card-title">玩法</div>
+            <div class="control-grid control-grid--two">
+              <label class="control-field">
+                <span>难度</span>
+                <select id="difficultySelect" aria-label="选择难度">
+                  <option value="easy">简单 7×7</option>
+                  <option value="normal" selected>普通 9×9</option>
+                  <option value="hard">困难 16×16</option>
+                  <option value="extreme">极致 30×16</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </label>
+              <label class="control-field">
+                <span>玩法</span>
+                <select id="modeSelect" aria-label="选择玩法">
+                  <option value="classic" selected>经典扫雷</option>
+                  <option value="hex">Hex 扫雷</option>
+                  <option value="ring">环形棋盘</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="control-card control-card--custom">
+            <div class="control-card-title">自定义</div>
+            <div class="control-grid control-grid--three">
+              <label class="control-field">
+                <span>行</span>
+                <input id="customRows" type="number" min="5" max="30" step="1" value="9" aria-label="自定义行数" />
+              </label>
+              <label class="control-field">
+                <span>列</span>
+                <input id="customCols" type="number" min="5" max="40" step="1" value="9" aria-label="自定义列数" />
+              </label>
+              <label class="control-field">
+                <span>雷</span>
+                <input id="customMines" type="number" min="1" max="999" step="1" value="10" aria-label="自定义雷数" />
+              </label>
+            </div>
+            <button class="theme-action control-action" id="applyCustomDifficultyButton" type="button">应用自定义</button>
+          </div>
+
+          <div class="control-card control-card--appearance">
+            <div class="control-card-title">外观</div>
+            <div class="control-grid control-grid--two">
+              <label class="control-field">
+                <span>主题</span>
+                <select id="themeSelect" aria-label="切换主题">
+                  <option value="dark" selected>深色</option>
+                  <option value="light">浅色</option>
+                  <option value="pink">粉色</option>
+                  <option value="sky">天蓝色</option>
+                </select>
+              </label>
+              <label class="control-field">
+                <span>背景</span>
+                <input id="bgUpload" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif" aria-label="上传背景图片" />
+              </label>
+              <label class="control-field control-field--wide">
+                <span>透明度</span>
+                <input id="bgOpacity" type="range" min="0.05" max="1" step="0.05" value="0.45" aria-label="背景透明度" />
+              </label>
+              <button class="theme-action control-action" id="clearBgButton" type="button">清除背景</button>
+            </div>
+          </div>
+
+          <div class="control-card control-card--tips">
+            <div class="control-card-title">提示</div>
+            <div class="hint">
+              左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开
+            </div>
           </div>
         </section>
 
