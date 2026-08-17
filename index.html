@@ -38,6 +38,10 @@
             <span class="hud-label">状态</span>
             <strong id="statusText">待开始</strong>
           </div>
+          <div class="hud-card">
+            <span class="hud-label">最佳成绩</span>
+            <strong id="bestTime">--</strong>
+          </div>
         </section>
 
         <section class="controls">
@@ -49,6 +53,13 @@
               <option value="hard">困难 16×16</option>
               <option value="extreme">极致 30×16</option>
               <option value="custom">自定义</option>
+            </select>
+          </label>
+          <label class="difficulty">
+            <span>玩法</span>
+            <select id="modeSelect" aria-label="选择玩法">
+              <option value="classic" selected>经典扫雷</option>
+              <option value="hex">Hex 扫雷</option>
             </select>
           </label>
           <label class="difficulty">

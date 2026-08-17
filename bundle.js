@@ -5,6 +5,23 @@ const DIFFICULTIES = {
   extreme: { name: "极致", rows: 16, cols: 30, mines: 99 },
 };
 
+const HEX_DIFFICULTIES = {
+  easy: { name: "简单", rows: 8, cols: 8, mines: 10 },
+  normal: { name: "普通", rows: 11, cols: 11, mines: 18 },
+  hard: { name: "困难", rows: 14, cols: 14, mines: 35 },
+  extreme: { name: "极致", rows: 18, cols: 18, mines: 70 },
+};
+
+const MODES = {
+  classic: { label: "经典扫雷" },
+  hex: { label: "Hex 扫雷" },
+};
+
+const BOARD_METRICS = {
+  classic: { cellSize: 34, gap: 4 },
+  hex: { cellW: 42, cellH: 48, xStep: 32, yStep: 36 },
+};
+
 const THEMES = {
   dark: {
     page: ["#101b2d", "#09111d"], panel: "rgba(14, 21, 36, 0.82)", panelBorder: "rgba(255,255,255,0.08)",
@@ -36,6 +53,7 @@ const elements = {
   boardEl: document.getElementById("board"),
   resetButton: document.getElementById("resetButton"),
   difficultySelect: document.getElementById("difficultySelect"),
+  modeSelect: document.getElementById("modeSelect"),
   customRows: document.getElementById("customRows"),
   customCols: document.getElementById("customCols"),
   customMines: document.getElementById("customMines"),
@@ -47,6 +65,7 @@ const elements = {
   mineCountEl: document.getElementById("mineCount"),
   timerEl: document.getElementById("timer"),
   statusTextEl: document.getElementById("statusText"),
+  bestTimeEl: document.getElementById("bestTime"),
   pageBackdropEl: document.getElementById("pageBackdrop"),
 };
 
@@ -54,12 +73,14 @@ const storage = {
   themeKey: localStorage.getItem("minesweeper-theme") || elements.themeSelect.value,
   backgroundUrl: localStorage.getItem("minesweeper-background") || "",
   backgroundOpacity: localStorage.getItem("minesweeper-background-opacity") || "0.45",
+  modeKey: localStorage.getItem("minesweeper-mode") || elements.modeSelect.value,
   customRows: Number(localStorage.getItem("minesweeper-custom-rows") || 9),
   customCols: Number(localStorage.getItem("minesweeper-custom-cols") || 9),
   customMines: Number(localStorage.getItem("minesweeper-custom-mines") || 10),
 };
 
 let difficultyKey = elements.difficultySelect.value;
+let modeKey = elements.modeSelect.value;
 let state = null;
 let timerId = null;
 let longPressTimer = null;
@@ -68,6 +89,19 @@ let activePointerId = null;
 function saveThemeKey(themeKey) { localStorage.setItem("minesweeper-theme", themeKey); }
 function saveBackgroundUrl(backgroundUrl) { try { if (backgroundUrl) localStorage.setItem("minesweeper-background", backgroundUrl); else localStorage.removeItem("minesweeper-background"); } catch {} }
 function saveBackgroundOpacity(backgroundOpacity) { localStorage.setItem("minesweeper-background-opacity", backgroundOpacity); }
+function saveModeKey(value) { localStorage.setItem("minesweeper-mode", value); }
+function getDifficultyRecordKey() {
+  const prefix = modeKey === "hex" ? "hex" : "classic";
+  if (difficultyKey === "custom") return `minesweeper-best-${prefix}-custom-${storage.customRows}x${storage.customCols}-${storage.customMines}`;
+  return `minesweeper-best-${prefix}-${difficultyKey}`;
+}
+function loadBestTime() {
+  const value = Number(localStorage.getItem(getDifficultyRecordKey()));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+function saveBestTime(seconds) {
+  localStorage.setItem(getDifficultyRecordKey(), seconds.toFixed(3));
+}
 
 function loadImageSource(file) {
   return new Promise((resolve, reject) => {
@@ -94,6 +128,7 @@ function makeState() {
   const { rows, cols, mines } = getDifficultySpec();
   return { rows, cols, mines, started: false, ended: false, win: false, timer: 0, board: Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ mine: false, revealed: false, flagged: false, questioned: false, count: 0 }))) };
 }
+function isHexMode() { return modeKey === "hex"; }
 function getDifficultySpec() {
   if (difficultyKey === "custom") {
     const rows = clampInt(Number(elements.customRows.value), 5, 30, storage.customRows);
@@ -102,7 +137,13 @@ function getDifficultySpec() {
     const mines = clampInt(Number(elements.customMines.value), 1, maxMines, Math.min(storage.customMines, maxMines));
     return { rows, cols, mines };
   }
+  if (isHexMode()) {
+    return HEX_DIFFICULTIES[difficultyKey] || HEX_DIFFICULTIES.normal;
+  }
   return DIFFICULTIES[difficultyKey];
+}
+function getModeMetrics() {
+  return isHexMode() ? BOARD_METRICS.hex : BOARD_METRICS.classic;
 }
 function clampInt(value, min, max, fallback) {
   const n = Number.isFinite(value) ? Math.floor(value) : fallback;
@@ -110,7 +151,43 @@ function clampInt(value, min, max, fallback) {
   return Math.min(max, Math.max(min, n));
 }
 function inBounds(r, c) { return r >= 0 && r < state.rows && c >= 0 && c < state.cols; }
-function neighbors(r, c) { const out = []; for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (dr || dc) { const nr = r + dr, nc = c + dc; if (inBounds(nr, nc)) out.push([nr, nc]); } return out; }
+function qoffsetToCube(col, row) {
+  const q = col;
+  const r = row - Math.floor((col - (col & 1)) / 2);
+  const s = -q - r;
+  return { q, r, s };
+}
+function cubeToQoffset(q, r, s) {
+  const col = q;
+  const row = r + Math.floor((q - (q & 1)) / 2);
+  return [row, col];
+}
+function hexDirections() {
+  return [
+    { q: 1, r: -1, s: 0 },
+    { q: 1, r: 0, s: -1 },
+    { q: 0, r: 1, s: -1 },
+    { q: -1, r: 1, s: 0 },
+    { q: -1, r: 0, s: 1 },
+    { q: 0, r: -1, s: 1 },
+  ];
+}
+function neighbors(r, c) {
+  const out = [];
+  if (!isHexMode()) {
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (dr || dc) { const nr = r + dr, nc = c + dc; if (inBounds(nr, nc)) out.push([nr, nc]); }
+    return out;
+  }
+  const cube = qoffsetToCube(c, r);
+  for (const dir of hexDirections()) {
+    const nq = cube.q + dir.q;
+    const nr = cube.r + dir.r;
+    const ns = cube.s + dir.s;
+    const [row, col] = cubeToQoffset(nq, nr, ns);
+    if (inBounds(row, col)) out.push([row, col]);
+  }
+  return out;
+}
 function layMines(safeRow, safeCol) {
   const forbidden = new Set([`${safeRow},${safeCol}`]); for (const [r, c] of neighbors(safeRow, safeCol)) forbidden.add(`${r},${c}`);
   const spots = []; for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) if (!forbidden.has(`${r},${c}`)) spots.push([r, c]);
@@ -141,13 +218,36 @@ function chord(row, col, onTick) {
 }
 function cycleMark(row, col) { if (state.ended) return; const cell = state.board[row][col]; if (cell.revealed) return; if (!cell.flagged && !cell.questioned) cell.flagged = true; else if (cell.flagged) { cell.flagged = false; cell.questioned = true; } else cell.questioned = false; }
 function renderHud() { elements.mineCountEl.textContent = String(state.mines - state.board.flat().filter((c) => c.flagged).length); elements.timerEl.textContent = String(state.timer).padStart(1, "0"); }
+function renderBestTime() {
+  const best = loadBestTime();
+  elements.bestTimeEl.textContent = best === null ? "--" : best.toFixed(3);
+}
 function cellText(cell) { if (!cell.revealed) return cell.flagged ? "🚩" : cell.questioned ? "❓" : ""; if (cell.mine) return "💣"; return cell.count ? String(cell.count) : ""; }
 function render() {
   elements.boardEl.innerHTML = "";
-  elements.boardEl.style.gridTemplateColumns = `repeat(${state.cols}, 34px)`;
+  elements.boardEl.classList.toggle("hex-mode", isHexMode());
+  if (!isHexMode()) {
+    elements.boardEl.style.gridTemplateColumns = `repeat(${state.cols}, ${BOARD_METRICS.classic.cellSize}px)`;
+    elements.boardEl.style.width = "";
+    elements.boardEl.style.height = "";
+  } else {
+    const { cellW, cellH, xStep, yStep } = getModeMetrics();
+    elements.boardEl.style.gridTemplateColumns = "none";
+    elements.boardEl.style.width = `${(state.cols - 1) * xStep + cellW}px`;
+    elements.boardEl.style.height = `${(state.rows - 1) * yStep + cellH + yStep / 2}px`;
+  }
   for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) {
     const cell = state.board[r][c]; const btn = document.createElement("button"); btn.type = "button"; btn.className = "cell"; btn.textContent = cellText(cell);
     if (cell.revealed) btn.classList.add("revealed"); if (cell.flagged) btn.classList.add("flagged"); if (cell.questioned) btn.classList.add("questioned"); if (cell.mine && cell.revealed) btn.classList.add("mine"); if (cell.exploded) btn.classList.add("exploded"); if (cell.revealed && cell.count > 0) btn.classList.add(`num-${cell.count}`);
+    if (isHexMode()) {
+      const { cellW, cellH, xStep, yStep } = getModeMetrics();
+      btn.classList.add("hex-cell");
+      btn.style.position = "absolute";
+      btn.style.left = `${c * xStep}px`;
+      btn.style.top = `${r * yStep + (c % 2 ? yStep / 2 : 0)}px`;
+      btn.style.width = `${cellW}px`;
+      btn.style.height = `${cellH}px`;
+    }
     btn.addEventListener("click", () => {
       const result = cell.revealed ? chord(r, c, renderHud) : reveal(r, c, renderHud);
       syncGame(result);
@@ -187,10 +287,23 @@ function applyTheme(themeKey) {
 function applyBackground(url) { elements.pageBackdropEl.style.backgroundImage = url ? `url("${url}")` : "none"; elements.pageBackdropEl.style.backgroundSize = "cover"; elements.pageBackdropEl.style.backgroundPosition = "center"; elements.pageBackdropEl.style.backgroundRepeat = "no-repeat"; }
 function applyBackgroundOpacity(value) { document.documentElement.style.setProperty("--bg-opacity", value); }
 function setDifficulty(value) { elements.difficultySelect.value = value; difficultyKey = value; }
+function setMode(value) { elements.modeSelect.value = value; modeKey = value; }
 function bindHandlers() {
   elements.resetButton.addEventListener("click", resetGame);
   elements.difficultySelect.addEventListener("change", (e) => {
     setDifficulty(e.target.value);
+    renderBestTime();
+    resetGame();
+  });
+  elements.modeSelect.addEventListener("change", (e) => {
+    setMode(e.target.value);
+    storage.modeKey = modeKey;
+    saveModeKey(modeKey);
+    if (modeKey === "hex" && difficultyKey === "custom") {
+      difficultyKey = "normal";
+      elements.difficultySelect.value = "normal";
+    }
+    renderBestTime();
     resetGame();
   });
   elements.applyCustomDifficultyButton.addEventListener("click", () => {
@@ -208,6 +321,7 @@ function bindHandlers() {
     localStorage.setItem("minesweeper-custom-cols", String(cols));
     localStorage.setItem("minesweeper-custom-mines", String(mines));
     setDifficulty("custom");
+    renderBestTime();
     resetGame();
   });
   elements.themeSelect.addEventListener("change", (e) => { storage.themeKey = e.target.value; saveThemeKey(e.target.value); applyTheme(e.target.value); });
@@ -217,7 +331,25 @@ function bindHandlers() {
   window.addEventListener("keydown", (e) => { if (e.key.toLowerCase() === "r") resetGame(); });
 }
 function resetTransientInputState() { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } activePointerId = null; }
-function syncGame(status) { if (status === "win") { setResetEmoji("😎"); setStatus("胜利"); } else if (status === "lose") { setResetEmoji("😵"); setStatus("失败"); } else if (!state.started) { setResetEmoji("😊"); setStatus("待开始"); } else { setResetEmoji("😊"); setStatus("进行中"); } render(); }
+function syncGame(status) {
+  if (status === "win") {
+    const currentBest = loadBestTime();
+    if (currentBest === null || state.timer < currentBest) saveBestTime(state.timer);
+    renderBestTime();
+    setResetEmoji("😎");
+    setStatus("胜利");
+  } else if (status === "lose") {
+    setResetEmoji("😵");
+    setStatus("失败");
+  } else if (!state.started) {
+    setResetEmoji("😊");
+    setStatus("待开始");
+  } else {
+    setResetEmoji("😊");
+    setStatus("进行中");
+  }
+  render();
+}
 function resetGame() { stopTimer(); resetTransientInputState(); state = makeState(); setResetEmoji("😊"); setStatus("待开始"); render(); }
 
 function init() {
@@ -231,8 +363,11 @@ function init() {
   elements.bgOpacity.value = storage.backgroundOpacity;
   elements.themeSelect.value = storage.themeKey;
   elements.difficultySelect.value = difficultyKey;
+  elements.modeSelect.value = storage.modeKey;
+  setMode(storage.modeKey);
   bindHandlers();
   resetGame();
+  renderBestTime();
 }
 
 init();
