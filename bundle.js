@@ -13,10 +13,10 @@ const HEX_DIFFICULTIES = {
 };
 
 const RING_DIFFICULTIES = {
-  easy: { name: "简单", rows: 5, cols: 18, mines: 12 },
-  normal: { name: "普通", rows: 6, cols: 24, mines: 22 },
-  hard: { name: "困难", rows: 7, cols: 28, mines: 32 },
-  extreme: { name: "极致", rows: 8, cols: 32, mines: 48 },
+  easy: { name: "简单", rows: 6, cols: 24, mines: 14 },
+  normal: { name: "普通", rows: 7, cols: 30, mines: 24 },
+  hard: { name: "困难", rows: 8, cols: 36, mines: 38 },
+  extreme: { name: "极致", rows: 9, cols: 42, mines: 56 },
 };
 
 const MODES = {
@@ -28,7 +28,7 @@ const MODES = {
 const BOARD_METRICS = {
   classic: { cellSize: 34, gap: 4 },
   hex: { cellW: 42, cellH: 48, xStep: 32, yStep: 36 },
-  ring: { cellSize: 28, innerRadius: 72, radialStep: 20, ringGap: 2 },
+  ring: { innerRadius: 72, radialStep: 26, ringGap: 3 },
 };
 
 const THEMES = {
@@ -157,6 +157,30 @@ function getDifficultySpec() {
   }
   return DIFFICULTIES[difficultyKey];
 }
+function getDifficultyCatalog() {
+  if (isHexMode()) return HEX_DIFFICULTIES;
+  if (isRingMode()) return RING_DIFFICULTIES;
+  return DIFFICULTIES;
+}
+function formatDifficultyLabel(spec) {
+  if (isRingMode()) return `${spec.name} ${spec.rows}圈 × ${spec.cols}格 · ${spec.mines}雷`;
+  return `${spec.name} ${spec.rows}×${spec.cols} · ${spec.mines}雷`;
+}
+function refreshDifficultyOptions() {
+  const catalog = getDifficultyCatalog();
+  elements.difficultySelect.replaceChildren();
+  for (const key of ["easy", "normal", "hard", "extreme"]) {
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = formatDifficultyLabel(catalog[key]);
+    elements.difficultySelect.appendChild(option);
+  }
+  const customOption = document.createElement("option");
+  customOption.value = "custom";
+  customOption.textContent = "自定义";
+  elements.difficultySelect.appendChild(customOption);
+  elements.difficultySelect.value = difficultyKey;
+}
 function getModeMetrics() {
   return isHexMode() ? BOARD_METRICS.hex : BOARD_METRICS.classic;
 }
@@ -186,6 +210,25 @@ function hexDirections() {
     { q: -1, r: 0, s: 1 },
     { q: 0, r: -1, s: 1 },
   ];
+}
+function sectorClipPath(outerRatio, innerRatio, angleStart, angleEnd, steps = 4) {
+  const points = [];
+  const cx = 50;
+  const cy = 50;
+  const scale = 50;
+  const addArc = (radius, from, to) => {
+    const span = to - from;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const a = from + span * t;
+      points.push([cx + Math.cos(a) * scale * radius, cy + Math.sin(a) * scale * radius]);
+    }
+  };
+  addArc(outerRatio, angleStart, angleEnd);
+  // The inner arc must travel back from the end angle to the start angle.
+  // Reversing the interpolation here made the polygon self-intersect.
+  addArc(innerRatio, angleEnd, angleStart);
+  return `polygon(${points.map(([x, y]) => `${x.toFixed(2)}% ${y.toFixed(2)}%`).join(", ")})`;
 }
 function neighbors(r, c) {
   const out = [];
@@ -276,9 +319,9 @@ function render() {
   elements.boardEl.classList.toggle("hex-mode", isHexMode());
   elements.boardEl.classList.toggle("ring-mode", isRingMode());
   if (isRingMode()) {
-    const { cellSize, innerRadius, radialStep, ringGap } = BOARD_METRICS.ring;
+    const { innerRadius, radialStep, ringGap } = BOARD_METRICS.ring;
     const outerRadius = innerRadius + (state.rows - 1) * radialStep;
-    const size = outerRadius * 2 + cellSize + ringGap * 2 + 12;
+    const size = outerRadius * 2 + radialStep * 2 + ringGap * 2 + 18;
     elements.boardEl.style.gridTemplateColumns = "none";
     elements.boardEl.style.width = `${size}px`;
     elements.boardEl.style.height = `${size}px`;
@@ -296,7 +339,8 @@ function render() {
     elements.boardEl.style.position = "";
   }
   for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) {
-    const cell = state.board[r][c]; const btn = document.createElement("button"); btn.type = "button"; btn.className = "cell"; btn.textContent = cellText(cell);
+    const cell = state.board[r][c]; const btn = document.createElement("button"); btn.type = "button"; btn.className = "cell";
+    const label = document.createElement("span"); label.className = "cell-label"; label.textContent = cellText(cell); btn.append(label);
     if (cell.revealed) btn.classList.add("revealed"); if (cell.flagged) btn.classList.add("flagged"); if (cell.questioned) btn.classList.add("questioned"); if (cell.mine && cell.revealed) btn.classList.add("mine"); if (cell.exploded) btn.classList.add("exploded"); if (cell.revealed && cell.count > 0) btn.classList.add(`num-${cell.count}`);
     if (isHexMode()) {
       const { cellW, cellH, xStep, yStep } = getModeMetrics();
@@ -307,19 +351,31 @@ function render() {
       btn.style.width = `${cellW}px`;
       btn.style.height = `${cellH}px`;
     } else if (isRingMode()) {
-      const { cellSize, innerRadius, radialStep, ringGap } = BOARD_METRICS.ring;
-      const boardCenter = (innerRadius + (state.rows - 1) * radialStep) + cellSize / 2 + ringGap + 6;
-      const radius = innerRadius + r * radialStep;
-      const angle = ((c + 0.5) / state.cols) * Math.PI * 2 - Math.PI / 2;
-      const x = boardCenter + Math.cos(angle) * radius - cellSize / 2;
-      const y = boardCenter + Math.sin(angle) * radius - cellSize / 2;
+      const { innerRadius, radialStep, ringGap } = BOARD_METRICS.ring;
+      const boardRadius = innerRadius + state.rows * radialStep + ringGap;
+      const boardCenter = boardRadius + 9;
+      const bandStart = innerRadius + r * radialStep;
+      const bandEnd = bandStart + radialStep;
+      const radialPad = Math.min(4, radialStep * 0.14);
+      const angleStep = (Math.PI * 2) / state.cols;
+      const anglePad = angleStep * 0.14;
+      const angleStart = ((c / state.cols) * Math.PI * 2) - Math.PI / 2 + anglePad;
+      const angleEnd = (((c + 1) / state.cols) * Math.PI * 2) - Math.PI / 2 - anglePad;
+      const angleMiddle = (angleStart + angleEnd) / 2;
+      const labelRadius = (bandStart + bandEnd) / 2;
+      const x = boardCenter - bandEnd;
+      const y = boardCenter - bandEnd;
+      const boxSize = bandEnd * 2;
       btn.classList.add("ring-cell");
       btn.style.position = "absolute";
       btn.style.left = `${x}px`;
       btn.style.top = `${y}px`;
-      btn.style.width = `${cellSize}px`;
-      btn.style.height = `${cellSize}px`;
-      btn.style.borderRadius = "50%";
+      btn.style.width = `${boxSize}px`;
+      btn.style.height = `${boxSize}px`;
+      btn.style.borderRadius = "0";
+      btn.style.clipPath = sectorClipPath((bandEnd - radialPad) / bandEnd, Math.max(0.12, (bandStart + radialPad) / bandEnd), angleStart, angleEnd);
+      label.style.left = `${boxSize / 2 + Math.cos(angleMiddle) * labelRadius}px`;
+      label.style.top = `${boxSize / 2 + Math.sin(angleMiddle) * labelRadius}px`;
     }
     btn.addEventListener("click", () => {
       const result = cell.revealed ? chord(r, c, renderHud) : reveal(r, c, renderHud);
@@ -375,13 +431,14 @@ function bindHandlers() {
     setMode(e.target.value);
     storage.modeKey = modeKey;
     saveModeKey(modeKey);
-  if (modeKey === "hex" && difficultyKey === "custom") {
+    refreshDifficultyOptions();
+    if (modeKey === "hex" && difficultyKey === "custom") {
       difficultyKey = "normal";
-      elements.difficultySelect.value = "normal";
+      refreshDifficultyOptions();
     }
     if (modeKey === "ring" && difficultyKey === "custom") {
       difficultyKey = "normal";
-      elements.difficultySelect.value = "normal";
+      refreshDifficultyOptions();
     }
     renderBestTime();
     resetGame();
@@ -445,6 +502,7 @@ function init() {
   elements.difficultySelect.value = difficultyKey;
   elements.modeSelect.value = storage.modeKey;
   setMode(storage.modeKey);
+  refreshDifficultyOptions();
   bindHandlers();
   resetGame();
   renderBestTime();
