@@ -9,17 +9,6 @@ const SUDOKU_DIFFICULTIES = {
   easy: { name: "基础", rows: 5, cols: 5, mines: 5 },
 };
 
-const SUDOKU_TEMPLATE = {
-  regions: [
-    [1, 1, 0, 0, 0],
-    [2, 1, 1, 1, 0],
-    [2, 2, 2, 3, 0],
-    [4, 2, 3, 3, 3],
-    [4, 4, 4, 4, 3],
-  ],
-  mines: null,
-};
-
 function shuffle(list) {
   for (let i = list.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -62,10 +51,7 @@ function generateSudokuMines(size) {
       return { mines: chosen, regions };
     }
   }
-  return {
-    mines: [[0, 4], [1, 2], [2, 0], [3, 3], [4, 1]],
-    regions: SUDOKU_TEMPLATE.regions.map((row) => [...row]),
-  };
+  throw new Error("无法生成数独雷局面");
 }
 
 function rotateGrid(grid) {
@@ -90,11 +76,56 @@ function transformPoint([r, c], size, rotation, flipped) {
 }
 
 function generateSudokuRegions(size) {
-  let regions = SUDOKU_TEMPLATE.regions.map((row) => [...row]);
-  const rotation = Math.floor(Math.random() * 4);
-  const flipped = Math.random() < 0.5;
-  for (let i = 0; i < rotation; i++) regions = rotateGrid(regions);
-  if (flipped) regions = flipGrid(regions);
+  if (size !== 5) {
+    return Array.from({ length: size }, (_, r) => Array.from({ length: size }, (_, c) => c));
+  }
+
+  const basePatterns = [
+    [
+      [0, 0, 1, 1, 2],
+      [0, 0, 1, 2, 2],
+      [3, 3, 1, 2, 4],
+      [3, 4, 4, 2, 4],
+      [3, 3, 4, 4, 1],
+    ],
+    [
+      [0, 0, 1, 1, 2],
+      [0, 3, 3, 1, 2],
+      [4, 3, 3, 1, 2],
+      [4, 4, 3, 2, 2],
+      [4, 4, 4, 2, 2],
+    ],
+    [
+      [0, 1, 1, 2, 2],
+      [0, 0, 1, 2, 3],
+      [4, 0, 1, 3, 3],
+      [4, 4, 1, 3, 2],
+      [4, 4, 4, 2, 2],
+    ],
+  ];
+
+  function randomPermutation(values) {
+    return shuffle([...values]);
+  }
+
+  const pattern = basePatterns[Math.floor(Math.random() * basePatterns.length)];
+  const rowPerm = randomPermutation([0, 1, 2, 3, 4]);
+  const colPerm = randomPermutation([0, 1, 2, 3, 4]);
+  const transpose = Math.random() < 0.5;
+  const regions = Array.from({ length: 5 }, () => Array(5).fill(0));
+  const labelMap = new Map();
+  let nextLabel = 0;
+
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const sourceR = transpose ? colPerm[c] : rowPerm[r];
+      const sourceC = transpose ? rowPerm[r] : colPerm[c];
+      const key = pattern[sourceR][sourceC];
+      if (!labelMap.has(key)) labelMap.set(key, nextLabel++);
+      regions[r][c] = labelMap.get(key);
+    }
+  }
+
   return regions;
 }
 
@@ -465,7 +496,29 @@ function layMines(safeRow, safeCol) {
 }
 function floodReveal(row, col) { const q = [[row, col]]; while (q.length) { const [r, c] = q.shift(); const cell = state.board[r][c]; if (cell.revealed || cell.flagged) continue; cell.revealed = true; if (cell.count !== 0 || cell.mine) continue; for (const [nr, nc] of neighbors(r, c)) { const next = state.board[nr][nc]; if (!next.revealed && !next.flagged && !next.mine) q.push([nr, nc]); } } }
 function revealAllMines(exploded) { for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) { const cell = state.board[r][c]; if (cell.mine) cell.revealed = true; if (exploded && exploded[0] === r && exploded[1] === c) cell.exploded = true; } }
-function checkWin() { if (state.board.flat().every((cell) => cell.mine || cell.revealed)) { state.ended = true; state.win = true; stopTimer(); for (const row of state.board) for (const cell of row) if (cell.mine) cell.flagged = true; return true; } return false; }
+function markSudokuFailure() {
+  state.ended = true;
+  state.win = false;
+  stopTimer();
+  for (const row of state.board) {
+    for (const cell of row) {
+      if (cell.mine) cell.revealed = true;
+      if (cell.flagged && !cell.mine) cell.exploded = true;
+    }
+  }
+}
+function checkWin() {
+  if (modeKey === "sudoku") {
+    if (state.board.flat().every((cell) => !cell.mine || cell.flagged)) {
+      state.ended = true;
+      state.win = true;
+      stopTimer();
+      return true;
+    }
+    return false;
+  }
+  if (state.board.flat().every((cell) => cell.mine || cell.revealed)) { state.ended = true; state.win = true; stopTimer(); for (const row of state.board) for (const cell of row) if (cell.mine) cell.flagged = true; return true; } return false;
+}
 function startTimer(onTick) {
   if (timerId) return;
   timerStartAt = performance.now();
@@ -485,20 +538,11 @@ function reveal(row, col, onTick) {
   if (state.ended) return;
   if (modeKey === "sudoku") {
     const cell = state.board[row][col];
-    if (cell.givenMine) {
-      state.ended = true;
-      stopTimer();
-      revealAllMines([row, col]);
-      return "lose";
+    if (!state.started) {
+      state.started = true;
+      startTimer(onTick);
     }
-    if (cell.mine) {
-      cell.revealed = true;
-      state.ended = true;
-      stopTimer();
-      revealAllMines([row, col]);
-      return "lose";
-    }
-    cell.revealed = true;
+    if (!cell.givenMine) cell.crossed = !cell.crossed;
     if (checkWin()) return "win";
     return "continue";
   }
@@ -522,8 +566,23 @@ function chord(row, col, onTick) {
 function cycleMark(row, col) {
   if (state.ended) return;
   const cell = state.board[row][col];
-  if (modeKey === "sudoku" && cell.givenMine) return;
-  if (!modeKey === "sudoku" && cell.revealed) return;
+  if (modeKey === "sudoku") {
+    if (cell.givenMine) return;
+    if (cell.flagged) {
+      cell.flagged = false;
+      cell.crossed = false;
+    } else {
+      if (!cell.mine) {
+        cell.flagged = true;
+        markSudokuFailure();
+        return;
+      }
+      cell.flagged = true;
+      cell.crossed = false;
+    }
+    return;
+  }
+  if (cell.revealed) return;
   if (!cell.flagged && !cell.questioned) cell.flagged = true;
   else if (cell.flagged) { cell.flagged = false; cell.questioned = true; }
   else cell.questioned = false;
@@ -537,7 +596,7 @@ function renderHud() {
 }
 function renderHint() {
   elements.gameHintEl.innerHTML = modeKey === "sudoku"
-    ? "数独扫雷：已知雷已标出，颜色代表区域。目标是按行、列、同色块和不相邻规则找出全部雷。"
+    ? "数独扫雷：左键打叉，右键标雷。目标是按行、列、同色块和不相邻规则找出全部雷。"
     : isOffsetMode()
     ? "左键揭开，右键/长按标记，点数字可快速展开。数字表示的是该格子上面一格为中心的九宫格中的雷的数量，按 <kbd>R</kbd> 重开"
     : "左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开";
@@ -546,7 +605,17 @@ function renderBestTime() {
   const best = loadBestTime();
   elements.bestTimeEl.textContent = best === null ? "--" : best.toFixed(3);
 }
-function cellText(cell) { if (cell.givenMine) return "💣"; if (!cell.revealed) return cell.flagged ? "🚩" : cell.questioned ? "❓" : ""; if (cell.mine) return "💣"; return cell.count ? String(cell.count) : ""; }
+function cellText(cell) {
+  if (cell.givenMine) return "💣";
+  if (modeKey === "sudoku") {
+    if (cell.flagged) return "🚩";
+    if (cell.crossed) return "✕";
+    return "";
+  }
+  if (!cell.revealed) return cell.flagged ? "🚩" : cell.questioned ? "❓" : "";
+  if (cell.mine) return "💣";
+  return cell.count ? String(cell.count) : "";
+}
 function render() {
   elements.boardEl.innerHTML = "";
   elements.boardEl.classList.toggle("hex-mode", isHexMode());
@@ -574,7 +643,7 @@ function render() {
   for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) {
     const cell = state.board[r][c]; const btn = document.createElement("button"); btn.type = "button"; btn.className = "cell";
     const label = document.createElement("span"); label.className = "cell-label"; label.textContent = cellText(cell); btn.append(label);
-    if (modeKey === "sudoku") { btn.classList.add("sudoku"); btn.classList.add(`region-${cell.region}`); if (cell.givenMine) btn.classList.add("given-mine"); }
+    if (modeKey === "sudoku") { btn.classList.add("sudoku"); btn.classList.add(`region-${cell.region}`); if (cell.givenMine) btn.classList.add("given-mine"); if (cell.crossed) btn.classList.add("crossed"); }
     if (cell.revealed) btn.classList.add("revealed"); if (cell.flagged) btn.classList.add("flagged"); if (cell.questioned) btn.classList.add("questioned"); if (cell.mine && cell.revealed) btn.classList.add("mine"); if (cell.exploded) btn.classList.add("exploded"); if (cell.revealed && cell.count > 0) btn.classList.add(`num-${cell.count}`);
     if (modeKey === "sudoku") {
       btn.style.position = "";
@@ -623,8 +692,12 @@ function render() {
       const result = modeKey === "sudoku" ? reveal(r, c, renderHud) : (cell.revealed ? chord(r, c, renderHud) : reveal(r, c, renderHud));
       syncGame(result);
     });
-    btn.addEventListener("contextmenu", (e) => { e.preventDefault(); cycleMark(r, c); syncGame("continue"); });
-    btn.addEventListener("pointerdown", (e) => { if (state.ended || e.pointerType === "mouse") return; activePointerId = e.pointerId; longPressTimer = setTimeout(() => { cycleMark(r, c); longPressTimer = null; syncGame("continue"); }, 450); });
+    btn.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      cycleMark(r, c);
+      syncGame(state.ended ? "lose" : "continue");
+    });
+    btn.addEventListener("pointerdown", (e) => { if (state.ended || e.pointerType === "mouse") return; activePointerId = e.pointerId; longPressTimer = setTimeout(() => { cycleMark(r, c); longPressTimer = null; syncGame(state.ended ? "lose" : "continue"); }, 450); });
     btn.addEventListener("pointerup", (e) => { if (activePointerId !== e.pointerId) return; activePointerId = null; if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } });
     btn.addEventListener("pointerleave", () => { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } });
     btn.addEventListener("pointercancel", () => { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } });
