@@ -6,7 +6,7 @@ const DIFFICULTIES = {
 };
 
 const SUDOKU_DIFFICULTIES = {
-  easy: { name: "基础", rows: 5, cols: 5, mines: 5 },
+  easy: { name: "基础", rows: 7, cols: 7, mines: 7 },
 };
 
 function shuffle(list) {
@@ -18,40 +18,61 @@ function shuffle(list) {
 }
 
 function generateSudokuMines(size) {
-  function isAdjacent([r1, c1], [r2, c2]) {
-    return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
-  }
-
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const regions = generateSudokuRegions(size);
-    const rows = [...Array(size).keys()];
+  const adjacent = ([r1, c1], [r2, c2]) => Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
+  const makeMineLayout = () => {
+    const result = [];
     const usedCols = new Set();
-    const chosen = [];
-
-    function backtrack(index, chosenRegions) {
-      if (index === rows.length) return true;
-      const r = rows[index];
-      const candidates = shuffle([...Array(size).keys()].map((c) => [r, c])).filter(([row, col]) => !usedCols.has(col));
-      for (const [row, col] of candidates) {
-        const region = regions[row][col];
-        if (chosenRegions.has(region)) continue;
-        if (chosen.some((p) => isAdjacent(p, [row, col]))) continue;
+    const search = (row) => {
+      if (row === size) return true;
+      const columns = shuffle([...Array(size).keys()]);
+      for (const col of columns) {
+        if (usedCols.has(col) || result.some((mine) => adjacent(mine, [row, col]))) continue;
         usedCols.add(col);
-        chosenRegions.add(region);
-        chosen.push([row, col]);
-        if (backtrack(index + 1, chosenRegions)) return true;
-        chosen.pop();
-        chosenRegions.delete(region);
+        result.push([row, col]);
+        if (search(row + 1)) return true;
+        result.pop();
         usedCols.delete(col);
       }
       return false;
-    }
+    };
+    return search(0) ? result : null;
+  };
+  const countSolutions = (regions, givenMine) => {
+    const usedCols = new Set();
+    const usedRegions = new Set();
+    const chosen = [];
+    let count = 0;
+    const search = (row) => {
+      if (count > 1) return;
+      if (row === size) { count++; return; }
+      const candidates = shuffle([...Array(size).keys()]);
+      for (const col of candidates) {
+        const point = [row, col];
+        if (usedCols.has(col) || usedRegions.has(regions[row][col]) || chosen.some((mine) => adjacent(mine, point))) continue;
+        if (givenMine && row === givenMine[0] && col !== givenMine[1]) continue;
+        usedCols.add(col);
+        usedRegions.add(regions[row][col]);
+        chosen.push(point);
+        search(row + 1);
+        chosen.pop();
+        usedRegions.delete(regions[row][col]);
+        usedCols.delete(col);
+        if (count > 1) return;
+      }
+    };
+    search(0);
+    return count;
+  };
 
-    if (backtrack(0, new Set())) {
-      return { mines: chosen, regions };
-    }
+  let lastCandidate = null;
+  for (let attempt = 0; attempt < 12000; attempt++) {
+    const mines = makeMineLayout();
+    if (!mines) continue;
+    const regions = generateSudokuRegions(size, mines);
+    lastCandidate = { mines, regions };
+    if (countSolutions(regions, mines[0]) === 1) return { mines, regions };
   }
-  throw new Error("无法生成数独雷局面");
+  return lastCandidate || { mines: Array.from({ length: size }, (_, r) => [r, (r * 2) % size]), regions: generateSudokuRegions(size, Array.from({ length: size }, (_, r) => [r, (r * 2) % size])) };
 }
 
 function rotateGrid(grid) {
@@ -75,58 +96,34 @@ function transformPoint([r, c], size, rotation, flipped) {
   return [x, y];
 }
 
-function generateSudokuRegions(size) {
-  if (size !== 5) {
-    return Array.from({ length: size }, (_, r) => Array.from({ length: size }, (_, c) => c));
-  }
-
-  const basePatterns = [
-    [
-      [0, 0, 1, 1, 2],
-      [0, 0, 1, 2, 2],
-      [3, 3, 1, 2, 4],
-      [3, 4, 4, 2, 4],
-      [3, 3, 4, 4, 1],
-    ],
-    [
-      [0, 0, 1, 1, 2],
-      [0, 3, 3, 1, 2],
-      [4, 3, 3, 1, 2],
-      [4, 4, 3, 2, 2],
-      [4, 4, 4, 2, 2],
-    ],
-    [
-      [0, 1, 1, 2, 2],
-      [0, 0, 1, 2, 3],
-      [4, 0, 1, 3, 3],
-      [4, 4, 1, 3, 2],
-      [4, 4, 4, 2, 2],
-    ],
-  ];
-
-  function randomPermutation(values) {
-    return shuffle([...values]);
-  }
-
-  const pattern = basePatterns[Math.floor(Math.random() * basePatterns.length)];
-  const rowPerm = randomPermutation([0, 1, 2, 3, 4]);
-  const colPerm = randomPermutation([0, 1, 2, 3, 4]);
-  const transpose = Math.random() < 0.5;
-  const regions = Array.from({ length: 5 }, () => Array(5).fill(0));
-  const labelMap = new Map();
-  let nextLabel = 0;
-
-  for (let r = 0; r < 5; r++) {
-    for (let c = 0; c < 5; c++) {
-      const sourceR = transpose ? colPerm[c] : rowPerm[r];
-      const sourceC = transpose ? rowPerm[r] : colPerm[c];
-      const key = pattern[sourceR][sourceC];
-      if (!labelMap.has(key)) labelMap.set(key, nextLabel++);
-      regions[r][c] = labelMap.get(key);
+function generateSudokuRegions(size, mines = null) {
+  if (size !== 7 || !mines) return Array.from({ length: size }, (_, r) => Array.from({ length: size }, (_, c) => c % size));
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const regions = Array.from({ length: size }, () => Array(size).fill(-1));
+    const frontiers = mines.map(([r, c], region) => {
+      regions[r][c] = region;
+      return [[r, c]];
+    });
+    let remaining = size * size - size;
+    while (remaining) {
+      const available = frontiers.flatMap((frontier, region) => frontier.map(([r, c]) => [region, r, c]));
+      shuffle(available);
+      let assigned = false;
+      for (const [region, r, c] of available) {
+        const cells = shuffle([[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]);
+        const [nr, nc] = cells.find(([row, col]) => row >= 0 && row < size && col >= 0 && col < size && regions[row][col] < 0) || [];
+        if (nr === undefined) continue;
+        regions[nr][nc] = region;
+        frontiers[region].push([nr, nc]);
+        remaining--;
+        assigned = true;
+        break;
+      }
+      if (!assigned) break;
     }
+    if (!remaining && frontiers[0].length >= 3 && frontiers[0].length <= 4) return regions;
   }
-
-  return regions;
+  return Array.from({ length: size }, (_, r) => Array.from({ length: size }, (_, c) => Math.min(size - 1, Math.floor((r * size + c) / size))));
 }
 
 const HEX_DIFFICULTIES = {
