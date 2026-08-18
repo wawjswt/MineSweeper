@@ -27,11 +27,6 @@
 
         <section class="hud" aria-label="游戏信息">
           <div class="hud-card">
-            <span class="hud-label">剩余雷数</span>
-            <strong id="mineCount">0</strong>
-            <small id="mineMeta" class="hud-meta">已标记 0 / 总雷数 0</small>
-          </div>
-          <div class="hud-card">
             <span class="hud-label">计时</span>
             <strong id="timer">0</strong>
           </div>
@@ -63,6 +58,7 @@
                 <span>玩法</span>
                 <select id="modeSelect" aria-label="选择玩法">
                   <option value="classic" selected>经典扫雷</option>
+                  <option value="offset">偏移扫雷</option>
                   <option value="hex">Hex 扫雷</option>
                   <option value="ring">环形棋盘</option>
                 </select>
@@ -115,13 +111,13 @@
 
           <div class="control-card control-card--tips">
             <div class="control-card-title">提示</div>
-            <div class="hint">
-              左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开
-            </div>
+            <div class="hint" id="gameHint">左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开</div>
           </div>
         </section>
 
         <section class="board-wrap">
+          <div class="board-mine-counter" id="boardMineCounter" aria-label="剩余雷数">剩余 0</div>
+          <div class="board-mine-meta" id="boardMineMeta">已标记 0 / 总雷数 0</div>
           <div id="board" class="board" role="grid" aria-label="扫雷棋盘"></div>
         </section>
       </section>

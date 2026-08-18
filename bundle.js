@@ -21,12 +21,14 @@ const RING_DIFFICULTIES = {
 
 const MODES = {
   classic: { label: "经典扫雷" },
+  offset: { label: "偏移扫雷" },
   hex: { label: "Hex 扫雷" },
   ring: { label: "环形棋盘" },
 };
 
 const CUSTOM_DIFFICULTY_CONFIG = {
   classic: { rowLabel: "行", colLabel: "列", row: [5, 30], col: [5, 40], defaults: [9, 9, 10] },
+  offset: { rowLabel: "行", colLabel: "列", row: [5, 30], col: [5, 40], defaults: [9, 9, 10] },
   hex: { rowLabel: "行", colLabel: "列", row: [5, 22], col: [5, 22], defaults: [11, 11, 18] },
   ring: { rowLabel: "圈数", colLabel: "每圈格", row: [3, 10], col: [12, 48], defaults: [7, 30, 24] },
 };
@@ -80,8 +82,9 @@ const elements = {
   bgUpload: document.getElementById("bgUpload"),
   bgOpacity: document.getElementById("bgOpacity"),
   clearBgButton: document.getElementById("clearBgButton"),
-  mineCountEl: document.getElementById("mineCount"),
-  mineMetaEl: document.getElementById("mineMeta"),
+  boardMineCounterEl: document.getElementById("boardMineCounter"),
+  boardMineMetaEl: document.getElementById("boardMineMeta"),
+  gameHintEl: document.getElementById("gameHint"),
   timerEl: document.getElementById("timer"),
   statusTextEl: document.getElementById("statusText"),
   bestTimeEl: document.getElementById("bestTime"),
@@ -111,7 +114,7 @@ function saveBackgroundUrl(backgroundUrl) { try { if (backgroundUrl) localStorag
 function saveBackgroundOpacity(backgroundOpacity) { localStorage.setItem("minesweeper-background-opacity", backgroundOpacity); }
 function saveModeKey(value) { localStorage.setItem("minesweeper-mode", value); }
 function getDifficultyRecordKey() {
-  const prefix = modeKey === "hex" ? "hex" : modeKey === "ring" ? "ring" : "classic";
+  const prefix = modeKey === "hex" ? "hex" : modeKey === "ring" ? "ring" : modeKey === "offset" ? "offset" : "classic";
   if (difficultyKey === "custom") return `minesweeper-best-${prefix}-custom-${storage.customRows}x${storage.customCols}-${storage.customMines}`;
   return `minesweeper-best-${prefix}-${difficultyKey}`;
 }
@@ -150,6 +153,7 @@ function makeState() {
 }
 function isHexMode() { return modeKey === "hex"; }
 function isRingMode() { return modeKey === "ring"; }
+function isOffsetMode() { return modeKey === "offset"; }
 function getCustomDifficultyConfig() { return CUSTOM_DIFFICULTY_CONFIG[modeKey] || CUSTOM_DIFFICULTY_CONFIG.classic; }
 function getCustomStorageKey(field) { return `minesweeper-custom-${modeKey}-${field}`; }
 function readCustomStorageValue(field, fallback) {
@@ -197,6 +201,9 @@ function getDifficultySpec() {
     const { rows, cols, mines } = getCustomFormValues();
     return { rows, cols, mines };
   }
+  if (modeKey === "offset") {
+    return DIFFICULTIES[difficultyKey];
+  }
   if (isHexMode()) {
     return HEX_DIFFICULTIES[difficultyKey] || HEX_DIFFICULTIES.normal;
   }
@@ -206,6 +213,7 @@ function getDifficultySpec() {
   return DIFFICULTIES[difficultyKey];
 }
 function getDifficultyCatalog() {
+  if (modeKey === "offset") return DIFFICULTIES;
   if (isHexMode()) return HEX_DIFFICULTIES;
   if (isRingMode()) return RING_DIFFICULTIES;
   return DIFFICULTIES;
@@ -306,12 +314,25 @@ function neighbors(r, c) {
   }
   return out;
 }
+function countOffsetMines(r, c) {
+  let total = 0;
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+    const nr = r - 1 + dr;
+    const nc = c + dc;
+    if (inBounds(nr, nc) && state.board[nr][nc].mine) total++;
+  }
+  return total;
+}
 function layMines(safeRow, safeCol) {
   const forbidden = new Set([`${safeRow},${safeCol}`]); for (const [r, c] of neighbors(safeRow, safeCol)) forbidden.add(`${r},${c}`);
   const spots = []; for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) if (!forbidden.has(`${r},${c}`)) spots.push([r, c]);
   for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [spots[i], spots[j]] = [spots[j], spots[i]]; }
   for (let i = 0; i < state.mines; i++) { const [r, c] = spots[i]; state.board[r][c].mine = true; }
-  for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) state.board[r][c].count = neighbors(r, c).reduce((sum, [nr, nc]) => sum + (state.board[nr][nc].mine ? 1 : 0), 0);
+  for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) {
+    state.board[r][c].count = isOffsetMode()
+      ? countOffsetMines(r, c)
+      : neighbors(r, c).reduce((sum, [nr, nc]) => sum + (state.board[nr][nc].mine ? 1 : 0), 0);
+  }
 }
 function floodReveal(row, col) { const q = [[row, col]]; while (q.length) { const [r, c] = q.shift(); const cell = state.board[r][c]; if (cell.revealed || cell.flagged) continue; cell.revealed = true; if (cell.count !== 0 || cell.mine) continue; for (const [nr, nc] of neighbors(r, c)) { const next = state.board[nr][nc]; if (!next.revealed && !next.flagged && !next.mine) q.push([nr, nc]); } } }
 function revealAllMines(exploded) { for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) { const cell = state.board[r][c]; if (cell.mine) cell.revealed = true; if (exploded && exploded[0] === r && exploded[1] === c) cell.exploded = true; } }
@@ -342,20 +363,26 @@ function reveal(row, col, onTick) {
 function chord(row, col, onTick) {
   if (state.ended) return;
   const cell = state.board[row][col]; if (!cell.revealed || !cell.count) return;
-  const flagged = neighbors(row, col).reduce((sum, [nr, nc]) => sum + (state.board[nr][nc].flagged ? 1 : 0), 0);
+  const around = isOffsetMode()
+    ? (() => { const out = []; for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { const nr = row - 1 + dr; const nc = col + dc; if (inBounds(nr, nc)) out.push([nr, nc]); } return out; })()
+    : neighbors(row, col);
+  const flagged = around.reduce((sum, [nr, nc]) => sum + (state.board[nr][nc].flagged ? 1 : 0), 0);
   if (flagged !== cell.count) return;
-  for (const [nr, nc] of neighbors(row, col)) { const next = state.board[nr][nc]; if (!next.revealed && !next.flagged) { const result = reveal(nr, nc, onTick); if (result === "lose") return "lose"; } }
+  for (const [nr, nc] of around) { const next = state.board[nr][nc]; if (!next.revealed && !next.flagged) { const result = reveal(nr, nc, onTick); if (result === "lose") return "lose"; } }
   if (checkWin()) return "win"; return "continue";
 }
 function cycleMark(row, col) { if (state.ended) return; const cell = state.board[row][col]; if (cell.revealed) return; if (!cell.flagged && !cell.questioned) cell.flagged = true; else if (cell.flagged) { cell.flagged = false; cell.questioned = true; } else cell.questioned = false; }
 function renderHud() {
   const flagged = state.board.flat().filter((c) => c.flagged).length;
   const remaining = Math.max(0, state.mines - flagged);
-  elements.mineCountEl.textContent = String(remaining);
-  if (elements.mineMetaEl) {
-    elements.mineMetaEl.textContent = `已标记 ${flagged} / 总雷数 ${state.mines}`;
-  }
+  elements.boardMineCounterEl.textContent = `剩余 ${remaining}`;
+  elements.boardMineMetaEl.textContent = `已标记 ${flagged} / 总雷数 ${state.mines}`;
   elements.timerEl.textContent = state.started ? state.timer.toFixed(3) : "0.000";
+}
+function renderHint() {
+  elements.gameHintEl.innerHTML = isOffsetMode()
+    ? "左键揭开，右键/长按标记，点数字可快速展开。数字表示的是该格子上面一格为中心的九宫格中的雷的数量，按 <kbd>R</kbd> 重开"
+    : "左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开";
 }
 function renderBestTime() {
   const best = loadBestTime();
@@ -437,6 +464,7 @@ function render() {
     elements.boardEl.appendChild(btn);
   }
   renderHud();
+  renderHint();
 }
 function setStatus(text) { elements.statusTextEl.textContent = text; }
 function setResetEmoji(text) { elements.resetButton.textContent = text; }

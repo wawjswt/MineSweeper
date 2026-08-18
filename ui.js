@@ -6,7 +6,8 @@ export function createUI({
   bgUpload,
   bgOpacity,
   clearBgButton,
-  mineCountEl,
+  boardMineCounterEl,
+  boardMineMetaEl,
   timerEl,
   statusTextEl,
   pageBackdropEl,
@@ -15,7 +16,9 @@ export function createUI({
   let activePointerId = null;
 
   function renderHud(state) {
-    mineCountEl.textContent = String(state.mines - state.board.flat().filter((c) => c.flagged).length);
+    const flagged = state.board.flat().filter((c) => c.flagged).length;
+    boardMineCounterEl.textContent = `剩余 ${Math.max(0, state.mines - flagged)}`;
+    boardMineMetaEl.textContent = `已标记 ${flagged} / 总雷数 ${state.mines}`;
     timerEl.textContent = String(state.timer).padStart(1, "0");
   }
 

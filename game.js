@@ -19,6 +19,26 @@ export function createGameLogic(getState, getDifficultyKey) {
     return out;
   }
 
+  function offsetNeighbors(r, c) {
+    const out = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const nr = r - 1 + dr;
+        const nc = c + dc;
+        if (inBounds(nr, nc)) out.push([nr, nc]);
+      }
+    }
+    return out;
+  }
+
+  function countOffsetMines(r, c) {
+    const state = getState();
+    return offsetNeighbors(r, c).reduce(
+      (sum, [nr, nc]) => sum + (state.board[nr][nc].mine ? 1 : 0),
+      0,
+    );
+  }
+
   function layMines(safeRow, safeCol) {
     const state = getState();
     const forbidden = new Set([`${safeRow},${safeCol}`]);
@@ -39,10 +59,7 @@ export function createGameLogic(getState, getDifficultyKey) {
     }
     for (let r = 0; r < state.rows; r++) {
       for (let c = 0; c < state.cols; c++) {
-        state.board[r][c].count = neighbors(r, c).reduce(
-          (sum, [nr, nc]) => sum + (state.board[nr][nc].mine ? 1 : 0),
-          0,
-        );
+        state.board[r][c].count = countOffsetMines(r, c);
       }
     }
   }
@@ -133,12 +150,13 @@ export function createGameLogic(getState, getDifficultyKey) {
     if (state.ended) return;
     const cell = state.board[row][col];
     if (!cell.revealed || !cell.count) return;
-    const flagged = neighbors(row, col).reduce(
+    const around = offsetNeighbors(row, col);
+    const flagged = around.reduce(
       (sum, [nr, nc]) => sum + (state.board[nr][nc].flagged ? 1 : 0),
       0,
     );
     if (flagged !== cell.count) return;
-    for (const [nr, nc] of neighbors(row, col)) {
+    for (const [nr, nc] of around) {
       const next = state.board[nr][nc];
       if (!next.revealed && !next.flagged) {
         const result = reveal(nr, nc, onTick);

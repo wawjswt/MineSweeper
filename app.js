@@ -19,10 +19,11 @@ const elements = {
   bgUpload: document.getElementById("bgUpload"),
   bgOpacity: document.getElementById("bgOpacity"),
   clearBgButton: document.getElementById("clearBgButton"),
-  mineCountEl: document.getElementById("mineCount"),
+  boardMineCounterEl: document.getElementById("boardMineCounter"),
   timerEl: document.getElementById("timer"),
   statusTextEl: document.getElementById("statusText"),
   pageBackdropEl: document.getElementById("pageBackdrop"),
+  boardMineMetaEl: document.getElementById("boardMineMeta"),
 };
 
 const storage = loadSettings();
