@@ -25,6 +25,12 @@ const MODES = {
   ring: { label: "环形棋盘" },
 };
 
+const CUSTOM_DIFFICULTY_CONFIG = {
+  classic: { rowLabel: "行", colLabel: "列", row: [5, 30], col: [5, 40], defaults: [9, 9, 10] },
+  hex: { rowLabel: "行", colLabel: "列", row: [5, 22], col: [5, 22], defaults: [11, 11, 18] },
+  ring: { rowLabel: "圈数", colLabel: "每圈格", row: [3, 10], col: [12, 48], defaults: [7, 30, 24] },
+};
+
 const BOARD_METRICS = {
   classic: { cellSize: 34, gap: 4 },
   hex: { cellW: 42, cellH: 48, xStep: 32, yStep: 36 },
@@ -66,6 +72,9 @@ const elements = {
   customRows: document.getElementById("customRows"),
   customCols: document.getElementById("customCols"),
   customMines: document.getElementById("customMines"),
+  customRowsLabel: document.getElementById("customRowsLabel"),
+  customColsLabel: document.getElementById("customColsLabel"),
+  customMinesLabel: document.getElementById("customMinesLabel"),
   applyCustomDifficultyButton: document.getElementById("applyCustomDifficultyButton"),
   themeSelect: document.getElementById("themeSelect"),
   bgUpload: document.getElementById("bgUpload"),
@@ -141,12 +150,51 @@ function makeState() {
 }
 function isHexMode() { return modeKey === "hex"; }
 function isRingMode() { return modeKey === "ring"; }
+function getCustomDifficultyConfig() { return CUSTOM_DIFFICULTY_CONFIG[modeKey] || CUSTOM_DIFFICULTY_CONFIG.classic; }
+function getCustomStorageKey(field) { return `minesweeper-custom-${modeKey}-${field}`; }
+function readCustomStorageValue(field, fallback) {
+  const modeValue = localStorage.getItem(getCustomStorageKey(field));
+  const legacyValue = modeKey === "classic" ? localStorage.getItem(`minesweeper-custom-${field}`) : null;
+  const value = modeValue ?? legacyValue;
+  return value === null ? fallback : Number(value);
+}
+function getCustomFormValues() {
+  const config = getCustomDifficultyConfig();
+  const [defaultRows, defaultCols, defaultMines] = config.defaults;
+  const rows = clampInt(Number(elements.customRows.value), config.row[0], config.row[1], defaultRows);
+  const cols = clampInt(Number(elements.customCols.value), config.col[0], config.col[1], defaultCols);
+  const maxMines = Math.max(1, rows * cols - 9);
+  const mines = clampInt(Number(elements.customMines.value), 1, maxMines, Math.min(defaultMines, maxMines));
+  return { rows, cols, mines, maxMines };
+}
+function syncCustomDifficultyForm() {
+  const config = getCustomDifficultyConfig();
+  const [defaultRows, defaultCols, defaultMines] = config.defaults;
+  const rows = clampInt(readCustomStorageValue("rows", defaultRows), config.row[0], config.row[1], defaultRows);
+  const cols = clampInt(readCustomStorageValue("cols", defaultCols), config.col[0], config.col[1], defaultCols);
+  const maxMines = Math.max(1, rows * cols - 9);
+  const mines = clampInt(readCustomStorageValue("mines", defaultMines), 1, maxMines, Math.min(defaultMines, maxMines));
+  elements.customRowsLabel.textContent = config.rowLabel;
+  elements.customColsLabel.textContent = config.colLabel;
+  elements.customMinesLabel.textContent = "雷";
+  elements.customRows.min = String(config.row[0]);
+  elements.customRows.max = String(config.row[1]);
+  elements.customCols.min = String(config.col[0]);
+  elements.customCols.max = String(config.col[1]);
+  elements.customMines.max = String(maxMines);
+  elements.customRows.setAttribute("aria-label", `自定义${config.rowLabel}`);
+  elements.customCols.setAttribute("aria-label", `自定义${config.colLabel}`);
+  elements.customRows.value = String(rows);
+  elements.customCols.value = String(cols);
+  elements.customMines.value = String(mines);
+  elements.applyCustomDifficultyButton.textContent = `应用${MODES[modeKey].label}自定义`;
+  storage.customRows = rows;
+  storage.customCols = cols;
+  storage.customMines = mines;
+}
 function getDifficultySpec() {
   if (difficultyKey === "custom") {
-    const rows = clampInt(Number(elements.customRows.value), 5, 30, storage.customRows);
-    const cols = clampInt(Number(elements.customCols.value), 5, 40, storage.customCols);
-    const maxMines = Math.max(1, rows * cols - 9);
-    const mines = clampInt(Number(elements.customMines.value), 1, maxMines, Math.min(storage.customMines, maxMines));
+    const { rows, cols, mines } = getCustomFormValues();
     return { rows, cols, mines };
   }
   if (isHexMode()) {
@@ -431,32 +479,22 @@ function bindHandlers() {
     setMode(e.target.value);
     storage.modeKey = modeKey;
     saveModeKey(modeKey);
+    syncCustomDifficultyForm();
     refreshDifficultyOptions();
-    if (modeKey === "hex" && difficultyKey === "custom") {
-      difficultyKey = "normal";
-      refreshDifficultyOptions();
-    }
-    if (modeKey === "ring" && difficultyKey === "custom") {
-      difficultyKey = "normal";
-      refreshDifficultyOptions();
-    }
     renderBestTime();
     resetGame();
   });
   elements.applyCustomDifficultyButton.addEventListener("click", () => {
-    const rows = clampInt(Number(elements.customRows.value), 5, 30, storage.customRows);
-    const cols = clampInt(Number(elements.customCols.value), 5, 40, storage.customCols);
-    const maxMines = Math.max(1, rows * cols - 9);
-    const mines = clampInt(Number(elements.customMines.value), 1, maxMines, Math.min(storage.customMines, maxMines));
+    const { rows, cols, mines } = getCustomFormValues();
     elements.customRows.value = String(rows);
     elements.customCols.value = String(cols);
     elements.customMines.value = String(mines);
     storage.customRows = rows;
     storage.customCols = cols;
     storage.customMines = mines;
-    localStorage.setItem("minesweeper-custom-rows", String(rows));
-    localStorage.setItem("minesweeper-custom-cols", String(cols));
-    localStorage.setItem("minesweeper-custom-mines", String(mines));
+    localStorage.setItem(getCustomStorageKey("rows"), String(rows));
+    localStorage.setItem(getCustomStorageKey("cols"), String(cols));
+    localStorage.setItem(getCustomStorageKey("mines"), String(mines));
     setDifficulty("custom");
     renderBestTime();
     resetGame();
@@ -491,9 +529,6 @@ function resetGame() { stopTimer(); resetTransientInputState(); state = makeStat
 
 function init() {
   setDifficulty(difficultyKey);
-  elements.customRows.value = String(storage.customRows);
-  elements.customCols.value = String(storage.customCols);
-  elements.customMines.value = String(storage.customMines);
   applyTheme(storage.themeKey);
   applyBackground(storage.backgroundUrl);
   applyBackgroundOpacity(storage.backgroundOpacity);
@@ -502,6 +537,7 @@ function init() {
   elements.difficultySelect.value = difficultyKey;
   elements.modeSelect.value = storage.modeKey;
   setMode(storage.modeKey);
+  syncCustomDifficultyForm();
   refreshDifficultyOptions();
   bindHandlers();
   resetGame();
