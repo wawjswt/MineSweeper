@@ -12,6 +12,13 @@ const HEX_DIFFICULTIES = {
   extreme: { name: "极致", rows: 18, cols: 18, mines: 70 },
 };
 
+const RING_DIFFICULTIES = {
+  easy: { name: "简单", rows: 5, cols: 18, mines: 12 },
+  normal: { name: "普通", rows: 6, cols: 24, mines: 22 },
+  hard: { name: "困难", rows: 7, cols: 28, mines: 32 },
+  extreme: { name: "极致", rows: 8, cols: 32, mines: 48 },
+};
+
 const MODES = {
   classic: { label: "经典扫雷" },
   hex: { label: "Hex 扫雷" },
@@ -21,7 +28,7 @@ const MODES = {
 const BOARD_METRICS = {
   classic: { cellSize: 34, gap: 4 },
   hex: { cellW: 42, cellH: 48, xStep: 32, yStep: 36 },
-  ring: { cellSize: 26, innerRadius: 86, radialStep: 22, ringGap: 3 },
+  ring: { cellSize: 28, innerRadius: 72, radialStep: 20, ringGap: 2 },
 };
 
 const THEMES = {
@@ -146,7 +153,7 @@ function getDifficultySpec() {
     return HEX_DIFFICULTIES[difficultyKey] || HEX_DIFFICULTIES.normal;
   }
   if (isRingMode()) {
-    return DIFFICULTIES[difficultyKey] || DIFFICULTIES.normal;
+    return RING_DIFFICULTIES[difficultyKey] || RING_DIFFICULTIES.normal;
   }
   return DIFFICULTIES[difficultyKey];
 }
@@ -188,7 +195,7 @@ function neighbors(r, c) {
       let nr = r + dr;
       let nc = c + dc;
       if (isRingMode()) {
-        nr = (nr + state.rows) % state.rows;
+        if (nr < 0 || nr >= state.rows) continue;
         nc = (nc + state.cols) % state.cols;
         if (nr === r && nc === c) continue;
         out.push([nr, nc]);
@@ -271,7 +278,7 @@ function render() {
   if (isRingMode()) {
     const { cellSize, innerRadius, radialStep, ringGap } = BOARD_METRICS.ring;
     const outerRadius = innerRadius + (state.rows - 1) * radialStep;
-    const size = outerRadius * 2 + cellSize + ringGap * 2 + 16;
+    const size = outerRadius * 2 + cellSize + ringGap * 2 + 12;
     elements.boardEl.style.gridTemplateColumns = "none";
     elements.boardEl.style.width = `${size}px`;
     elements.boardEl.style.height = `${size}px`;
@@ -301,9 +308,9 @@ function render() {
       btn.style.height = `${cellH}px`;
     } else if (isRingMode()) {
       const { cellSize, innerRadius, radialStep, ringGap } = BOARD_METRICS.ring;
-      const boardCenter = (innerRadius + (state.rows - 1) * radialStep) + cellSize / 2 + ringGap + 8;
+      const boardCenter = (innerRadius + (state.rows - 1) * radialStep) + cellSize / 2 + ringGap + 6;
       const radius = innerRadius + r * radialStep;
-      const angle = (c / state.cols) * Math.PI * 2 - Math.PI / 2;
+      const angle = ((c + 0.5) / state.cols) * Math.PI * 2 - Math.PI / 2;
       const x = boardCenter + Math.cos(angle) * radius - cellSize / 2;
       const y = boardCenter + Math.sin(angle) * radius - cellSize / 2;
       btn.classList.add("ring-cell");
@@ -368,7 +375,11 @@ function bindHandlers() {
     setMode(e.target.value);
     storage.modeKey = modeKey;
     saveModeKey(modeKey);
-    if (modeKey === "hex" && difficultyKey === "custom") {
+  if (modeKey === "hex" && difficultyKey === "custom") {
+      difficultyKey = "normal";
+      elements.difficultySelect.value = "normal";
+    }
+    if (modeKey === "ring" && difficultyKey === "custom") {
       difficultyKey = "normal";
       elements.difficultySelect.value = "normal";
     }
