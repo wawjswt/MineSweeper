@@ -2,6 +2,7 @@ export function createUI({
   boardEl,
   resetButton,
   difficultySelect,
+  modeSelect,
   themeSelect,
   bgUpload,
   bgOpacity,
@@ -23,6 +24,10 @@ export function createUI({
   }
 
   function cellText(cell) {
+    if (cell.givenMine) return "💣";
+    if (cell.region !== undefined && cell.region !== null && cell.revealed && cell.count === 0 && !cell.mine) {
+      return "";
+    }
     if (!cell.revealed) return cell.flagged ? "🚩" : cell.questioned ? "❓" : "";
     if (cell.mine) return "💣";
     return cell.count ? String(cell.count) : "";
@@ -30,6 +35,8 @@ export function createUI({
 
   function render(state, handlers) {
     boardEl.innerHTML = "";
+    boardEl.classList.remove("hex-mode", "ring-mode");
+    boardEl.style.display = "grid";
     boardEl.style.gridTemplateColumns = `repeat(${state.cols}, 34px)`;
     for (let r = 0; r < state.rows; r++) {
       for (let c = 0; c < state.cols; c++) {
@@ -39,6 +46,11 @@ export function createUI({
         btn.className = "cell";
         btn.dataset.row = String(r);
         btn.dataset.col = String(c);
+        if (state.modeKey === "sudoku") {
+          btn.classList.add("sudoku");
+          btn.classList.add(`region-${cell.region}`);
+          if (cell.givenMine) btn.classList.add("given-mine");
+        }
         btn.textContent = cellText(cell);
         if (cell.revealed) btn.classList.add("revealed");
         if (cell.flagged) btn.classList.add("flagged");
@@ -46,7 +58,10 @@ export function createUI({
         if (cell.mine && cell.revealed) btn.classList.add("mine");
         if (cell.exploded) btn.classList.add("exploded");
         if (cell.revealed && cell.count > 0) btn.classList.add(`num-${cell.count}`);
-        btn.addEventListener("click", () => (cell.revealed ? handlers.onChord(r, c) : handlers.onReveal(r, c)));
+        btn.addEventListener("click", () => {
+          if (state.modeKey === "sudoku") return handlers.onReveal(r, c);
+          return cell.revealed ? handlers.onChord(r, c) : handlers.onReveal(r, c);
+        });
         btn.addEventListener("contextmenu", (e) => {
           e.preventDefault();
           handlers.onCycleMark(r, c);
@@ -140,6 +155,7 @@ export function createUI({
   function bindHandlers(handlers) {
     resetButton.addEventListener("click", handlers.onReset);
     difficultySelect.addEventListener("change", (e) => handlers.onDifficultyChange(e.target.value));
+    if (modeSelect) modeSelect.addEventListener("change", (e) => handlers.onModeChange(e.target.value));
     themeSelect.addEventListener("change", (e) => handlers.onThemeChange(e.target.value));
     bgUpload.addEventListener("change", (e) => handlers.onBackgroundUpload(e.target.files && e.target.files[0]));
     clearBgButton.addEventListener("click", handlers.onClearBackground);
@@ -166,6 +182,9 @@ export function createUI({
     applyBackground,
     applyBackgroundOpacity,
     setDifficulty,
+    setMode(value) {
+      if (modeSelect) modeSelect.value = value;
+    },
     setTheme,
     setBackgroundOpacityValue,
     bindHandlers,

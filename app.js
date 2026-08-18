@@ -15,6 +15,7 @@ const elements = {
   boardEl: document.getElementById("board"),
   resetButton: document.getElementById("resetButton"),
   difficultySelect: document.getElementById("difficultySelect"),
+  modeSelect: document.getElementById("modeSelect"),
   themeSelect: document.getElementById("themeSelect"),
   bgUpload: document.getElementById("bgUpload"),
   bgOpacity: document.getElementById("bgOpacity"),
@@ -29,7 +30,8 @@ const elements = {
 const storage = loadSettings();
 
 let difficultyKey = elements.difficultySelect.value;
-let state = makeState(difficultyKey);
+let modeKey = elements.modeSelect.value === "sudoku" ? "sudoku" : "classic";
+let state = makeState(difficultyKey, modeKey);
 
 const ui = createUI(elements);
 const settings = createSettings({
@@ -84,7 +86,7 @@ function handleCycleMark(row, col) {
 function resetGame() {
   game.resetTimer();
   ui.resetTransientInputState();
-  state = makeState(difficultyKey);
+  state = makeState(difficultyKey, modeKey);
   ui.setResetEmoji("😊");
   ui.setStatus("待开始");
   ui.render(state, {
@@ -105,6 +107,11 @@ ui.bindHandlers({
     difficultyKey = value;
     resetGame();
   },
+  onModeChange: (value) => {
+    modeKey = value;
+    ui.setMode(value);
+    resetGame();
+  },
   onThemeChange: applyTheme,
   onBackgroundUpload: async (file) => {
     if (!file || !file.type.startsWith("image/")) return;
@@ -120,7 +127,12 @@ ui.bindHandlers({
 
 function init() {
   settings.setDifficulty(difficultyKey);
+  ui.setMode(modeKey);
   settings.init();
+  if (modeKey !== "sudoku") {
+    modeKey = "classic";
+    ui.setMode(modeKey);
+  }
   resetGame();
 }
 

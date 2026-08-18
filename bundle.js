@@ -5,6 +5,27 @@ const DIFFICULTIES = {
   extreme: { name: "极致", rows: 16, cols: 30, mines: 99 },
 };
 
+const SUDOKU_DIFFICULTIES = {
+  easy: { name: "基础", rows: 5, cols: 5, mines: 5 },
+};
+
+const SUDOKU_TEMPLATE = {
+  regions: [
+    [1, 1, 0, 0, 0],
+    [2, 1, 1, 1, 0],
+    [2, 2, 2, 3, 0],
+    [4, 2, 3, 3, 3],
+    [4, 4, 4, 4, 3],
+  ],
+  mines: [
+    [0, 4],
+    [1, 2],
+    [2, 0],
+    [3, 3],
+    [4, 1],
+  ],
+};
+
 const HEX_DIFFICULTIES = {
   easy: { name: "简单", rows: 8, cols: 8, mines: 10 },
   normal: { name: "普通", rows: 11, cols: 11, mines: 18 },
@@ -22,6 +43,7 @@ const RING_DIFFICULTIES = {
 const MODES = {
   classic: { label: "经典扫雷" },
   offset: { label: "偏移扫雷" },
+  sudoku: { label: "数独扫雷" },
   hex: { label: "Hex 扫雷" },
   ring: { label: "环形棋盘" },
 };
@@ -29,6 +51,7 @@ const MODES = {
 const CUSTOM_DIFFICULTY_CONFIG = {
   classic: { rowLabel: "行", colLabel: "列", row: [5, 30], col: [5, 40], defaults: [9, 9, 10] },
   offset: { rowLabel: "行", colLabel: "列", row: [5, 30], col: [5, 40], defaults: [9, 9, 10] },
+  sudoku: { rowLabel: "行", colLabel: "列", row: [5, 5], col: [5, 5], defaults: [5, 5, 5] },
   hex: { rowLabel: "行", colLabel: "列", row: [5, 22], col: [5, 22], defaults: [11, 11, 18] },
   ring: { rowLabel: "圈数", colLabel: "每圈格", row: [3, 10], col: [12, 48], defaults: [7, 30, 24] },
 };
@@ -114,7 +137,7 @@ function saveBackgroundUrl(backgroundUrl) { try { if (backgroundUrl) localStorag
 function saveBackgroundOpacity(backgroundOpacity) { localStorage.setItem("minesweeper-background-opacity", backgroundOpacity); }
 function saveModeKey(value) { localStorage.setItem("minesweeper-mode", value); }
 function getDifficultyRecordKey() {
-  const prefix = modeKey === "hex" ? "hex" : modeKey === "ring" ? "ring" : modeKey === "offset" ? "offset" : "classic";
+  const prefix = modeKey === "hex" ? "hex" : modeKey === "ring" ? "ring" : modeKey === "sudoku" ? "sudoku" : modeKey === "offset" ? "offset" : "classic";
   if (difficultyKey === "custom") return `minesweeper-best-${prefix}-custom-${storage.customRows}x${storage.customCols}-${storage.customMines}`;
   return `minesweeper-best-${prefix}-${difficultyKey}`;
 }
@@ -197,6 +220,9 @@ function syncCustomDifficultyForm() {
   storage.customMines = mines;
 }
 function getDifficultySpec() {
+  if (modeKey === "sudoku") {
+    return SUDOKU_DIFFICULTIES.easy;
+  }
   if (difficultyKey === "custom") {
     const { rows, cols, mines } = getCustomFormValues();
     return { rows, cols, mines };
@@ -213,6 +239,7 @@ function getDifficultySpec() {
   return DIFFICULTIES[difficultyKey];
 }
 function getDifficultyCatalog() {
+  if (modeKey === "sudoku") return SUDOKU_DIFFICULTIES;
   if (modeKey === "offset") return DIFFICULTIES;
   if (isHexMode()) return HEX_DIFFICULTIES;
   if (isRingMode()) return RING_DIFFICULTIES;
@@ -225,16 +252,19 @@ function formatDifficultyLabel(spec) {
 function refreshDifficultyOptions() {
   const catalog = getDifficultyCatalog();
   elements.difficultySelect.replaceChildren();
-  for (const key of ["easy", "normal", "hard", "extreme"]) {
+  const keys = modeKey === "sudoku" ? ["easy"] : ["easy", "normal", "hard", "extreme"];
+  for (const key of keys) {
     const option = document.createElement("option");
     option.value = key;
     option.textContent = formatDifficultyLabel(catalog[key]);
     elements.difficultySelect.appendChild(option);
   }
-  const customOption = document.createElement("option");
-  customOption.value = "custom";
-  customOption.textContent = "自定义";
-  elements.difficultySelect.appendChild(customOption);
+  if (modeKey !== "sudoku") {
+    const customOption = document.createElement("option");
+    customOption.value = "custom";
+    customOption.textContent = "自定义";
+    elements.difficultySelect.appendChild(customOption);
+  }
   elements.difficultySelect.value = difficultyKey;
 }
 function getModeMetrics() {
@@ -324,6 +354,31 @@ function countOffsetMines(r, c) {
   return total;
 }
 function layMines(safeRow, safeCol) {
+  if (modeKey === "sudoku") {
+    const size = state.rows;
+    state.mines = SUDOKU_DIFFICULTIES.easy.mines;
+    state.regions = SUDOKU_TEMPLATE.regions.map((row) => [...row]);
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const cell = state.board[r][c];
+        cell.mine = false;
+        cell.revealed = false;
+        cell.flagged = false;
+        cell.questioned = false;
+        cell.count = 0;
+        cell.region = state.regions[r][c];
+        cell.givenMine = false;
+      }
+    }
+    for (const [r, c] of SUDOKU_TEMPLATE.mines) {
+      state.board[r][c].mine = true;
+    }
+    const [givenRow, givenCol] = SUDOKU_TEMPLATE.mines[0];
+    state.board[givenRow][givenCol].flagged = true;
+    state.board[givenRow][givenCol].givenMine = true;
+    state.board[givenRow][givenCol].revealed = false;
+    return;
+  }
   const forbidden = new Set([`${safeRow},${safeCol}`]); for (const [r, c] of neighbors(safeRow, safeCol)) forbidden.add(`${r},${c}`);
   const spots = []; for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) if (!forbidden.has(`${r},${c}`)) spots.push([r, c]);
   for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [spots[i], spots[j]] = [spots[j], spots[i]]; }
@@ -354,6 +409,26 @@ function stopTimer() {
 }
 function reveal(row, col, onTick) {
   if (state.ended) return;
+  if (modeKey === "sudoku") {
+    if (!state.started) { state.started = true; layMines(row, col); startTimer(onTick); }
+    const cell = state.board[row][col];
+    if (cell.givenMine) {
+      state.ended = true;
+      stopTimer();
+      revealAllMines([row, col]);
+      return "lose";
+    }
+    if (cell.mine) {
+      cell.revealed = true;
+      state.ended = true;
+      stopTimer();
+      revealAllMines([row, col]);
+      return "lose";
+    }
+    cell.revealed = true;
+    if (checkWin()) return "win";
+    return "continue";
+  }
   if (!state.started) { state.started = true; layMines(row, col); startTimer(onTick); }
   const cell = state.board[row][col];
   if (cell.revealed || cell.flagged) return;
@@ -371,7 +446,15 @@ function chord(row, col, onTick) {
   for (const [nr, nc] of around) { const next = state.board[nr][nc]; if (!next.revealed && !next.flagged) { const result = reveal(nr, nc, onTick); if (result === "lose") return "lose"; } }
   if (checkWin()) return "win"; return "continue";
 }
-function cycleMark(row, col) { if (state.ended) return; const cell = state.board[row][col]; if (cell.revealed) return; if (!cell.flagged && !cell.questioned) cell.flagged = true; else if (cell.flagged) { cell.flagged = false; cell.questioned = true; } else cell.questioned = false; }
+function cycleMark(row, col) {
+  if (state.ended) return;
+  const cell = state.board[row][col];
+  if (modeKey === "sudoku" && cell.givenMine) return;
+  if (!modeKey === "sudoku" && cell.revealed) return;
+  if (!cell.flagged && !cell.questioned) cell.flagged = true;
+  else if (cell.flagged) { cell.flagged = false; cell.questioned = true; }
+  else cell.questioned = false;
+}
 function renderHud() {
   const flagged = state.board.flat().filter((c) => c.flagged).length;
   const remaining = Math.max(0, state.mines - flagged);
@@ -380,7 +463,9 @@ function renderHud() {
   elements.timerEl.textContent = state.started ? state.timer.toFixed(3) : "0.000";
 }
 function renderHint() {
-  elements.gameHintEl.innerHTML = isOffsetMode()
+  elements.gameHintEl.innerHTML = modeKey === "sudoku"
+    ? "数独扫雷：已知雷已标出，颜色代表区域。目标是按行、列、同色块和不相邻规则找出全部雷。"
+    : isOffsetMode()
     ? "左键揭开，右键/长按标记，点数字可快速展开。数字表示的是该格子上面一格为中心的九宫格中的雷的数量，按 <kbd>R</kbd> 重开"
     : "左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开";
 }
@@ -388,7 +473,7 @@ function renderBestTime() {
   const best = loadBestTime();
   elements.bestTimeEl.textContent = best === null ? "--" : best.toFixed(3);
 }
-function cellText(cell) { if (!cell.revealed) return cell.flagged ? "🚩" : cell.questioned ? "❓" : ""; if (cell.mine) return "💣"; return cell.count ? String(cell.count) : ""; }
+function cellText(cell) { if (cell.givenMine) return "💣"; if (!cell.revealed) return cell.flagged ? "🚩" : cell.questioned ? "❓" : ""; if (cell.mine) return "💣"; return cell.count ? String(cell.count) : ""; }
 function render() {
   elements.boardEl.innerHTML = "";
   elements.boardEl.classList.toggle("hex-mode", isHexMode());
@@ -416,7 +501,16 @@ function render() {
   for (let r = 0; r < state.rows; r++) for (let c = 0; c < state.cols; c++) {
     const cell = state.board[r][c]; const btn = document.createElement("button"); btn.type = "button"; btn.className = "cell";
     const label = document.createElement("span"); label.className = "cell-label"; label.textContent = cellText(cell); btn.append(label);
+    if (modeKey === "sudoku") { btn.classList.add("sudoku"); btn.classList.add(`region-${cell.region}`); if (cell.givenMine) btn.classList.add("given-mine"); }
     if (cell.revealed) btn.classList.add("revealed"); if (cell.flagged) btn.classList.add("flagged"); if (cell.questioned) btn.classList.add("questioned"); if (cell.mine && cell.revealed) btn.classList.add("mine"); if (cell.exploded) btn.classList.add("exploded"); if (cell.revealed && cell.count > 0) btn.classList.add(`num-${cell.count}`);
+    if (modeKey === "sudoku") {
+      btn.style.position = "";
+      btn.style.left = "";
+      btn.style.top = "";
+      btn.style.width = "";
+      btn.style.height = "";
+      btn.style.clipPath = "";
+    }
     if (isHexMode()) {
       const { cellW, cellH, xStep, yStep } = getModeMetrics();
       btn.classList.add("hex-cell");
@@ -453,7 +547,7 @@ function render() {
       label.style.top = `${boxSize / 2 + Math.sin(angleMiddle) * labelRadius}px`;
     }
     btn.addEventListener("click", () => {
-      const result = cell.revealed ? chord(r, c, renderHud) : reveal(r, c, renderHud);
+      const result = modeKey === "sudoku" ? reveal(r, c, renderHud) : (cell.revealed ? chord(r, c, renderHud) : reveal(r, c, renderHud));
       syncGame(result);
     });
     btn.addEventListener("contextmenu", (e) => { e.preventDefault(); cycleMark(r, c); syncGame("continue"); });

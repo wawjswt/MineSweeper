@@ -5,6 +5,10 @@ export const DIFFICULTIES = {
   extreme: { name: "极致", rows: 16, cols: 30, mines: 99 },
 };
 
+export const SUDOKU_DIFFICULTIES = {
+  easy: { name: "基础", rows: 5, cols: 5, mines: 5 },
+};
+
 export const THEMES = {
   dark: {
     page: ["#101b2d", "#09111d"],
