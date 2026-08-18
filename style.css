@@ -398,6 +398,10 @@ kbd { padding: 2px 7px; border: 1px solid var(--panel-border); border-bottom-wid
 .cell.region-4 { --region-color: #8ee5dc; }
 .cell.region-5 { --region-color: #91c8ff; }
 .cell.region-6 { --region-color: #c6a1f2; }
+.cell.region-7 { --region-color: #f19ac2; }
+.cell.region-8 { --region-color: #c8ced8; }
+.cell.region-9 { --region-color: #c99b72; }
+.cell.region-10 { --region-color: #f4b3d8; }
 .cell.given-mine {
   box-shadow:
     inset 0 0 0 2px rgba(255, 230, 150, 0.9),

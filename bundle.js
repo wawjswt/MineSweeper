@@ -7,6 +7,8 @@ const DIFFICULTIES = {
 
 const SUDOKU_DIFFICULTIES = {
   easy: { name: "基础", rows: 7, cols: 7, mines: 7 },
+  normal: { name: "进阶", rows: 9, cols: 9, mines: 9 },
+  hard: { name: "困难", rows: 11, cols: 11, mines: 11 },
 };
 
 function shuffle(list) {
@@ -42,8 +44,10 @@ function generateSudokuMines(size) {
     const usedRegions = new Set();
     const chosen = [];
     let count = 0;
+    let nodes = 0;
     const search = (row) => {
       if (count > 1) return;
+      if (++nodes > 100000) { count = 2; return; }
       if (row === size) { count++; return; }
       const candidates = shuffle([...Array(size).keys()]);
       for (const col of candidates) {
@@ -65,7 +69,8 @@ function generateSudokuMines(size) {
   };
 
   let lastCandidate = null;
-  for (let attempt = 0; attempt < 12000; attempt++) {
+  const maxAttempts = size <= 7 ? 12000 : size <= 9 ? 300 : 80;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const mines = makeMineLayout();
     if (!mines) continue;
     const regions = generateSudokuRegions(size, mines);
@@ -97,7 +102,7 @@ function transformPoint([r, c], size, rotation, flipped) {
 }
 
 function generateSudokuRegions(size, mines = null) {
-  if (size !== 7 || !mines) return Array.from({ length: size }, (_, r) => Array.from({ length: size }, (_, c) => c % size));
+  if (!mines) return Array.from({ length: size }, (_, r) => Array.from({ length: size }, (_, c) => c % size));
   for (let attempt = 0; attempt < 80; attempt++) {
     const regions = Array.from({ length: size }, () => Array(size).fill(-1));
     const frontiers = mines.map(([r, c], region) => {
@@ -321,7 +326,7 @@ function syncCustomDifficultyForm() {
 }
 function getDifficultySpec() {
   if (modeKey === "sudoku") {
-    return SUDOKU_DIFFICULTIES.easy;
+    return SUDOKU_DIFFICULTIES[difficultyKey] || SUDOKU_DIFFICULTIES.easy;
   }
   if (difficultyKey === "custom") {
     const { rows, cols, mines } = getCustomFormValues();
@@ -352,7 +357,7 @@ function formatDifficultyLabel(spec) {
 function refreshDifficultyOptions() {
   const catalog = getDifficultyCatalog();
   elements.difficultySelect.replaceChildren();
-  const keys = modeKey === "sudoku" ? ["easy"] : ["easy", "normal", "hard", "extreme"];
+  const keys = modeKey === "sudoku" ? ["easy", "normal", "hard"] : ["easy", "normal", "hard", "extreme"];
   for (const key of keys) {
     const option = document.createElement("option");
     option.value = key;
@@ -456,7 +461,7 @@ function countOffsetMines(r, c) {
 function layMines(safeRow, safeCol) {
   if (modeKey === "sudoku") {
     const size = state.rows;
-    state.mines = SUDOKU_DIFFICULTIES.easy.mines;
+    state.mines = getDifficultySpec().mines;
     const generated = generateSudokuMines(size);
     state.regions = generated.regions;
     const mines = generated.mines;
