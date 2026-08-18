@@ -17,14 +17,86 @@ const SUDOKU_TEMPLATE = {
     [4, 2, 3, 3, 3],
     [4, 4, 4, 4, 3],
   ],
-  mines: [
-    [0, 4],
-    [1, 2],
-    [2, 0],
-    [3, 3],
-    [4, 1],
-  ],
+  mines: null,
 };
+
+function shuffle(list) {
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+function generateSudokuMines(size) {
+  function isAdjacent([r1, c1], [r2, c2]) {
+    return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
+  }
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const regions = generateSudokuRegions(size);
+    const rows = [...Array(size).keys()];
+    const usedCols = new Set();
+    const chosen = [];
+
+    function backtrack(index, chosenRegions) {
+      if (index === rows.length) return true;
+      const r = rows[index];
+      const candidates = shuffle([...Array(size).keys()].map((c) => [r, c])).filter(([row, col]) => !usedCols.has(col));
+      for (const [row, col] of candidates) {
+        const region = regions[row][col];
+        if (chosenRegions.has(region)) continue;
+        if (chosen.some((p) => isAdjacent(p, [row, col]))) continue;
+        usedCols.add(col);
+        chosenRegions.add(region);
+        chosen.push([row, col]);
+        if (backtrack(index + 1, chosenRegions)) return true;
+        chosen.pop();
+        chosenRegions.delete(region);
+        usedCols.delete(col);
+      }
+      return false;
+    }
+
+    if (backtrack(0, new Set())) {
+      return { mines: chosen, regions };
+    }
+  }
+  return {
+    mines: [[0, 4], [1, 2], [2, 0], [3, 3], [4, 1]],
+    regions: SUDOKU_TEMPLATE.regions.map((row) => [...row]),
+  };
+}
+
+function rotateGrid(grid) {
+  const size = grid.length;
+  return Array.from({ length: size }, (_, r) =>
+    Array.from({ length: size }, (_, c) => grid[size - 1 - c][r]),
+  );
+}
+
+function flipGrid(grid) {
+  return grid.map((row) => [...row].reverse());
+}
+
+function transformPoint([r, c], size, rotation, flipped) {
+  let x = r;
+  let y = c;
+  for (let i = 0; i < rotation; i++) {
+    [x, y] = [y, size - 1 - x];
+  }
+  if (flipped) y = size - 1 - y;
+  return [x, y];
+}
+
+function generateSudokuRegions(size) {
+  let regions = SUDOKU_TEMPLATE.regions.map((row) => [...row]);
+  const rotation = Math.floor(Math.random() * 4);
+  const flipped = Math.random() < 0.5;
+  for (let i = 0; i < rotation; i++) regions = rotateGrid(regions);
+  if (flipped) regions = flipGrid(regions);
+  return regions;
+}
 
 const HEX_DIFFICULTIES = {
   easy: { name: "简单", rows: 8, cols: 8, mines: 10 },
@@ -357,7 +429,9 @@ function layMines(safeRow, safeCol) {
   if (modeKey === "sudoku") {
     const size = state.rows;
     state.mines = SUDOKU_DIFFICULTIES.easy.mines;
-    state.regions = SUDOKU_TEMPLATE.regions.map((row) => [...row]);
+    const generated = generateSudokuMines(size);
+    state.regions = generated.regions;
+    const mines = generated.mines;
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
         const cell = state.board[r][c];
@@ -370,10 +444,10 @@ function layMines(safeRow, safeCol) {
         cell.givenMine = false;
       }
     }
-    for (const [r, c] of SUDOKU_TEMPLATE.mines) {
+    for (const [r, c] of mines) {
       state.board[r][c].mine = true;
     }
-    const [givenRow, givenCol] = SUDOKU_TEMPLATE.mines[0];
+    const [givenRow, givenCol] = mines[0];
     state.board[givenRow][givenCol].flagged = true;
     state.board[givenRow][givenCol].givenMine = true;
     state.board[givenRow][givenCol].revealed = false;
@@ -410,7 +484,6 @@ function stopTimer() {
 function reveal(row, col, onTick) {
   if (state.ended) return;
   if (modeKey === "sudoku") {
-    if (!state.started) { state.started = true; layMines(row, col); startTimer(onTick); }
     const cell = state.board[row][col];
     if (cell.givenMine) {
       state.ended = true;
@@ -647,7 +720,19 @@ function syncGame(status) {
   }
   render();
 }
-function resetGame() { stopTimer(); resetTransientInputState(); state = makeState(); setResetEmoji("😊"); setStatus("待开始"); render(); }
+function resetGame() {
+  stopTimer();
+  resetTransientInputState();
+  state = makeState();
+  if (modeKey === "sudoku") {
+    state.started = true;
+    layMines(0, 0);
+    state.started = false;
+  }
+  setResetEmoji("😊");
+  setStatus("待开始");
+  render();
+}
 
 function init() {
   setDifficulty(difficultyKey);
