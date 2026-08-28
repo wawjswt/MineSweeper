@@ -19,7 +19,14 @@ function shuffle(list) {
   return list;
 }
 
-function generateSudokuMines(size) {
+function gcd(a, b) {
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return Math.abs(a);
+}
+
+function generateSudokuMines(size, options = {}) {
   const adjacent = ([r1, c1], [r2, c2]) => Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1;
   const makeMineLayout = () => {
     const result = [];
@@ -68,16 +75,31 @@ function generateSudokuMines(size) {
     return count;
   };
 
-  let lastCandidate = null;
-  const maxAttempts = size <= 7 ? 12000 : size <= 9 ? 300 : 80;
+  const buildCandidate = (mines) => ({ mines, regions: generateSudokuRegions(size, mines) });
+  const verifyCandidate = (candidate) => candidate && candidate.mines.length === size && countSolutions(candidate.regions, candidate.mines[0]) === 1;
+  const maxAttempts = options.maxAttempts ?? (size <= 7 ? 12000 : size <= 9 ? 600 : 120);
+  const fallbackSteps = [];
+  for (let step = 2; step < size; step++) {
+    if (gcd(step, size) === 1 && step !== size - 1) fallbackSteps.push(step);
+  }
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const mines = makeMineLayout();
     if (!mines) continue;
-    const regions = generateSudokuRegions(size, mines);
-    lastCandidate = { mines, regions };
-    if (countSolutions(regions, mines[0]) === 1) return { mines, regions };
+    const candidate = buildCandidate(mines);
+    if (verifyCandidate(candidate)) return { ...candidate, verified: true, strategy: 'random', attempts: attempt + 1 };
   }
-  return lastCandidate || { mines: Array.from({ length: size }, (_, r) => [r, (r * 2) % size]), regions: generateSudokuRegions(size, Array.from({ length: size }, (_, r) => [r, (r * 2) % size])) };
+
+  for (const step of fallbackSteps) {
+    const mines = Array.from({ length: size }, (_, r) => [r, (r * step) % size]);
+    const candidate = buildCandidate(mines);
+    if (verifyCandidate(candidate)) return { ...candidate, verified: true, strategy: 'fallback-verified', fallbackStep: step, attempts: maxAttempts };
+  }
+
+  const fallbackStep = fallbackSteps[0] || 2;
+  const fallbackMineLayout = Array.from({ length: size }, (_, r) => [r, (r * fallbackStep) % size]);
+  const fallbackCandidate = buildCandidate(fallbackMineLayout);
+  return { ...fallbackCandidate, verified: false, strategy: 'fallback-unverified', fallbackStep, attempts: maxAttempts };
 }
 
 function rotateGrid(grid) {
@@ -277,7 +299,7 @@ async function compressImageDataUrl(dataUrl) {
 
 function makeState() {
   const { rows, cols, mines } = getDifficultySpec();
-  return { rows, cols, mines, started: false, ended: false, win: false, timer: 0, board: Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ mine: false, revealed: false, flagged: false, questioned: false, count: 0 }))) };
+  return { rows, cols, mines, started: false, ended: false, win: false, timer: 0, sudokuGeneration: null, board: Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ mine: false, revealed: false, flagged: false, questioned: false, count: 0 }))) };
 }
 function isHexMode() { return modeKey === "hex"; }
 function isRingMode() { return modeKey === "ring"; }
@@ -354,6 +376,17 @@ function formatDifficultyLabel(spec) {
   if (isRingMode()) return `${spec.name} ${spec.rows}圈 × ${spec.cols}格 · ${spec.mines}雷`;
   return `${spec.name} ${spec.rows}×${spec.cols} · ${spec.mines}雷`;
 }
+function normalizeDifficultySelection() {
+  const catalog = getDifficultyCatalog();
+  if (!catalog[difficultyKey] && !(modeKey !== "sudoku" && difficultyKey === "custom")) {
+    difficultyKey = modeKey === "sudoku" ? "easy" : "normal";
+  }
+  if (modeKey === "sudoku" && difficultyKey === "custom") {
+    difficultyKey = "easy";
+  }
+  elements.difficultySelect.value = difficultyKey;
+  return difficultyKey;
+}
 function refreshDifficultyOptions() {
   const catalog = getDifficultyCatalog();
   elements.difficultySelect.replaceChildren();
@@ -370,7 +403,7 @@ function refreshDifficultyOptions() {
     customOption.textContent = "自定义";
     elements.difficultySelect.appendChild(customOption);
   }
-  elements.difficultySelect.value = difficultyKey;
+  normalizeDifficultySelection();
 }
 function getModeMetrics() {
   return isHexMode() ? BOARD_METRICS.hex : BOARD_METRICS.classic;
@@ -463,6 +496,7 @@ function layMines(safeRow, safeCol) {
     const size = state.rows;
     state.mines = getDifficultySpec().mines;
     const generated = generateSudokuMines(size);
+    state.sudokuGeneration = generated;
     state.regions = generated.regions;
     const mines = generated.mines;
     for (let r = 0; r < size; r++) {
@@ -733,8 +767,8 @@ function applyTheme(themeKey) {
 }
 function applyBackground(url) { elements.pageBackdropEl.style.backgroundImage = url ? `url("${url}")` : "none"; elements.pageBackdropEl.style.backgroundSize = "cover"; elements.pageBackdropEl.style.backgroundPosition = "center"; elements.pageBackdropEl.style.backgroundRepeat = "no-repeat"; }
 function applyBackgroundOpacity(value) { document.documentElement.style.setProperty("--bg-opacity", value); }
-function setDifficulty(value) { elements.difficultySelect.value = value; difficultyKey = value; }
-function setMode(value) { elements.modeSelect.value = value; modeKey = value; }
+function setDifficulty(value) { difficultyKey = value; normalizeDifficultySelection(); }
+function setMode(value) { elements.modeSelect.value = value; modeKey = value; normalizeDifficultySelection(); }
 function bindHandlers() {
   elements.resetButton.addEventListener("click", resetGame);
   elements.boardEl.addEventListener("contextmenu", (e) => {
