@@ -92,17 +92,18 @@ function generateSudokuMines(size, options = {}) {
     if (verifyCandidate(candidate)) return { ...candidate, verified: true, strategy: 'random', attempts: attempt + 1 };
   }
 
-  const fallbackCheckSteps = size <= 11 ? fallbackSteps : fallbackSteps.slice(0, 2);
+  const fallbackCheckSteps = shuffle(size <= 11 ? [...fallbackSteps] : fallbackSteps.slice(0, 2));
   for (const step of fallbackCheckSteps) {
     const mines = Array.from({ length: size }, (_, r) => [r, (r * step) % size]);
     const candidate = buildCandidate(mines);
     if (verifyCandidate(candidate)) return { ...candidate, verified: true, strategy: 'fallback-verified', fallbackStep: step, attempts: maxAttempts };
   }
 
-  const fallbackStep = fallbackSteps[0] || 2;
-  const fallbackMineLayout = Array.from({ length: size }, (_, r) => [r, (r * fallbackStep) % size]);
+  const fallbackStep = fallbackSteps[Math.floor(Math.random() * fallbackSteps.length)] || 2;
+  const fallbackOffset = Math.floor(Math.random() * size);
+  const fallbackMineLayout = Array.from({ length: size }, (_, r) => [r, (fallbackOffset + r * fallbackStep) % size]);
   const fallbackCandidate = buildCandidate(fallbackMineLayout);
-  return { ...fallbackCandidate, verified: false, strategy: 'fallback-unverified', fallbackStep, attempts: maxAttempts };
+  return { ...fallbackCandidate, verified: false, strategy: 'fallback-unverified', fallbackStep, fallbackOffset, attempts: maxAttempts };
 }
 
 function rotateGrid(grid) {
@@ -224,6 +225,7 @@ const elements = {
   resetButton: document.getElementById("resetButton"),
   difficultySelect: document.getElementById("difficultySelect"),
   modeSelect: document.getElementById("modeSelect"),
+  customDifficultyCard: document.getElementById("customDifficultyCard"),
   customRows: document.getElementById("customRows"),
   customCols: document.getElementById("customCols"),
   customMines: document.getElementById("customMines"),
@@ -261,6 +263,8 @@ let timerId = null;
 let timerStartAt = null;
 let longPressTimer = null;
 let activePointerId = null;
+let sudokuCrossDrag = null;
+let sudokuCrossClickSuppressed = false;
 
 function saveThemeKey(themeKey) { localStorage.setItem("minesweeper-theme", themeKey); }
 function saveBackgroundUrl(backgroundUrl) { try { if (backgroundUrl) localStorage.setItem("minesweeper-background", backgroundUrl); else localStorage.removeItem("minesweeper-background"); } catch {} }
@@ -379,6 +383,11 @@ function formatDifficultyLabel(spec) {
   if (isRingMode()) return `${spec.name} ${spec.rows}圈 × ${spec.cols}格 · ${spec.mines}雷`;
   return `${spec.name} ${spec.rows}×${spec.cols} · ${spec.mines}雷`;
 }
+function updateCustomDifficultyVisibility() {
+  if (elements.customDifficultyCard) {
+    elements.customDifficultyCard.hidden = modeKey === "sudoku";
+  }
+}
 function normalizeDifficultySelection() {
   const catalog = getDifficultyCatalog();
   if (!catalog[difficultyKey] && !(modeKey !== "sudoku" && difficultyKey === "custom")) {
@@ -388,6 +397,7 @@ function normalizeDifficultySelection() {
     difficultyKey = "easy";
   }
   elements.difficultySelect.value = difficultyKey;
+  updateCustomDifficultyVisibility();
   return difficultyKey;
 }
 function refreshDifficultyOptions() {
@@ -546,6 +556,35 @@ function markSudokuFailure() {
     }
   }
 }
+function markSudokuCross(row, col) {
+  const cell = state.board[row][col];
+  if (cell.givenMine || cell.revealed) return false;
+  cell.crossed = true;
+  return true;
+}
+function startSudokuCrossDrag(row, col, pointerId) {
+  if (state.ended || modeKey !== "sudoku") return;
+  sudokuCrossDrag = { pointerId, startRow: row, startCol: col, seen: new Set() };
+}
+function applySudokuCrossDrag(row, col, pointerId) {
+  if (!sudokuCrossDrag || sudokuCrossDrag.pointerId !== pointerId || state.ended || modeKey !== "sudoku") return;
+  const key = `${row},${col}`;
+  if (sudokuCrossDrag.seen.has(key)) return;
+  sudokuCrossDrag.seen.add(key);
+  if (!state.started) {
+    state.started = true;
+    startTimer(renderHud);
+  }
+  if (sudokuCrossDrag.seen.size === 1) {
+    markSudokuCross(sudokuCrossDrag.startRow, sudokuCrossDrag.startCol);
+  }
+  markSudokuCross(row, col);
+  sudokuCrossClickSuppressed = true;
+  syncGame(checkWin() ? "win" : "continue");
+}
+function endSudokuCrossDrag(pointerId) {
+  if (sudokuCrossDrag && sudokuCrossDrag.pointerId === pointerId) sudokuCrossDrag = null;
+}
 function checkWin() {
   if (modeKey === "sudoku") {
     if (state.board.flat().every((cell) => !cell.mine || cell.flagged)) {
@@ -581,7 +620,7 @@ function reveal(row, col, onTick) {
       state.started = true;
       startTimer(onTick);
     }
-    if (!cell.givenMine) cell.crossed = !cell.crossed;
+    if (!cell.givenMine && !cell.revealed) cell.crossed = !cell.crossed;
     if (checkWin()) return "win";
     return "continue";
   }
@@ -647,6 +686,7 @@ function renderBestTime() {
 function cellText(cell) {
   if (cell.givenMine) return "💣";
   if (modeKey === "sudoku") {
+    if (cell.mine && cell.revealed) return "💣";
     if (cell.flagged) return "🚩";
     if (cell.crossed) return "✕";
     return "";
@@ -727,7 +767,12 @@ function render() {
       label.style.left = `${boxSize / 2 + Math.cos(angleMiddle) * labelRadius}px`;
       label.style.top = `${boxSize / 2 + Math.sin(angleMiddle) * labelRadius}px`;
     }
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      if (modeKey === "sudoku" && sudokuCrossClickSuppressed) {
+        sudokuCrossClickSuppressed = false;
+        e.preventDefault();
+        return;
+      }
       const result = modeKey === "sudoku" ? reveal(r, c, renderHud) : (cell.revealed ? chord(r, c, renderHud) : reveal(r, c, renderHud));
       syncGame(result);
     });
@@ -736,10 +781,40 @@ function render() {
       cycleMark(r, c);
       syncGame(state.ended ? "lose" : "continue");
     });
-    btn.addEventListener("pointerdown", (e) => { if (state.ended || e.pointerType === "mouse") return; activePointerId = e.pointerId; longPressTimer = setTimeout(() => { cycleMark(r, c); longPressTimer = null; syncGame(state.ended ? "lose" : "continue"); }, 450); });
-    btn.addEventListener("pointerup", (e) => { if (activePointerId !== e.pointerId) return; activePointerId = null; if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } });
-    btn.addEventListener("pointerleave", () => { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } });
-    btn.addEventListener("pointercancel", () => { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } });
+    btn.addEventListener("pointerdown", (e) => {
+      if (state.ended) return;
+      if (modeKey === "sudoku" && e.pointerType === "mouse" && e.button === 0) {
+        activePointerId = e.pointerId;
+        startSudokuCrossDrag(r, c, e.pointerId);
+        e.preventDefault();
+        return;
+      }
+      if (e.pointerType === "mouse") return;
+      activePointerId = e.pointerId;
+      longPressTimer = setTimeout(() => { cycleMark(r, c); longPressTimer = null; syncGame(state.ended ? "lose" : "continue"); }, 450);
+    });
+    btn.addEventListener("pointermove", (e) => {
+      if (modeKey !== "sudoku" || e.pointerType !== "mouse" || (e.buttons & 1) !== 1) return;
+      applySudokuCrossDrag(r, c, e.pointerId);
+    });
+    btn.addEventListener("pointerenter", (e) => {
+      if (modeKey !== "sudoku" || e.pointerType !== "mouse" || (e.buttons & 1) !== 1) return;
+      applySudokuCrossDrag(r, c, e.pointerId);
+    });
+    btn.addEventListener("pointerup", (e) => {
+      if (activePointerId !== e.pointerId) return;
+      activePointerId = null;
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      endSudokuCrossDrag(e.pointerId);
+    });
+    btn.addEventListener("pointerleave", (e) => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      if (modeKey === "sudoku" && e.pointerType === "mouse" && (e.buttons & 1) !== 1) endSudokuCrossDrag(e.pointerId);
+    });
+    btn.addEventListener("pointercancel", (e) => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      endSudokuCrossDrag(e.pointerId);
+    });
     elements.boardEl.appendChild(btn);
   }
   renderHud();
@@ -771,7 +846,7 @@ function applyTheme(themeKey) {
 function applyBackground(url) { elements.pageBackdropEl.style.backgroundImage = url ? `url("${url}")` : "none"; elements.pageBackdropEl.style.backgroundSize = "cover"; elements.pageBackdropEl.style.backgroundPosition = "center"; elements.pageBackdropEl.style.backgroundRepeat = "no-repeat"; }
 function applyBackgroundOpacity(value) { document.documentElement.style.setProperty("--bg-opacity", value); }
 function setDifficulty(value) { difficultyKey = value; normalizeDifficultySelection(); }
-function setMode(value) { elements.modeSelect.value = value; modeKey = value; normalizeDifficultySelection(); }
+function setMode(value) { elements.modeSelect.value = value; modeKey = value; normalizeDifficultySelection(); updateCustomDifficultyVisibility(); }
 function bindHandlers() {
   elements.resetButton.addEventListener("click", resetGame);
   elements.boardEl.addEventListener("contextmenu", (e) => {
@@ -812,7 +887,7 @@ function bindHandlers() {
   elements.bgOpacity.addEventListener("input", (e) => { storage.backgroundOpacity = e.target.value; saveBackgroundOpacity(e.target.value); applyBackgroundOpacity(e.target.value); });
   window.addEventListener("keydown", (e) => { if (e.key.toLowerCase() === "r") resetGame(); });
 }
-function resetTransientInputState() { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } activePointerId = null; }
+function resetTransientInputState() { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } activePointerId = null; sudokuCrossDrag = null; sudokuCrossClickSuppressed = false; }
 function syncGame(status) {
   if (status === "win") {
     const currentBest = loadBestTime();

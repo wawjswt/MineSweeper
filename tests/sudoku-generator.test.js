@@ -4,12 +4,12 @@ const vm = require("vm");
 const source = fs.readFileSync(require.resolve("../bundle.js"), "utf8").replace(/\binit\(\);\s*$/, "");
 
 function createMockElement(id, initialValue = "") {
-  return {
+  const element = {
     id,
     value: initialValue,
     textContent: "",
-    innerHTML: "",
     style: {},
+    hidden: false,
     children: [],
     classList: { add() {}, toggle() {} },
     addEventListener() {},
@@ -19,6 +19,13 @@ function createMockElement(id, initialValue = "") {
     setAttribute() {},
     removeAttribute() {},
   };
+  Object.defineProperty(element, "innerHTML", {
+    get() { return this._innerHTML || ""; },
+    set(value) { this._innerHTML = String(value); this.children = []; },
+    enumerable: true,
+    configurable: true,
+  });
+  return element;
 }
 
 function createContext() {
@@ -35,6 +42,7 @@ function createContext() {
     ["customColsLabel", ""],
     ["customMinesLabel", ""],
     ["applyCustomDifficultyButton", ""],
+    ["customDifficultyCard", ""],
     ["themeSelect", "dark"],
     ["bgUpload", ""],
     ["bgOpacity", "0.45"],
@@ -56,17 +64,26 @@ function createContext() {
       return elements.get(id);
     },
     createElement(tag) {
-      return {
+      const element = {
         tagName: tag.toUpperCase(),
         value: "",
         textContent: "",
         style: {},
+        hidden: false,
+        children: [],
         classList: { add() {}, toggle() {} },
         addEventListener() {},
-        appendChild() {},
-        append() {},
+        appendChild(child) { this.children.push(child); return child; },
+        append(...children) { this.children.push(...children); },
         setAttribute() {},
       };
+      Object.defineProperty(element, "innerHTML", {
+        get() { return this._innerHTML || ""; },
+        set(value) { this._innerHTML = String(value); this.children = []; },
+        enumerable: true,
+        configurable: true,
+      });
+      return element;
     },
   };
 
@@ -77,23 +94,43 @@ function createContext() {
       setItem() {},
       removeItem() {},
     },
-    window: { addEventListener() {} },
+    window: { addEventListener() {}, clearInterval, clearTimeout, setInterval, setTimeout, performance: { now: () => 0 } },
     console,
     Math,
     setTimeout,
     clearTimeout,
+    setInterval,
+    clearInterval,
+    performance: { now: () => 0 },
   };
 
   vm.runInNewContext(
-    `${source}\n` +
-      `this.__getDifficultyKey = () => difficultyKey;\n` +
-      `this.__getModeKey = () => modeKey;\n` +
-      `this.__getDifficultyRecordKey = () => getDifficultyRecordKey();\n` +
-      `this.__setDifficulty = setDifficulty;\n` +
-      `this.__setMode = setMode;\n` +
-      `this.__refreshDifficultyOptions = refreshDifficultyOptions;\n` +
-      `this.__normalizeDifficultySelection = normalizeDifficultySelection;\n` +
-      `this.__generateSudokuMines = generateSudokuMines;\n`,
+    `${source}
+` +
+      `this.__getDifficultyKey = () => difficultyKey;
+` +
+      `this.__getModeKey = () => modeKey;
+` +
+      `this.__getDifficultyRecordKey = () => getDifficultyRecordKey();
+` +
+      `this.__setDifficulty = setDifficulty;
+` +
+      `this.__setMode = setMode;
+` +
+      `this.__refreshDifficultyOptions = refreshDifficultyOptions;
+` +
+      `this.__normalizeDifficultySelection = normalizeDifficultySelection;
+` +
+      `this.__generateSudokuMines = generateSudokuMines;
+` +
+      `this.__resetGame = resetGame;
+` +
+      `this.__cycleMark = cycleMark;
+` +
+      `this.__syncGame = syncGame;
+` +
+      `this.__getState = () => state;
+`,
     context,
   );
   return context;
@@ -202,6 +239,17 @@ if (fallback.fallbackStep === undefined) {
 }
 console.log("sudoku generator: forced fallback is explicit");
 
+// Forced fallback should not collapse to the same mine layout every time.
+const fallbackLayouts = new Set();
+for (let i = 0; i < 6; i++) {
+  const result = context.__generateSudokuMines(11, { maxAttempts: 0 });
+  fallbackLayouts.add(JSON.stringify(result.mines));
+}
+if (fallbackLayouts.size < 2) {
+  throw new Error("forced fallback should vary mine layouts across runs");
+}
+console.log("sudoku generator: fallback layouts vary across runs");
+
 // Mode switch should normalize away stale custom difficulty when entering sudoku.
 context.__setDifficulty("custom");
 context.__setMode("classic");
@@ -225,4 +273,49 @@ if (optionValues.length !== 5) {
 if (optionValues.includes("custom")) {
   throw new Error("sudoku difficulty options should not include custom");
 }
+const customCard = context.document.getElementById("customDifficultyCard");
+if (!customCard.hidden) {
+  throw new Error("custom difficulty card should be hidden in sudoku mode");
+}
+context.__setMode("classic");
+context.__refreshDifficultyOptions();
+if (customCard.hidden) {
+  throw new Error("custom difficulty card should be visible outside sudoku mode");
+}
 console.log("sudoku mode: stale custom difficulty is normalized and options are bounded");
+
+
+
+
+// Sudoku mistake should reveal the full board with mine icons instead of leaving a silent hidden failure.
+context.__setDifficulty("easy");
+context.__setMode("sudoku");
+context.__resetGame();
+let state = context.__getState();
+const hiddenMine = state.board.flat().find((cell) => cell.mine && !cell.givenMine);
+if (!hiddenMine) {
+  throw new Error("expected a non-given mine to test failure reveal");
+}
+const hiddenMineRow = state.board.findIndex((row) => row.includes(hiddenMine));
+const hiddenMineCol = state.board[hiddenMineRow].indexOf(hiddenMine);
+const hiddenMineButton = context.document.getElementById("board").children[hiddenMineRow * state.cols + hiddenMineCol];
+if ((hiddenMineButton.children[0] && hiddenMineButton.children[0].textContent) !== "") {
+  throw new Error("non-given mine should stay hidden before failure");
+}
+const safeCell = state.board.flat().find((cell) => !cell.mine && !cell.givenMine);
+const safeRow = state.board.findIndex((row) => row.includes(safeCell));
+const safeCol = state.board[safeRow].indexOf(safeCell);
+context.__cycleMark(safeRow, safeCol);
+context.__syncGame("lose");
+state = context.__getState();
+if (!state.ended || state.win) {
+  throw new Error("wrong sudoku mark should end the game as a loss");
+}
+const revealedHiddenMineButton = context.document.getElementById("board").children[hiddenMineRow * state.cols + hiddenMineCol];
+if ((revealedHiddenMineButton.children[0] && revealedHiddenMineButton.children[0].textContent) !== "💣") {
+  throw new Error("hidden sudoku mine should be revealed as a mine icon after failure");
+}
+if (!hiddenMine.revealed) {
+  throw new Error("hidden sudoku mine should be marked revealed after failure");
+}
+console.log("sudoku failure: wrong mark reveals the full mine board");
