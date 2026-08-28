@@ -6,9 +6,11 @@ const DIFFICULTIES = {
 };
 
 const SUDOKU_DIFFICULTIES = {
-  easy: { name: "基础", rows: 7, cols: 7, mines: 7 },
-  normal: { name: "进阶", rows: 9, cols: 9, mines: 9 },
-  hard: { name: "困难", rows: 11, cols: 11, mines: 11 },
+  easy: { name: "基础", rows: 9, cols: 9, mines: 9 },
+  normal: { name: "进阶", rows: 11, cols: 11, mines: 11 },
+  hard: { name: "困难", rows: 13, cols: 13, mines: 13 },
+  extreme: { name: "挑战", rows: 15, cols: 15, mines: 15 },
+  expert: { name: "宗师", rows: 19, cols: 19, mines: 19 },
 };
 
 function shuffle(list) {
@@ -77,7 +79,7 @@ function generateSudokuMines(size, options = {}) {
 
   const buildCandidate = (mines) => ({ mines, regions: generateSudokuRegions(size, mines) });
   const verifyCandidate = (candidate) => candidate && candidate.mines.length === size && countSolutions(candidate.regions, candidate.mines[0]) === 1;
-  const maxAttempts = options.maxAttempts ?? (size <= 7 ? 12000 : size <= 9 ? 600 : 120);
+  const maxAttempts = options.maxAttempts ?? (size <= 9 ? 600 : size <= 11 ? 120 : size <= 13 ? 30 : size <= 15 ? 15 : 8);
   const fallbackSteps = [];
   for (let step = 2; step < size; step++) {
     if (gcd(step, size) === 1 && step !== size - 1) fallbackSteps.push(step);
@@ -90,7 +92,8 @@ function generateSudokuMines(size, options = {}) {
     if (verifyCandidate(candidate)) return { ...candidate, verified: true, strategy: 'random', attempts: attempt + 1 };
   }
 
-  for (const step of fallbackSteps) {
+  const fallbackCheckSteps = size <= 11 ? fallbackSteps : fallbackSteps.slice(0, 2);
+  for (const step of fallbackCheckSteps) {
     const mines = Array.from({ length: size }, (_, r) => [r, (r * step) % size]);
     const candidate = buildCandidate(mines);
     if (verifyCandidate(candidate)) return { ...candidate, verified: true, strategy: 'fallback-verified', fallbackStep: step, attempts: maxAttempts };
@@ -390,7 +393,7 @@ function normalizeDifficultySelection() {
 function refreshDifficultyOptions() {
   const catalog = getDifficultyCatalog();
   elements.difficultySelect.replaceChildren();
-  const keys = modeKey === "sudoku" ? ["easy", "normal", "hard"] : ["easy", "normal", "hard", "extreme"];
+  const keys = modeKey === "sudoku" ? ["easy", "normal", "hard", "extreme", "expert"] : ["easy", "normal", "hard", "extreme"];
   for (const key of keys) {
     const option = document.createElement("option");
     option.value = key;

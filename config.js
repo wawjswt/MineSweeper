@@ -6,7 +6,11 @@ export const DIFFICULTIES = {
 };
 
 export const SUDOKU_DIFFICULTIES = {
-  easy: { name: "基础", rows: 5, cols: 5, mines: 5 },
+  easy: { name: "基础", rows: 9, cols: 9, mines: 9 },
+  normal: { name: "进阶", rows: 11, cols: 11, mines: 11 },
+  hard: { name: "困难", rows: 13, cols: 13, mines: 13 },
+  extreme: { name: "挑战", rows: 15, cols: 15, mines: 15 },
+  expert: { name: "宗师", rows: 19, cols: 19, mines: 19 },
 };
 
 export const THEMES = {

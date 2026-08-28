@@ -180,7 +180,7 @@ function assertUniqueSolution(result, size) {
 const context = createContext();
 
 // Existing coverage: structural legality and connectivity.
-for (const size of [7, 9, 11]) {
+for (const size of [9, 11, 13, 15, 19]) {
   const result = context.__generateSudokuMines(size);
   assertSudokuBoard(result, size);
   if (result.verified) {
@@ -209,7 +209,7 @@ context.__refreshDifficultyOptions();
 context.__setMode("sudoku");
 context.__refreshDifficultyOptions();
 const difficultyKey = context.__getDifficultyKey();
-if (!["easy", "normal", "hard"].includes(difficultyKey)) {
+if (!["easy", "normal", "hard", "extreme", "expert"].includes(difficultyKey)) {
   throw new Error(`difficultyKey should normalize inside sudoku mode, got ${difficultyKey}`);
 }
 if (context.document.getElementById("difficultySelect").value !== difficultyKey) {
@@ -218,4 +218,11 @@ if (context.document.getElementById("difficultySelect").value !== difficultyKey)
 if (context.__getDifficultyRecordKey().includes("custom")) {
   throw new Error("sudoku best-time storage key should not keep custom suffix");
 }
-console.log("sudoku mode: stale custom difficulty is normalized");
+const optionValues = context.document.getElementById("difficultySelect").children.map((child) => child.value);
+if (optionValues.length !== 5) {
+  throw new Error(`expected 5 sudoku difficulty options, got ${optionValues.length}`);
+}
+if (optionValues.includes("custom")) {
+  throw new Error("sudoku difficulty options should not include custom");
+}
+console.log("sudoku mode: stale custom difficulty is normalized and options are bounded");
