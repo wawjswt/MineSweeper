@@ -244,6 +244,7 @@ const elements = {
   statusTextEl: document.getElementById("statusText"),
   bestTimeEl: document.getElementById("bestTime"),
   pageBackdropEl: document.getElementById("pageBackdrop"),
+  fireworksLayer: document.getElementById("fireworksLayer"),
 };
 
 const storage = {
@@ -265,6 +266,7 @@ let longPressTimer = null;
 let activePointerId = null;
 let sudokuCrossDrag = null;
 let sudokuCrossClickSuppressed = false;
+let victoryFireworksTimeout = null;
 
 function saveThemeKey(themeKey) { localStorage.setItem("minesweeper-theme", themeKey); }
 function saveBackgroundUrl(backgroundUrl) { try { if (backgroundUrl) localStorage.setItem("minesweeper-background", backgroundUrl); else localStorage.removeItem("minesweeper-background"); } catch {} }
@@ -585,6 +587,9 @@ function applySudokuCrossDrag(row, col, pointerId) {
 function endSudokuCrossDrag(pointerId) {
   if (sudokuCrossDrag && sudokuCrossDrag.pointerId === pointerId) sudokuCrossDrag = null;
 }
+function isSudokuSolved() {
+  return modeKey === "sudoku" && state.board.flat().every((cell) => !cell.mine || cell.flagged);
+}
 function checkWin() {
   if (modeKey === "sudoku") {
     if (state.board.flat().every((cell) => !cell.mine || cell.flagged)) {
@@ -611,6 +616,85 @@ function stopTimer() {
   clearInterval(timerId);
   timerId = null;
   timerStartAt = null;
+}
+function clearVictoryFireworks() {
+  if (victoryFireworksTimeout) {
+    clearTimeout(victoryFireworksTimeout);
+    victoryFireworksTimeout = null;
+  }
+  if (elements.fireworksLayer) elements.fireworksLayer.innerHTML = "";
+}
+function launchVictoryFireworks() {
+  if (!elements.fireworksLayer) return;
+  clearVictoryFireworks();
+  const layer = elements.fireworksLayer;
+  const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1280);
+  const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 720);
+  const colors = ["#ff6b6b", "#ffd166", "#4dd0e1", "#7bed9f", "#a78bfa", "#ff8fab"];
+  const bursts = [];
+  const burstCount = 8;
+  const centerX = width * 0.5;
+  const centerY = height * 0.36;
+  for (let i = 0; i < burstCount; i++) {
+    const burst = document.createElement("span");
+    burst.className = "firework-burst";
+    const sweep = (i / burstCount) * Math.PI * 2;
+    const radius = Math.min(width, height) * (0.06 + Math.random() * 0.18);
+    const x = Math.round(centerX + Math.cos(sweep) * radius + (Math.random() - 0.5) * 140);
+    const y = Math.round(centerY + Math.sin(sweep) * radius * 0.7 + (Math.random() - 0.5) * 90);
+    burst.style.left = `${x}px`;
+    burst.style.top = `${y}px`;
+    burst.style.setProperty("--burst-color", colors[i % colors.length]);
+    burst.style.setProperty("--burst-delay", `${i * 130}ms`);
+    burst.style.setProperty("--burst-scale", `${0.9 + Math.random() * 0.35}`);
+
+    const flash = document.createElement("span");
+    flash.className = "firework-flash";
+    burst.appendChild(flash);
+
+    const ring = document.createElement("span");
+    ring.className = "firework-ring";
+    burst.appendChild(ring);
+
+    const core = document.createElement("span");
+    core.className = "firework-core";
+    burst.appendChild(core);
+
+    const color = colors[i % colors.length];
+    const sparkCount = 14 + Math.floor(Math.random() * 8);
+    for (let j = 0; j < sparkCount; j++) {
+      const angle = (Math.PI * 2 * j) / sparkCount + Math.random() * 0.18;
+      const distance = 42 + Math.random() * 78;
+      const spark = document.createElement("span");
+      spark.className = "firework-spark";
+      spark.style.setProperty("--dx", `${Math.cos(angle) * distance}px`);
+      spark.style.setProperty("--dy", `${Math.sin(angle) * distance}px`);
+      spark.style.setProperty("--firework-color", color);
+      spark.style.setProperty("--spark-size", `${5 + Math.random() * 4}px`);
+      spark.style.setProperty("--spark-delay", `${Math.random() * 150}ms`);
+      burst.appendChild(spark);
+    }
+
+    const trailCount = 5 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < trailCount; j++) {
+      const angle = (Math.PI * 2 * j) / trailCount + Math.random() * 0.22;
+      const distance = 88 + Math.random() * 84;
+      const trail = document.createElement("span");
+      trail.className = "firework-trail";
+      trail.style.setProperty("--dx", `${Math.cos(angle) * distance}px`);
+      trail.style.setProperty("--dy", `${Math.sin(angle) * distance}px`);
+      trail.style.setProperty("--firework-color", color);
+      trail.style.setProperty("--trail-delay", `${60 + Math.random() * 180}ms`);
+      trail.style.setProperty("--trail-size", `${2 + Math.random() * 2}px`);
+      burst.appendChild(trail);
+    }
+
+    bursts.push(burst);
+    setTimeout(() => layer.appendChild(burst), i * 110);
+  }
+  victoryFireworksTimeout = setTimeout(() => {
+    clearVictoryFireworks();
+  }, 3200);
 }
 function reveal(row, col, onTick) {
   if (state.ended) return;
@@ -642,28 +726,29 @@ function chord(row, col, onTick) {
   if (checkWin()) return "win"; return "continue";
 }
 function cycleMark(row, col) {
-  if (state.ended) return;
+  if (state.ended) return "continue";
   const cell = state.board[row][col];
   if (modeKey === "sudoku") {
-    if (cell.givenMine) return;
+    if (cell.givenMine) return "continue";
     if (cell.flagged) {
       cell.flagged = false;
       cell.crossed = false;
-    } else {
-      if (!cell.mine) {
-        cell.flagged = true;
-        markSudokuFailure();
-        return;
-      }
-      cell.flagged = true;
-      cell.crossed = false;
+      return "continue";
     }
-    return;
+    if (!cell.mine) {
+      cell.flagged = true;
+      markSudokuFailure();
+      return "lose";
+    }
+    cell.flagged = true;
+    cell.crossed = false;
+    return checkWin() ? "win" : "continue";
   }
-  if (cell.revealed) return;
+  if (cell.revealed) return "continue";
   if (!cell.flagged && !cell.questioned) cell.flagged = true;
   else if (cell.flagged) { cell.flagged = false; cell.questioned = true; }
   else cell.questioned = false;
+  return "continue";
 }
 function renderHud() {
   const flagged = state.board.flat().filter((c) => c.flagged).length;
@@ -674,7 +759,7 @@ function renderHud() {
 }
 function renderHint() {
   elements.gameHintEl.innerHTML = modeKey === "sudoku"
-    ? "数独扫雷：左键打叉，右键标雷。目标是按行、列、同色块和不相邻规则找出全部雷。"
+    ? "数独扫雷：左键拖动/点击打叉，右键标雷。目标是按行、列、同色块和不相邻规则找出全部雷。"
     : isOffsetMode()
     ? "左键揭开，右键/长按标记，点数字可快速展开。数字表示的是该格子上面一格为中心的九宫格中的雷的数量，按 <kbd>R</kbd> 重开"
     : "左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开";
@@ -778,8 +863,8 @@ function render() {
     });
     btn.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      cycleMark(r, c);
-      syncGame(state.ended ? "lose" : "continue");
+      const result = cycleMark(r, c);
+      syncGame(result === "win" ? "win" : result === "lose" ? "lose" : state.ended ? "lose" : "continue");
     });
     btn.addEventListener("pointerdown", (e) => {
       if (state.ended) return;
@@ -889,18 +974,35 @@ function bindHandlers() {
 }
 function resetTransientInputState() { if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; } activePointerId = null; sudokuCrossDrag = null; sudokuCrossClickSuppressed = false; }
 function syncGame(status) {
+  if (modeKey === "sudoku" && !state.ended && isSudokuSolved()) {
+    state.ended = true;
+    state.win = true;
+    stopTimer();
+    status = "win";
+  }
   if (status === "win") {
+    state.ended = true;
+    state.win = true;
+    stopTimer();
     const currentBest = loadBestTime();
     if (currentBest === null || state.timer < currentBest) saveBestTime(state.timer);
     renderBestTime();
-    setResetEmoji("😎");
-    setStatus("胜利");
+    setResetEmoji("🎆");
+    setStatus(modeKey === "sudoku" ? "胜利：数独扫雷全部雷位已正确标记！" : "胜利：所有安全格都已成功揭开！");
+    launchVictoryFireworks();
   } else if (status === "lose") {
+    state.ended = true;
+    state.win = false;
+    stopTimer();
+    clearVictoryFireworks();
     setResetEmoji("😵");
-    setStatus("失败");
+    setStatus("失败：本局已结束");
   } else if (!state.started) {
     setResetEmoji("😊");
     setStatus("待开始");
+  } else if (state.ended) {
+    setResetEmoji(state.win ? "🎆" : "😵");
+    setStatus(state.win ? (modeKey === "sudoku" ? "胜利：数独扫雷全部雷位已正确标记！" : "胜利：所有安全格都已成功揭开！") : "失败：本局已结束");
   } else {
     setResetEmoji("😊");
     setStatus("进行中");
@@ -909,6 +1011,7 @@ function syncGame(status) {
 }
 function resetGame() {
   stopTimer();
+  clearVictoryFireworks();
   resetTransientInputState();
   state = makeState();
   if (modeKey === "sudoku") {
