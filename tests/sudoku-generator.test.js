@@ -1,7 +1,7 @@
 const fs = require("fs");
 const vm = require("vm");
 
-const source = fs.readFileSync(require.resolve("../bundle.js"), "utf8").replace(/\binit\(\);\s*$/, "");
+const source = fs.readFileSync(require.resolve("../dist/bundle.js"), "utf8").replace(/\binit\(\);\s*$/, "");
 
 function createMockElement(id, initialValue = "") {
   const element = {
