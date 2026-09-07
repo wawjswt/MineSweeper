@@ -43,7 +43,7 @@
   const CLEAR_MS = 160;
 
   /* ----------------------------- 纯逻辑 -----------------------------
-   * 棋盘以二维索引 grid[r * cols + c] 存储,0 = 空位,>0 = 图案 id(1..kinds)。
+   * 棋盘以二维索引 grid[r * cols + c] 存储,-1 = 障碍,0 = 空位,>0 = 图案 id(1..kinds)。
    * 连通判定允许路径经由"棋盘外侧一圈虚拟通道"(即越界的行列视为空),
    * 这也是经典连连看"绕外圈"的规则来源。
    */
@@ -138,7 +138,7 @@
     if (a.r === b.r && a.c === b.c) return null;
     const va = grid[a.r * cols + a.c];
     const vb = grid[b.r * cols + b.c];
-    if (va === 0 || va !== vb) return null;
+    if (va <= 0 || vb <= 0 || va !== vb) return null;
 
     // 0 折:同行或同列直线
     if ((a.r === b.r || a.c === b.c) && segmentClear(grid, rows, cols, a, b)) {
@@ -229,7 +229,7 @@
     if (!board) return "请选择两个有效图案";
     const va = board[a.r * cols + a.c];
     const vb = board[b.r * cols + b.c];
-    if (!va || !vb) return "请选择两个有效图案";
+    if (va <= 0 || vb <= 0) return "请选择两个有效图案";
     if (a.r === b.r && a.c === b.c) return "不能选择同一图案";
     if (va !== vb) return "图案不一致";
     if (findPath(board, rows, cols, a, b)) return null;
@@ -242,7 +242,7 @@
   function findAnyPair(grid, rows, cols) {
     const total = rows * cols;
     for (let i = 0; i < total; i++) {
-      if (grid[i] === 0) continue;
+      if (grid[i] <= 0) continue;
       const a = { r: Math.floor(i / cols), c: i % cols };
       for (let j = i + 1; j < total; j++) {
         if (grid[j] !== grid[i]) continue;
@@ -256,7 +256,7 @@
   /* 统计剩余非空格数 */
   function countRemaining(grid) {
     let n = 0;
-    for (let i = 0; i < grid.length; i++) if (grid[i] !== 0) n += 1;
+    for (let i = 0; i < grid.length; i++) if (grid[i] > 0) n += 1;
     return n;
   }
 
@@ -266,15 +266,16 @@
   function reshuffle(grid, rows, cols) {
     const total = rows * cols;
     const remaining = [];
-    const emptyIdx = [];
+    const slots = [];
     for (let i = 0; i < total; i++) {
-      if (grid[i] === 0) emptyIdx.push(i);
-      else remaining.push(grid[i]);
+      if (grid[i] !== -1) slots.push(i);
+      if (grid[i] > 0) remaining.push(grid[i]);
     }
-    if (remaining.length === 0) return false;
+    if (remaining.length === 0 || slots.length < remaining.length) return false;
 
     const place = (arr) => {
-      for (let i = 0; i < emptyIdx.length; i++) grid[emptyIdx[i]] = arr[i];
+      for (const index of slots) grid[index] = 0;
+      for (let i = 0; i < arr.length; i++) grid[slots[i]] = arr[i];
     };
 
     // 尝试随机排布直至有解(上限 80 次)
@@ -285,42 +286,16 @@
 
     // 保底:找仍有 ≥2 个的图案,放入一对"同行相邻空位"
     const kinds = new Set(remaining);
-    const r0 = Math.floor(emptyIdx[0] / cols);
-    const c0 = emptyIdx[0] % cols;
-    const first = grid[r0 * cols + c0] === 0 ? grid[r0 * cols + c0] : null;
-    void first;
-    // 更稳妥:直接随机挑两个相邻空位(同行相邻),填入同一种图案
-    for (let attempt = 0; attempt < 200; attempt++) {
-      const ri = Math.floor(Math.random() * emptyIdx.length);
-      const anchor = emptyIdx[ri];
-      const ar = Math.floor(anchor / cols);
-      const ac = anchor % cols;
-      const candidates = [];
-      if (ac + 1 < cols && grid[anchor + 1] === 0) candidates.push(anchor + 1);
-      if (ac - 1 >= 0 && grid[anchor - 1] === 0) candidates.push(anchor - 1);
-      if (candidates.length === 0) continue;
-      const pairKind = remaining[Math.floor(Math.random() * remaining.length)];
-      // 确保该图案还剩 ≥2 个可放
-      const kindCount = remaining.filter((v) => v === pairKind).length;
-      if (kindCount < 2) continue;
-      // 填这对
-      const bIdx = candidates[0];
-      grid[anchor] = pairKind;
-      grid[bIdx] = pairKind;
-      // 剩余图案填入剩余空位(去掉已用的 2 个该图案)
-      const rest = remaining.slice();
-      let removed = 0;
-      const cleaned = [];
-      for (let i = 0; i < rest.length; i++) {
-        if (rest[i] === pairKind && removed < 2) {
-          removed++;
-          continue;
-        }
-        cleaned.push(rest[i]);
+    for (const pairKind of kinds) {
+      if (remaining.filter((v) => v === pairKind).length < 2) continue;
+      for (let a = 0; a < slots.length; a++) for (let b = a + 1; b < slots.length; b++) {
+        const candidate = remaining.slice();
+        let removed = 0;
+        for (let i = candidate.length - 1; i >= 0; i--) if (candidate[i] === pairKind && removed < 2) { candidate.splice(i, 1); removed++; }
+        candidate.unshift(pairKind, pairKind);
+        place(candidate);
+        if (findAnyPair(grid, rows, cols)) return true;
       }
-      const leftEmpty = emptyIdx.filter((idx) => idx !== anchor && idx !== bIdx);
-      for (let i = 0; i < leftEmpty.length; i++) grid[leftEmpty[i]] = cleaned[i];
-      return true;
     }
     return false;
   }
@@ -637,7 +612,7 @@
   function handleCellClick(r, c) {
     if (game.ended || game.busy || game.paused) return;
     const value = game.grid[r * game.cols + c];
-    if (value === 0) return;
+    if (value <= 0) return;
 
     // 首次有效点击视为开始
     if (!game.started) {
