@@ -1095,6 +1095,10 @@ main.app-shell[hidden],
   margin-right: 6px;
 }
 
+.llk-field[hidden] {
+  display: none;
+}
+
 .llk-field > span {
   font-size: 12px;
   color: var(--muted);
@@ -1171,6 +1175,40 @@ main.app-shell[hidden],
   margin-bottom: 14px;
 }
 
+.llk-level-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -2px 0 14px;
+}
+
+.llk-level-picker[hidden] {
+  display: none;
+}
+
+.llk-level-btn {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--control-bg);
+  color: var(--control-text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.llk-level-btn:hover:not(:disabled),
+.llk-level-btn.is-current {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.llk-level-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .llk-board-wrap {
   position: relative;
   display: flex;
@@ -1228,6 +1266,21 @@ main.app-shell[hidden],
   box-shadow: none;
   cursor: default;
   opacity: 0.35;
+}
+
+.llk-cell.is-obstacle {
+  cursor: not-allowed;
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--danger) 46%, var(--cell-border));
+  background:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--danger) 24%, var(--control-bg)) 0 6px, var(--control-bg) 6px 12px);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--danger) 28%, transparent);
+}
+
+.llk-cell.is-hint {
+  outline: 3px solid var(--win);
+  outline-offset: 2px;
+  animation: llk-pulse 0.7s ease-in-out infinite;
 }
 
 .llk-path-layer {
