@@ -312,6 +312,7 @@
 
   const LEVEL_PROGRESS_KEY = "lianliankan-level-progress-v1";
   const LEVEL_PROGRESS_VERSION = 1;
+  const MAX_LEVEL_ID = 5;
   const COMBO_WINDOW_MS = 3000;
   const PAIR_SCORE = 100;
   const COMBO_BONUS = 25;
@@ -323,18 +324,33 @@
 
   function normalizeLevelProgress(value) {
     if (!value || value.version !== LEVEL_PROGRESS_VERSION || !Number.isInteger(value.unlockedLevel) ||
-        value.unlockedLevel < 1 || !value.completed || typeof value.completed !== "object" || Array.isArray(value.completed)) {
+        value.unlockedLevel < 1 || value.unlockedLevel > MAX_LEVEL_ID + 1 ||
+        !value.completed || typeof value.completed !== "object" || Array.isArray(value.completed)) {
       return defaultLevelProgress();
     }
     const completed = {};
+    let highestCompleted = 0;
     for (const key of Object.keys(value.completed)) {
+      if (!/^[1-5]$/.test(key)) return defaultLevelProgress();
       const result = value.completed[key];
-      if (!result || !Number.isFinite(result.score) || !Number.isFinite(result.time) || !Number.isFinite(result.combo)) continue;
-      completed[String(key)] = {
-        score: Math.max(0, Math.floor(result.score)),
-        time: Math.max(0, Math.floor(result.time)),
-        combo: Math.max(0, Math.floor(result.combo)),
+      if (!result || typeof result !== "object" || Array.isArray(result) ||
+          !Number.isFinite(result.score) || result.score < 0 ||
+          !Number.isFinite(result.time) || result.time < 0 ||
+          !Number.isFinite(result.combo) || result.combo < 0) {
+        return defaultLevelProgress();
+      }
+      completed[key] = {
+        score: Math.floor(result.score),
+        time: Math.floor(result.time),
+        combo: Math.floor(result.combo),
       };
+      highestCompleted = Math.max(highestCompleted, Number(key));
+    }
+    for (let id = 1; id <= highestCompleted; id += 1) {
+      if (!completed[String(id)]) return defaultLevelProgress();
+    }
+    if (value.unlockedLevel !== Math.min(MAX_LEVEL_ID + 1, highestCompleted + 1)) {
+      return defaultLevelProgress();
     }
     return { version: LEVEL_PROGRESS_VERSION, unlockedLevel: value.unlockedLevel, completed };
   }
@@ -360,17 +376,20 @@
 
   function recordLevelCompletion(progress, levelId, result) {
     const current = normalizeLevelProgress(progress);
-    const key = String(levelId);
+    const numericLevelId = Number(levelId);
+    if (!Number.isInteger(numericLevelId) || numericLevelId < 1 || numericLevelId > MAX_LEVEL_ID) return current;
+    const key = String(numericLevelId);
     const previous = current.completed[key];
-    const score = Math.max(0, Math.floor(result.score || 0));
-    const time = Math.max(0, Math.floor(result.time || 0));
-    const combo = Math.max(0, Math.floor(result.combo || 0));
+    const source = result && typeof result === "object" ? result : {};
+    const score = Number.isFinite(source.score) && source.score >= 0 ? Math.floor(source.score) : 0;
+    const time = Number.isFinite(source.time) && source.time >= 0 ? Math.floor(source.time) : 0;
+    const combo = Number.isFinite(source.combo) && source.combo >= 0 ? Math.floor(source.combo) : 0;
     current.completed[key] = {
       score: previous ? Math.max(previous.score, score) : score,
       time: previous ? Math.min(previous.time, time) : time,
       combo: previous ? Math.max(previous.combo, combo) : combo,
     };
-    current.unlockedLevel = Math.max(current.unlockedLevel, Number(levelId) + 1);
+    current.unlockedLevel = Math.max(current.unlockedLevel, numericLevelId + 1);
     return current;
   }
 
@@ -387,6 +406,31 @@
 
   function resetLevelCombo(state) {
     return { score: state.score, combo: 0, maxCombo: state.maxCombo, lastSuccessMs: null };
+  }
+
+  function expireLevelCombo(state, activeMs) {
+    if (state.combo > 0 && state.lastSuccessMs !== null && activeMs - state.lastSuccessMs > COMBO_WINDOW_MS) {
+      return resetLevelCombo(state);
+    }
+    return {
+      score: state.score,
+      combo: state.combo,
+      maxCombo: state.maxCombo,
+      lastSuccessMs: state.lastSuccessMs,
+    };
+  }
+
+  function scorePairForMode(state, activeMs, levelMode) {
+    return levelMode ? nextPairScore(state, activeMs) : {
+      score: state.score,
+      combo: state.combo,
+      maxCombo: state.maxCombo,
+      lastSuccessMs: state.lastSuccessMs,
+    };
+  }
+
+  function applyLevelClearBonus(score, levelMode) {
+    return levelMode ? score + LEVEL_CLEAR_BONUS : score;
   }
 
   function isSelectableTile(value) {
@@ -516,12 +560,12 @@
   }
 
   function awardPair() {
-    const next = nextPairScore({
+    const next = scorePairForMode({
       score: game.score,
       combo: game.combo,
       maxCombo: game.maxCombo,
       lastSuccessMs: game.lastSuccessMs,
-    }, elapsedActiveMs());
+    }, elapsedActiveMs(), isLevelMode());
     game.score = next.score;
     game.combo = next.combo;
     game.maxCombo = next.maxCombo;
@@ -543,6 +587,20 @@
     renderScore();
   }
 
+  function expireComboIfNeeded() {
+    if (!isLevelMode() || game.combo <= 0) return;
+    const next = expireLevelCombo({
+      score: game.score,
+      combo: game.combo,
+      maxCombo: game.maxCombo,
+      lastSuccessMs: game.lastSuccessMs,
+    }, elapsedActiveMs());
+    if (next.combo === game.combo && next.lastSuccessMs === game.lastSuccessMs) return;
+    game.combo = next.combo;
+    game.lastSuccessMs = next.lastSuccessMs;
+    renderScore();
+  }
+
   function renderTimer() {
     if (timerEl) timerEl.textContent = formatTime(elapsedSeconds());
   }
@@ -553,6 +611,7 @@
     game.timerId = setInterval(() => {
       if (game.started && !game.ended && !game.paused) {
         renderTimer();
+        expireComboIfNeeded();
         if (elapsedSeconds() >= 359999) stopTimer();
       }
     }, 250);
@@ -783,9 +842,9 @@
       game.startAt = null;
     }
     renderTimer();
-    game.score += LEVEL_CLEAR_BONUS;
-    renderScore();
     if (isLevelMode()) {
+      game.score = applyLevelClearBonus(game.score, true);
+      renderScore();
       game.progress = recordLevelCompletion(game.progress, game.levelId, {
         score: game.score,
         time: elapsedSeconds(),
@@ -2382,6 +2441,9 @@
       levelFlow: {
         nextScore: nextPairScore,
         resetCombo: resetLevelCombo,
+        expireCombo: expireLevelCombo,
+        scorePair: scorePairForMode,
+        applyClearBonus: applyLevelClearBonus,
         isSelectable: isSelectableTile,
         findHintPair,
         defaultProgress: defaultLevelProgress,

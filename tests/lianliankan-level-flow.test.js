@@ -47,6 +47,23 @@ assert.deepStrictEqual(plain(combo), { score: 225, combo: 2, maxCombo: 2, lastSu
 combo = flow.nextScore(combo, 6_001);
 assert.deepStrictEqual(plain(combo), { score: 325, combo: 1, maxCombo: 2, lastSuccessMs: 6_001 });
 assert.deepStrictEqual(plain(flow.resetCombo(combo)), { score: 325, combo: 0, maxCombo: 2, lastSuccessMs: null });
+assert.deepStrictEqual(
+  plain(flow.scorePair({ score: 10, combo: 2, maxCombo: 2, lastSuccessMs: 100 }, 500, false)),
+  { score: 10, combo: 2, maxCombo: 2, lastSuccessMs: 100 },
+  "classic and 3D modes must not receive level scoring"
+);
+assert.deepStrictEqual(
+  plain(flow.expireCombo({ score: 225, combo: 2, maxCombo: 2, lastSuccessMs: 2_900 }, 5_901)),
+  { score: 225, combo: 0, maxCombo: 2, lastSuccessMs: null },
+  "combo must expire after three seconds of active time"
+);
+assert.deepStrictEqual(
+  plain(flow.expireCombo({ score: 225, combo: 2, maxCombo: 2, lastSuccessMs: 2_900 }, 5_900)),
+  { score: 225, combo: 2, maxCombo: 2, lastSuccessMs: 2_900 },
+  "combo must remain active at the inclusive three-second boundary"
+);
+assert.strictEqual(flow.applyClearBonus(100, false), 100, "classic and 3D modes must not receive level clear bonus");
+assert.strictEqual(flow.applyClearBonus(100, true), 600, "level mode must receive the clear bonus");
 
 // 障碍不可选；提示只能报告一对可消除图案，不能修改棋盘。
 assert.strictEqual(flow.isSelectable(-1), false, "obstacle clicks must be ignored");
@@ -65,6 +82,15 @@ const storage = {
 };
 let progress = flow.readProgress(storage);
 assert.deepStrictEqual(plain(progress), { version: 1, unlockedLevel: 1, completed: {} });
+for (const corrupted of [
+  { version: 1, unlockedLevel: 999, completed: {} },
+  { version: 1, unlockedLevel: 2, completed: { "9": { score: 1, time: 1, combo: 1 } } },
+  { version: 1, unlockedLevel: 2, completed: { "1": { score: -1, time: 1, combo: 1 } } },
+  { version: 1, unlockedLevel: 4, completed: { "1": { score: 1, time: 1, combo: 1 } } },
+]) {
+  storage.value = JSON.stringify(corrupted);
+  assert.deepStrictEqual(plain(flow.readProgress(storage)), { version: 1, unlockedLevel: 1, completed: {} });
+}
 progress = flow.recordCompletion(progress, 1, { score: 620, time: 38, combo: 4 });
 assert.deepStrictEqual(plain(progress), {
   version: 1, unlockedLevel: 2, completed: { "1": { score: 620, time: 38, combo: 4 } },
