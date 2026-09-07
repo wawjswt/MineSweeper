@@ -783,18 +783,21 @@ html[data-theme="light"] input[type="range"] {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
-/* 两个游戏壳共用顶部留白,避免内容被悬浮 Tab 遮挡 */
+/* 各游戏壳共用顶部留白,避免内容被悬浮 Tab 遮挡 */
 main.app-shell,
-.sudoku-shell {
+.sudoku-shell,
+.llk-shell {
   padding: 92px 24px 24px;
 }
 
 main.app-shell[hidden],
-.sudoku-shell[hidden] {
+.sudoku-shell[hidden],
+.llk-shell[hidden] {
   display: none;
 }
 
-.sudoku-shell {
+.sudoku-shell,
+.llk-shell {
   min-height: 100vh;
   display: grid;
   place-items: center;
@@ -1055,7 +1058,215 @@ main.app-shell[hidden],
     height: 42px;
   }
   main.app-shell,
-  .sudoku-shell {
+  .sudoku-shell,
+  .llk-shell {
     padding: 84px 12px 16px;
+  }
+}
+
+/* ============================================================
+   独立连连看小游戏(与扫雷、数独同页 Tab 切换)
+   ============================================================ */
+
+.llk-shell {
+  /* 复用 .panel 卡片体系 */
+}
+
+.llk-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.llk-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.llk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-right: 6px;
+}
+
+.llk-field > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.llk-field select,
+.llk-actions select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--control-text);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.llk-btn {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--control-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+}
+
+.llk-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.llk-btn--primary {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--control-bg));
+  color: var(--accent);
+}
+
+.llk-btn--primary:hover {
+  background: color-mix(in srgb, var(--accent) 24%, var(--control-bg));
+}
+
+.llk-btn.is-highlight {
+  animation: llk-pulse 1.1s ease-in-out infinite;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+@keyframes llk-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+
+.llk-field select:focus-visible,
+.llk-btn:focus-visible,
+.llk-cell:focus-visible,
+.game-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.llk-hud {
+  margin-bottom: 14px;
+}
+
+.llk-board-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--control-bg) 55%, transparent);
+  overflow: visible;
+}
+
+.llk-board {
+  display: grid;
+  grid-template-columns: repeat(var(--llk-cols, 10), var(--llk-cell, 40px));
+  gap: 5px;
+  padding: 4px;
+  touch-action: manipulation;
+}
+
+.llk-cell {
+  appearance: none;
+  width: var(--llk-cell, 40px);
+  height: var(--llk-cell, 40px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 10px;
+  font-size: calc(var(--llk-cell, 40px) * 0.5);
+  line-height: 1;
+  cursor: pointer;
+  background: var(--cell-up);
+  border: 1px solid var(--cell-border);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.16s ease, opacity 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.llk-cell:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.llk-cell.is-sel {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.llk-cell.is-empty {
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--cell-border) 55%, transparent);
+  box-shadow: none;
+  cursor: default;
+  opacity: 0.35;
+}
+
+.llk-path-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.llk-hint {
+  text-align: center;
+  margin-top: 14px;
+}
+
+.llk-shell.llk-won .llk-board {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--win) 40%, transparent);
+  border-radius: 16px;
+}
+
+.llk-hint kbd {
+  font-family: inherit;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .llk-cell {
+    border-radius: 8px;
+  }
+  .llk-board-wrap {
+    padding: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .llk-hud .hud-card {
+    padding: 8px 10px;
   }
 }

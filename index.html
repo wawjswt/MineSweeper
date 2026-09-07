@@ -37,6 +37,17 @@
       >
         数独
       </button>
+      <button
+        type="button"
+        role="tab"
+        class="game-tab"
+        id="gameTabLink"
+        aria-selected="false"
+        tabindex="-1"
+        data-game="lianliankan"
+      >
+        连连看
+      </button>
     </nav>
 
     <main class="app-shell" id="sweepShell">
@@ -199,9 +210,59 @@
       </section>
     </section>
 
+    <section class="llk-shell" id="lianliankanShell" hidden>
+      <section class="panel">
+        <header class="llk-head">
+          <div class="brand">
+            <div class="brand-kicker">LINK-LINK</div>
+            <h1>连连看</h1>
+            <p>找到相同图案,用不超过两次转弯的路径相连,即可消除。</p>
+          </div>
+          <div class="llk-actions">
+            <label class="llk-field">
+              <span>难度</span>
+              <select id="llkDifficulty" aria-label="选择连连看难度">
+                <option value="easy">简单 6×8</option>
+                <option value="medium" selected>中等 8×10</option>
+                <option value="hard">困难 10×12</option>
+              </select>
+            </label>
+            <button class="llk-btn llk-btn--primary" id="llkNew" type="button">新局</button>
+            <button class="llk-btn" id="llkShuffle" type="button">重排</button>
+          </div>
+        </header>
+
+        <section class="hud llk-hud" aria-label="连连看信息">
+          <div class="hud-card">
+            <span class="hud-label">计时</span>
+            <strong id="llkTimer">0:00</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">状态</span>
+            <strong id="llkStatus">待开始</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">剩余</span>
+            <strong id="llkLeft">0 对</strong>
+          </div>
+        </section>
+
+        <section class="board-wrap llk-board-wrap">
+          <div id="llkPathLayer" class="llk-path-layer" aria-hidden="true"></div>
+          <div id="llkBoard" class="llk-board" role="grid" aria-label="连连看棋盘"></div>
+        </section>
+
+        <p class="hint llk-hint" id="llkHint">
+          依次点选两个相同图案,若可用不超过两次转弯的路径连通即消除;无可用配对时点「重排」
+        </p>
+      </section>
+    </section>
+
     <div id="fireworksLayer" class="fireworks-layer" aria-hidden="true"></div>
 
     <script src="./dist/bundle.js"></script>
+    <script src="./src/game-tabs.js"></script>
     <script src="./src/sudoku-game.js"></script>
+    <script src="./src/lianliankan-game.js"></script>
   </body>
 </html>

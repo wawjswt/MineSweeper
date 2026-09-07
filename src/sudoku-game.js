@@ -487,38 +487,56 @@
     renderTimer();
   }
 
-  /* ----------------------------- Tab 切换 ----------------------------- */
+  /* ----------------------------- Tab 切换 -----------------------------
+   * 三游戏共用的 Tab 高亮与壳显隐统一由 src/game-tabs.js 仲裁。
+   * 本脚本只注册"被激活 / 被停用"的生命周期回调,不再自行维护 Tab UI。
+   * 若协调器缺席(如 Node VM 测试环境),退回旧的二态直切逻辑,保证可独立运行。
+   */
 
-  function setTabButtons(activeGame) {
-    const active = activeGame === "sudoku";
+  function pauseIfRunning() {
+    if (game.started && !game.ended && !game.paused) togglePause();
+  }
+
+  function ensurePuzzle() {
+    if (!game.puzzle) {
+      const key = difficultyEl ? difficultyEl.value : "medium";
+      startNew(DIFFICULTIES[key] ? key : "medium");
+    }
+  }
+
+  function onSudokuActivate() {
+    // 切到数独:清理扫雷胜利烟花残留层,避免悬浮
+    if (fireworksLayer) fireworksLayer.innerHTML = "";
+    sudokuActive = true;
+    ensurePuzzle();
+  }
+
+  function onSudokuDeactivate() {
+    // 切走数独:若对局进行中则自动暂停,防止后台静默计时
+    pauseIfRunning();
+    sudokuActive = false;
+  }
+
+  /* 兼容旧版:无协调器时,本脚本自行完成 扫雷↔数独 的切换(仅双态)。 */
+  function activateGameLegacy(gameName) {
+    const isSudoku = gameName === "sudoku";
+    if (isSudoku) {
+      onSudokuActivate();
+      shell.hidden = false;
+      sweepShell.hidden = true;
+    } else {
+      pauseIfRunning();
+      sudokuActive = false;
+      shell.hidden = true;
+      sweepShell.hidden = false;
+    }
+    const active = isSudoku;
     tabSweep.classList.toggle("is-active", !active);
     tabSudoku.classList.toggle("is-active", active);
     tabSweep.setAttribute("aria-selected", String(!active));
     tabSudoku.setAttribute("aria-selected", String(active));
     tabSweep.tabIndex = active ? -1 : 0;
     tabSudoku.tabIndex = active ? 0 : -1;
-  }
-
-  function activateGame(gameName) {
-    const isSudoku = gameName === "sudoku";
-    if (isSudoku) {
-      // 切走扫雷时清理其胜利烟花残留层,避免悬浮在数独上方
-      if (fireworksLayer) fireworksLayer.innerHTML = "";
-      sudokuActive = true;
-      shell.hidden = false;
-      sweepShell.hidden = true;
-      if (!game.puzzle) {
-        const key = difficultyEl ? difficultyEl.value : "medium";
-        startNew(DIFFICULTIES[key] ? key : "medium");
-      }
-    } else {
-      // 切到扫雷:若数独进行中则自动暂停,防止后台静默计时
-      if (game.started && !game.ended && !game.paused) togglePause();
-      sudokuActive = false;
-      shell.hidden = true;
-      sweepShell.hidden = false;
-    }
-    setTabButtons(gameName);
   }
 
   /* ----------------------------- 构建界面 ----------------------------- */
@@ -607,8 +625,17 @@
         if (sudokuActive) startNew(difficultyEl.value);
       });
     }
-    if (tabSweep) tabSweep.addEventListener("click", () => activateGame("sweep"));
-    if (tabSudoku) tabSudoku.addEventListener("click", () => activateGame("sudoku"));
+    // Tab 切换:优先注册到全局协调器(三游戏);缺失时退回自管双态
+    const coordinator = typeof window !== "undefined" ? window.__GAME_TABS__ : null;
+    if (coordinator && typeof coordinator.register === "function") {
+      coordinator.register("sudoku", {
+        onActivate: onSudokuActivate,
+        onDeactivate: onSudokuDeactivate,
+      });
+    } else {
+      if (tabSweep) tabSweep.addEventListener("click", () => activateGameLegacy("sweep"));
+      if (tabSudoku) tabSudoku.addEventListener("click", () => activateGameLegacy("sudoku"));
+    }
   }
 
   /* ----------------------------- 启动 ----------------------------- */
@@ -617,9 +644,16 @@
     buildBoard();
     buildPad();
     bindControls();
-    // 支持 #sudoku 锚点直达数独(默认仍打开扫雷,与改造前一致)
-    const initial = window.location.hash.indexOf("sudoku") !== -1 ? "sudoku" : "sweep";
-    activateGame(initial);
+    // 支持 #sudoku 锚点直达数独(默认仍打开扫雷,与改造前一致)。
+    // 有协调器时由协调器统一路由;无协调器时自行处理。
+    const coordinator = typeof window !== "undefined" ? window.__GAME_TABS__ : null;
+    if (coordinator && typeof coordinator.register === "function") {
+      // 协调器已在 DOMContentLoaded 时激活初始游戏;若当前已是数独则补齐初始化
+      if (coordinator.getCurrent() === "sudoku") onSudokuActivate();
+    } else {
+      const initial = window.location.hash.indexOf("sudoku") !== -1 ? "sudoku" : "sweep";
+      activateGameLegacy(initial);
+    }
   }
 
   init();

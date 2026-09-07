@@ -63,6 +63,7 @@ const sandbox = {
   document,
   console,
   performance: { now: () => Date.now() },
+  location: { hash: "" }, // 无锚点时默认打开扫雷
   setTimeout,
   clearTimeout,
   setInterval,
