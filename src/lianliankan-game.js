@@ -165,6 +165,67 @@
     return null;
   }
 
+  /* 将测试传入的二维棋盘转换为游戏内部使用的一维棋盘。 */
+  function normalizeGrid(grid, rows, cols) {
+    if (!Array.isArray(grid)) return null;
+    if (!Array.isArray(grid[0])) return grid;
+    const flat = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        flat.push(grid[r] && grid[r][c]);
+      }
+    }
+    return flat;
+  }
+
+  function isBoardCell(rows, cols, cell) {
+    return !!cell && Number.isInteger(cell.r) && Number.isInteger(cell.c) &&
+      cell.r >= 0 && cell.r < rows && cell.c >= 0 && cell.c < cols;
+  }
+
+  /* 忽略转弯次数限制的可达性检查。访问状态包含方向，避免在空通道中绕圈。 */
+  function hasUnrestrictedPath(grid, rows, cols, a, b) {
+    const directions = [
+      { r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 },
+    ];
+    const queue = [{ r: a.r, c: a.c, dir: -1 }];
+    const visited = new Set([a.r + "," + a.c + ",-1"]);
+    for (let head = 0; head < queue.length; head++) {
+      const current = queue[head];
+      for (let dir = 0; dir < directions.length; dir++) {
+        const nextR = current.r + directions[dir].r;
+        const nextC = current.c + directions[dir].c;
+        if (nextR < -1 || nextR > rows || nextC < -1 || nextC > cols) continue;
+        if (nextR === b.r && nextC === b.c) return true;
+        if (!isEmptyCell(grid, rows, cols, nextR, nextC)) continue;
+        const key = nextR + "," + nextC + "," + dir;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        queue.push({ r: nextR, c: nextC, dir });
+      }
+    }
+    return false;
+  }
+
+  /* 返回配对失败原因；合法路径返回 null。 */
+  function explainPairFailure(grid, rows, cols, a, b) {
+    if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows <= 0 || cols <= 0 ||
+        !isBoardCell(rows, cols, a) || !isBoardCell(rows, cols, b)) {
+      return "请选择两个有效图案";
+    }
+    const board = normalizeGrid(grid, rows, cols);
+    if (!board) return "请选择两个有效图案";
+    const va = board[a.r * cols + a.c];
+    const vb = board[b.r * cols + b.c];
+    if (!va || !vb) return "请选择两个有效图案";
+    if (a.r === b.r && a.c === b.c) return "不能选择同一图案";
+    if (va !== vb) return "图案不一致";
+    if (findPath(board, rows, cols, a, b)) return null;
+    return hasUnrestrictedPath(board, rows, cols, a, b)
+      ? "无法连接：路径超过两次转弯"
+      : "无法连接：中间有图案阻挡";
+  }
+
   /* 全盘扫描:返回任意一对可连的格子坐标,无则 null(用于死局检测)。 */
   function findAnyPair(grid, rows, cols) {
     const total = rows * cols;
@@ -264,6 +325,8 @@
   const shuffleBtn = document.getElementById("llkShuffle");
   const pathLayer = document.getElementById("llkPathLayer");
 
+  let statusRevision = 0;
+  let transientStatus = null;
   if (!shell || !boardEl || !timerEl || !statusEl || !leftEl) return;
 
   const game = {
@@ -340,7 +403,28 @@
   }
 
   function setStatus(text) {
+    statusRevision++;
+    if (transientStatus && !transientStatus.setting) {
+      clearTimeout(transientStatus.timer);
+      transientStatus = null;
+    }
     if (statusEl) statusEl.textContent = text;
+  }
+
+  function showTransientStatus(text) {
+    const previousStatus = transientStatus ? transientStatus.previousStatus : (statusEl ? statusEl.textContent : "");
+    if (transientStatus) clearTimeout(transientStatus.timer);
+    const notice = { previousStatus, setting: true, timer: null, revision: 0 };
+    transientStatus = notice;
+    setStatus(text);
+    notice.setting = false;
+    notice.revision = statusRevision;
+    notice.timer = setTimeout(() => {
+      if (transientStatus === notice && statusRevision === notice.revision) {
+        transientStatus = null;
+        setStatus(notice.previousStatus);
+      }
+    }, 1200);
   }
 
   function setLeft() {
@@ -545,7 +629,8 @@
     // 已有选中格:尝试配对
     const a = game.sel;
     const b = { r, c };
-    const path = findPath(game.grid, game.rows, game.cols, a, b);
+    const reason = explainPairFailure(game.grid, game.rows, game.cols, a, b);
+    const path = reason === null ? findPath(game.grid, game.rows, game.cols, a, b) : null;
 
     if (path && path.length >= 2) {
       // 配对成功:锁输入、画线,线画完后再让两格消失
@@ -578,6 +663,7 @@
       }, LINE_MS);
     } else {
       // 配对失败:新点击的格成为选中格
+      showTransientStatus(reason);
       clearSelection();
       game.sel = b;
       updateCell(b.r * game.cols + b.c);
@@ -745,6 +831,7 @@
       EMOJI_POOL,
       makeBoard,
       findPath,
+      explainPairFailure, // 配对失败原因纯逻辑
       findAnyPair,
       countRemaining,
       reshuffle,

@@ -2,6 +2,7 @@
  * 通过 VM 注入最小 DOM 桩加载脚本,再调用 window.__LLK__ 暴露的纯逻辑。
  * 运行:node tests/lianliankan.test.js
  */
+const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -10,12 +11,13 @@ const source = fs.readFileSync(path.join(__dirname, "..", "src", "lianliankan-ga
 
 function createElementStub() {
   const classes = new Set();
+  const listeners = new Map();
   const element = {
     textContent: "",
     hidden: false,
     value: "medium",
     dataset: {},
-    style: {},
+    style: { setProperty() {} },
     children: [],
     classList: {
       add(...names) { names.forEach((n) => classes.add(n)); },
@@ -31,7 +33,11 @@ function createElementStub() {
       },
       contains(name) { return classes.has(name); },
     },
-    addEventListener() {},
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    fire(type) {
+      const listener = listeners.get(type);
+      if (listener) listener({ target: element });
+    },
     appendChild(child) { this.children.push(child); return child; },
     setAttribute() {},
     removeAttribute() {},
@@ -44,6 +50,8 @@ const IDs = [
   "llkDifficulty", "llkNew", "llkShuffle", "llkPathLayer",
 ];
 const elements = new Map(IDs.map((id) => [id, createElementStub()]));
+const scheduledTimers = [];
+const scheduledIntervals = [];
 
 const document = {
   getElementById(id) {
@@ -65,10 +73,24 @@ const sandbox = {
   performance: { now: () => Date.now() },
   requestAnimationFrame(cb) { cb(); },
   addEventListener() {},
-  setTimeout,
-  clearTimeout,
-  setInterval,
-  clearInterval,
+  setTimeout(callback, delay) {
+    const timer = { callback, delay };
+    scheduledTimers.push(timer);
+    return timer;
+  },
+  clearTimeout(timer) {
+    const index = scheduledTimers.indexOf(timer);
+    if (index >= 0) scheduledTimers.splice(index, 1);
+  },
+  setInterval(callback, delay) {
+    const interval = { callback, delay };
+    scheduledIntervals.push(interval);
+    return interval;
+  },
+  clearInterval(interval) {
+    const index = scheduledIntervals.indexOf(interval);
+    if (index >= 0) scheduledIntervals.splice(index, 1);
+  },
   Math,
   Date,
   Number,
@@ -85,10 +107,6 @@ vm.runInContext(source, sandbox, { filename: "lianliankan-game.js" });
 
 const LLK = sandbox.__LLK__;
 if (!LLK) throw new Error("window.__LLK__ not exposed (script early-returned?)");
-
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
 
 assert(typeof LLK.computePathPoints === "function", "computePathPoints should be exposed for geometry regression coverage");
 
@@ -218,6 +236,72 @@ console.log("lianliankan: straight-line rules pass");
   assert(p === null, "different kinds vertically adjacent must NOT connect");
   console.log("lianliankan: negative case pass");
 }
+
+// 配对失败原因: 解释接口必须区分图案不同、无路可走和转弯次数超限，
+// 且不能把空格或同一格当作有效配对。
+assert.strictEqual(
+  LLK.explainPairFailure([[1, 1]], 1, 2, { r: 0, c: 0 }, { r: 0, c: 1 }),
+  null
+);
+assert.strictEqual(
+  LLK.explainPairFailure([[1, 2]], 1, 2, { r: 0, c: 0 }, { r: 0, c: 1 }),
+  "图案不一致"
+);
+assert.strictEqual(
+  LLK.explainPairFailure(
+    [
+      [2, 2, 2, 2, 2],
+      [2, 1, 2, 2, 2],
+      [2, 2, 2, 2, 2],
+      [2, 2, 2, 1, 2],
+      [2, 2, 2, 2, 2],
+    ],
+    5,
+    5,
+    { r: 1, c: 1 },
+    { r: 3, c: 3 },
+  ),
+  "无法连接：中间有图案阻挡"
+);
+{
+  const rows = 4, cols = 4;
+  const grid = [
+    2, 2, 2, 2,
+    0, 1, 2, 2,
+    0, 2, 1, 2,
+    0, 2, 0, 2,
+  ];
+  assert.strictEqual(LLK.findPath(grid, rows, cols, { r: 1, c: 1 }, { r: 2, c: 2 }), null,
+    "fixture should require more than two turns");
+  assert.strictEqual(
+    LLK.explainPairFailure(grid, rows, cols, { r: 1, c: 1 }, { r: 2, c: 2 }),
+    "无法连接：路径超过两次转弯"
+  );
+}
+assert.notStrictEqual(
+  LLK.explainPairFailure([[0, 1]], 1, 2, { r: 0, c: 0 }, { r: 0, c: 1 }),
+  null,
+  "empty selections must not be treated as pairs"
+);
+assert.notStrictEqual(
+  LLK.explainPairFailure([[1, 1]], 1, 2, { r: 0, c: 0 }, { r: 0, c: 0 }),
+  null,
+  "a tile cannot pair with itself"
+);
+console.log("lianliankan: pair-failure explanations pass");
+
+// DOM 回归:失败点击必须能调用瞬时状态反馈,而不是因作用域错误抛出 ReferenceError。
+{
+  const board = elements.get("llkBoard");
+  elements.get("llkNew").fire("click");
+  const first = board.children[0];
+  const mismatch = board.children.find((cell) => cell.textContent !== first.textContent);
+  assert(mismatch, "fresh board should contain a tile different from the guaranteed first kind");
+  first.fire("click");
+  assert.doesNotThrow(() => mismatch.fire("click"), "failed pair click should reach transient status feedback");
+  assert.strictEqual(elements.get("llkStatus").textContent, "图案不一致");
+}
+console.log("lianliankan: failure-click status feedback pass");
 
 // 死局检测 findAnyPair:全盘仅剩 2 格同图案但不连通?
 // 1x3 盘 [1, 0, 1]:(0,0) 与 (0,2) 中间空且同行 -> 0 折可连,应找得到。
