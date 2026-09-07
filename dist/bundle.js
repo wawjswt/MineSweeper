@@ -387,7 +387,9 @@ function formatDifficultyLabel(spec) {
 }
 function updateCustomDifficultyVisibility() {
   if (elements.customDifficultyCard) {
-    elements.customDifficultyCard.hidden = modeKey === "sudoku";
+    const visible = modeKey !== "sudoku" && difficultyKey === "custom";
+    elements.customDifficultyCard.hidden = !visible;
+    elements.customDifficultyCard.setAttribute("aria-hidden", String(!visible));
   }
 }
 function normalizeDifficultySelection() {

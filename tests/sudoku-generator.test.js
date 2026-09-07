@@ -4,6 +4,7 @@ const vm = require("vm");
 const source = fs.readFileSync(require.resolve("../dist/bundle.js"), "utf8").replace(/\binit\(\);\s*$/, "");
 
 function createMockElement(id, initialValue = "") {
+  const attributes = new Map();
   const element = {
     id,
     value: initialValue,
@@ -16,8 +17,9 @@ function createMockElement(id, initialValue = "") {
     appendChild(child) { this.children.push(child); return child; },
     append(...children) { this.children.push(...children); },
     replaceChildren(...children) { this.children = [...children]; },
-    setAttribute() {},
-    removeAttribute() {},
+    setAttribute(name, value) { attributes.set(name, String(value)); },
+    getAttribute(name) { return attributes.get(name) ?? null; },
+    removeAttribute(name) { attributes.delete(name); },
   };
   Object.defineProperty(element, "innerHTML", {
     get() { return this._innerHTML || ""; },
@@ -65,6 +67,7 @@ function createContext() {
     },
     createElement(tag) {
       const element = {
+        attributes: new Map(),
         tagName: tag.toUpperCase(),
         value: "",
         textContent: "",
@@ -75,7 +78,8 @@ function createContext() {
         addEventListener() {},
         appendChild(child) { this.children.push(child); return child; },
         append(...children) { this.children.push(...children); },
-        setAttribute() {},
+        setAttribute(name, value) { this.attributes.set(name, String(value)); },
+        getAttribute(name) { return this.attributes.get(name) ?? null; },
       };
       Object.defineProperty(element, "innerHTML", {
         get() { return this._innerHTML || ""; },
@@ -274,13 +278,27 @@ if (optionValues.includes("custom")) {
   throw new Error("sudoku difficulty options should not include custom");
 }
 const customCard = context.document.getElementById("customDifficultyCard");
-if (!customCard.hidden) {
-  throw new Error("custom difficulty card should be hidden in sudoku mode");
-}
 context.__setMode("classic");
+context.__setDifficulty("normal");
 context.__refreshDifficultyOptions();
-if (customCard.hidden) {
-  throw new Error("custom difficulty card should be visible outside sudoku mode");
+if (!customCard.hidden || customCard.getAttribute("aria-hidden") !== "true") {
+  throw new Error("classic preset should hide custom difficulty card with aria-hidden=true");
+}
+context.__setDifficulty("custom");
+context.__refreshDifficultyOptions();
+if (customCard.hidden || customCard.getAttribute("aria-hidden") !== "false") {
+  throw new Error("classic custom difficulty should show card with aria-hidden=false");
+}
+context.__setDifficulty("hard");
+context.__refreshDifficultyOptions();
+if (!customCard.hidden || customCard.getAttribute("aria-hidden") !== "true") {
+  throw new Error("switching from custom to a preset should hide the card again");
+}
+context.__setDifficulty("custom");
+context.__setMode("sudoku");
+context.__refreshDifficultyOptions();
+if (!customCard.hidden || customCard.getAttribute("aria-hidden") !== "true") {
+  throw new Error("sudoku should hide custom difficulty card regardless of difficulty");
 }
 console.log("sudoku mode: stale custom difficulty is normalized and options are bounded");
 
