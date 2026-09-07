@@ -223,6 +223,7 @@
               <span>玩法</span>
               <select id="llkMode" aria-label="选择连连看玩法">
                 <option value="classic" selected>经典 2D</option>
+                <option value="levels">关卡模式</option>
                 <option value="3d">3D 立体</option>
               </select>
             </label>
@@ -236,8 +237,11 @@
             </label>
             <button class="llk-btn llk-btn--primary" id="llkNew" type="button">新局</button>
             <button class="llk-btn" id="llkShuffle" type="button">重排</button>
+            <button class="llk-btn" id="llkHintBtn" type="button">提示</button>
           </div>
         </header>
+
+        <div class="llk-level-picker" id="llkLevelPicker" role="group" aria-label="关卡选择" hidden></div>
 
         <section class="hud llk-hud" aria-label="连连看信息">
           <div class="hud-card">
@@ -251,6 +255,14 @@
           <div class="hud-card">
             <span class="hud-label">剩余</span>
             <strong id="llkLeft">0 对</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">得分</span>
+            <strong id="llkScore">0</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">Combo</span>
+            <strong id="llkCombo">×0</strong>
           </div>
         </section>
 
@@ -275,6 +287,7 @@
     <script src="./dist/bundle.js"></script>
     <script src="./src/game-tabs.js"></script>
     <script src="./src/sudoku-game.js"></script>
+    <script src="./src/lianliankan-levels.js"></script>
     <script src="./src/lianliankan-game.js"></script>
   </body>
 </html>

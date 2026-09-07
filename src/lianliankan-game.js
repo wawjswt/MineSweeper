@@ -308,6 +308,103 @@
     return false;
   }
 
+  /* ------------------------- 关卡流程纯逻辑 ------------------------- */
+
+  const LEVEL_PROGRESS_KEY = "lianliankan-level-progress-v1";
+  const LEVEL_PROGRESS_VERSION = 1;
+  const COMBO_WINDOW_MS = 3000;
+  const PAIR_SCORE = 100;
+  const COMBO_BONUS = 25;
+  const LEVEL_CLEAR_BONUS = 500;
+
+  function defaultLevelProgress() {
+    return { version: LEVEL_PROGRESS_VERSION, unlockedLevel: 1, completed: {} };
+  }
+
+  function normalizeLevelProgress(value) {
+    if (!value || value.version !== LEVEL_PROGRESS_VERSION || !Number.isInteger(value.unlockedLevel) ||
+        value.unlockedLevel < 1 || !value.completed || typeof value.completed !== "object" || Array.isArray(value.completed)) {
+      return defaultLevelProgress();
+    }
+    const completed = {};
+    for (const key of Object.keys(value.completed)) {
+      const result = value.completed[key];
+      if (!result || !Number.isFinite(result.score) || !Number.isFinite(result.time) || !Number.isFinite(result.combo)) continue;
+      completed[String(key)] = {
+        score: Math.max(0, Math.floor(result.score)),
+        time: Math.max(0, Math.floor(result.time)),
+        combo: Math.max(0, Math.floor(result.combo)),
+      };
+    }
+    return { version: LEVEL_PROGRESS_VERSION, unlockedLevel: value.unlockedLevel, completed };
+  }
+
+  function readLevelProgress(storage) {
+    try {
+      if (!storage || typeof storage.getItem !== "function") return defaultLevelProgress();
+      return normalizeLevelProgress(JSON.parse(storage.getItem(LEVEL_PROGRESS_KEY)));
+    } catch (err) {
+      return defaultLevelProgress();
+    }
+  }
+
+  function writeLevelProgress(progress, storage) {
+    try {
+      if (!storage || typeof storage.setItem !== "function") return false;
+      storage.setItem(LEVEL_PROGRESS_KEY, JSON.stringify(normalizeLevelProgress(progress)));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function recordLevelCompletion(progress, levelId, result) {
+    const current = normalizeLevelProgress(progress);
+    const key = String(levelId);
+    const previous = current.completed[key];
+    const score = Math.max(0, Math.floor(result.score || 0));
+    const time = Math.max(0, Math.floor(result.time || 0));
+    const combo = Math.max(0, Math.floor(result.combo || 0));
+    current.completed[key] = {
+      score: previous ? Math.max(previous.score, score) : score,
+      time: previous ? Math.min(previous.time, time) : time,
+      combo: previous ? Math.max(previous.combo, combo) : combo,
+    };
+    current.unlockedLevel = Math.max(current.unlockedLevel, Number(levelId) + 1);
+    return current;
+  }
+
+  function nextPairScore(state, activeMs) {
+    const inWindow = state.lastSuccessMs !== null && activeMs - state.lastSuccessMs <= COMBO_WINDOW_MS;
+    const combo = inWindow ? state.combo + 1 : 1;
+    return {
+      score: state.score + PAIR_SCORE + Math.max(0, combo - 1) * COMBO_BONUS,
+      combo,
+      maxCombo: Math.max(state.maxCombo, combo),
+      lastSuccessMs: activeMs,
+    };
+  }
+
+  function resetLevelCombo(state) {
+    return { score: state.score, combo: 0, maxCombo: state.maxCombo, lastSuccessMs: null };
+  }
+
+  function isSelectableTile(value) {
+    return value > 0;
+  }
+
+  function findHintPair(grid, rows, cols, finder) {
+    return typeof finder === "function" ? finder(grid.slice(), rows, cols) : null;
+  }
+
+  function ensureLevelSolvable(grid, rows, cols, levelApi, finder, random) {
+    const board = grid.slice();
+    if (finder(board, rows, cols)) return { grid: board, autoReshuffled: false };
+    if (!levelApi || typeof levelApi.reshuffle !== "function") return { grid: board, autoReshuffled: false };
+    const result = levelApi.reshuffle(board, rows, cols, finder, random);
+    return { grid: result.grid, autoReshuffled: !!result.ok };
+  }
+
   /* ----------------------------- DOM 与游戏状态 ----------------------------- */
 
   const shell = document.getElementById("lianliankanShell");
@@ -324,6 +421,10 @@
   const toastEl = document.getElementById("llk3dToast");
   const taglineEl = document.getElementById("llkTagline");
   const hintEl = document.getElementById("llkHint");
+  const hintBtn = document.getElementById("llkHintBtn");
+  const scoreEl = document.getElementById("llkScore");
+  const comboEl = document.getElementById("llkCombo");
+  const levelPickerEl = document.getElementById("llkLevelPicker");
   let statusRevision = 0;
   let transientStatus = null;
 
@@ -344,6 +445,12 @@
     baseMs: 0,
     startAt: null,
     timerId: null,
+    levelId: null,
+    score: 0,
+    combo: 0,
+    maxCombo: 0,
+    lastSuccessMs: null,
+    progress: null,
   };
 
   const cellEls = []; // 与 grid 索引一一对应的 button
@@ -373,6 +480,67 @@
   function elapsedSeconds() {
     const extra = game.startAt === null ? 0 : nowMs() - game.startAt;
     return Math.floor((game.baseMs + extra) / 1000);
+  }
+
+  function elapsedActiveMs() {
+    return game.baseMs + (game.startAt === null ? 0 : nowMs() - game.startAt);
+  }
+
+  function getLevelApi() {
+    return typeof window !== "undefined" ? window.__LLK_LEVELS__ : null;
+  }
+
+  function getLocalStorage() {
+    try {
+      return typeof window !== "undefined" ? window.localStorage : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function isLevelMode() {
+    return llkModeKey === "levels" && game.levelId !== null;
+  }
+
+  function renderScore() {
+    if (scoreEl) scoreEl.textContent = String(game.score);
+    if (comboEl) comboEl.textContent = "×" + game.combo;
+  }
+
+  function resetRunStats() {
+    game.score = 0;
+    game.combo = 0;
+    game.maxCombo = 0;
+    game.lastSuccessMs = null;
+    renderScore();
+  }
+
+  function awardPair() {
+    const next = nextPairScore({
+      score: game.score,
+      combo: game.combo,
+      maxCombo: game.maxCombo,
+      lastSuccessMs: game.lastSuccessMs,
+    }, elapsedActiveMs());
+    game.score = next.score;
+    game.combo = next.combo;
+    game.maxCombo = next.maxCombo;
+    game.lastSuccessMs = next.lastSuccessMs;
+    renderScore();
+  }
+
+  function resetCurrentCombo() {
+    const next = resetLevelCombo({
+      score: game.score,
+      combo: game.combo,
+      maxCombo: game.maxCombo,
+      lastSuccessMs: game.lastSuccessMs,
+    });
+    game.score = next.score;
+    game.combo = next.combo;
+    game.maxCombo = next.maxCombo;
+    game.lastSuccessMs = next.lastSuccessMs;
+    renderScore();
   }
 
   function renderTimer() {
@@ -470,6 +638,7 @@
 
   function cellLabel(r, c) {
     const v = game.grid[r * game.cols + c];
+    if (v === -1) return "第 " + (r + 1) + " 行第 " + (c + 1) + " 列障碍物，不可选择";
     return "第 " + (r + 1) + " 行第 " + (c + 1) + " 列" + (v ? " " + EMOJI_POOL[v - 1] : " 空");
   }
 
@@ -479,10 +648,12 @@
     const r = Math.floor(index / game.cols);
     const c = index % game.cols;
     const value = game.grid[index];
-    btn.textContent = value === 0 ? "" : EMOJI_POOL[value - 1];
+    btn.textContent = value > 0 ? EMOJI_POOL[value - 1] : "";
     btn.setAttribute("aria-label", cellLabel(r, c));
+    btn.disabled = value === -1;
     const isSel = game.sel !== null && game.sel.r === r && game.sel.c === c;
     btn.classList.toggle("is-sel", isSel && value !== 0);
+    btn.classList.toggle("is-obstacle", value === -1);
     if (value === 0) btn.classList.add("is-empty");
     else btn.classList.remove("is-empty");
   }
@@ -612,7 +783,20 @@
       game.startAt = null;
     }
     renderTimer();
-    setStatus("通关 🎉");
+    game.score += LEVEL_CLEAR_BONUS;
+    renderScore();
+    if (isLevelMode()) {
+      game.progress = recordLevelCompletion(game.progress, game.levelId, {
+        score: game.score,
+        time: elapsedSeconds(),
+        combo: game.maxCombo,
+      });
+      writeLevelProgress(game.progress, getLocalStorage());
+      renderLevelPicker();
+      setStatus("第 " + game.levelId + " 关通关 🎉");
+    } else {
+      setStatus("通关 🎉");
+    }
     clearSelection();
     shell.classList.add("llk-won");
   }
@@ -620,7 +804,7 @@
   function handleCellClick(r, c) {
     if (game.ended || game.busy || game.paused) return;
     const value = game.grid[r * game.cols + c];
-    if (value <= 0) return;
+    if (!isSelectableTile(value)) return;
 
     // 首次有效点击视为开始
     if (!game.started) {
@@ -652,12 +836,20 @@
       // 配对成功:锁输入、画线,线画完后再让两格消失
       game.sel = null;
       game.busy = true;
+      awardPair();
       clearSelection();
       const poly = drawLine(path);
       setTimeout(() => {
         // 消除两格并淡出连线
         setCellValue(a.r, a.c, 0);
         setCellValue(b.r, b.c, 0);
+        if (isLevelMode()) {
+          const levels = getLevelApi();
+          if (levels && typeof levels.collapseColumns === "function") {
+            game.grid = levels.collapseColumns(game.grid, game.rows, game.cols).grid;
+            renderAll();
+          }
+        }
         if (poly && poly.style) poly.style.transition = "opacity " + CLEAR_MS + "ms ease";
         if (poly && poly.style) poly.style.opacity = "0";
         setTimeout(() => {
@@ -667,10 +859,21 @@
             win();
           } else {
             setLeft();
-            // 死局检测:无可用配对则提示重排
+            // 关卡模式自动洗牌；经典模式保留原来的手动重排提示。
             if (!findAnyPair(game.grid, game.rows, game.cols)) {
-              setStatus("无可用配对,点「重排」");
-              if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
+              if (isLevelMode()) {
+                const result = ensureLevelSolvable(game.grid, game.rows, game.cols, getLevelApi(), findAnyPair);
+                if (result.autoReshuffled) {
+                  game.grid = result.grid;
+                  renderAll();
+                  setStatus("无可用配对，已自动洗牌");
+                } else {
+                  setStatus("无可用配对，自动洗牌失败");
+                }
+              } else {
+                setStatus("无可用配对,点「重排」");
+                if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
+              }
             } else if (shuffleBtn) {
               shuffleBtn.classList.remove("is-highlight");
             }
@@ -679,6 +882,7 @@
       }, LINE_MS);
     } else {
       // 配对失败:新点击的格成为选中格
+      resetCurrentCombo();
       showTransientStatus(reason);
       clearSelection();
       game.sel = b;
@@ -699,7 +903,9 @@
     game.baseMs = 0;
     game.startAt = null;
     game.busy = false;
+    game.levelId = null;
     stopTimer();
+    resetRunStats();
     shell.classList.remove("llk-won");
     if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
     setStatus("待开始");
@@ -716,11 +922,71 @@
     loadBoard(config.rows, config.cols, config.kinds);
   }
 
+  function renderLevelPicker() {
+    if (!levelPickerEl) return;
+    const levels = getLevelApi();
+    const entries = levels && Array.isArray(levels.levels) ? levels.levels : (Array.isArray(levels) ? levels : []);
+    levelPickerEl.hidden = llkModeKey !== "levels";
+    levelPickerEl.innerHTML = "";
+    for (let i = 0; i < entries.length; i++) {
+      const level = entries[i];
+      const locked = level.id > game.progress.unlockedLevel;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "llk-level-btn";
+      button.disabled = locked;
+      button.textContent = "第 " + level.id + " 关 · " + level.name + (locked ? "（未解锁）" : "");
+      button.setAttribute("aria-label", "第 " + level.id + " 关 " + level.name + (locked ? "，未解锁" : "，可开始"));
+      button.classList.toggle("is-current", game.levelId === level.id);
+      button.addEventListener("click", () => {
+        if (!locked) startLevel(level.id);
+      });
+      levelPickerEl.appendChild(button);
+    }
+  }
+
+  function startLevel(levelId) {
+    const levels = getLevelApi();
+    const entries = levels && Array.isArray(levels.levels) ? levels.levels : (Array.isArray(levels) ? levels : []);
+    const level = entries.find((entry) => entry.id === levelId);
+    if (!level || level.id > game.progress.unlockedLevel || !levels || typeof levels.cloneLayout !== "function") return;
+    game.difficulty = "level-" + level.id;
+    game.rows = level.rows;
+    game.cols = level.cols;
+    game.kinds = level.kinds;
+    game.grid = levels.cloneLayout(level);
+    game.sel = null;
+    game.started = false;
+    game.ended = false;
+    game.paused = false;
+    game.autoPaused = false;
+    game.baseMs = 0;
+    game.startAt = null;
+    game.busy = false;
+    game.levelId = level.id;
+    stopTimer();
+    resetRunStats();
+    shell.classList.remove("llk-won");
+    if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
+    setStatus("第 " + level.id + " 关，待开始");
+    renderTimer();
+    setLeft();
+    buildCells();
+    applyCellSize();
+    renderLevelPicker();
+  }
+
   function handleShuffle() {
     if (game.ended || game.busy) return;
     if (!game.grid) return;
     if (countRemaining(game.grid) === 0) return;
-    const ok = reshuffle(game.grid, game.rows, game.cols);
+    resetCurrentCombo();
+    const levels = getLevelApi();
+    const levelResult = isLevelMode() && levels && typeof levels.reshuffle === "function"
+      ? levels.reshuffle(game.grid, game.rows, game.cols, findAnyPair)
+      : null;
+    const ok = levelResult ? levelResult.ok : reshuffle(game.grid, game.rows, game.cols);
+    if (levelResult) game.grid = levelResult.grid;
     if (!game.started) {
       game.started = true;
       startTimer();
@@ -753,13 +1019,32 @@
     renderAll();
   }
 
+  function showHint2D() {
+    if (activeMode3D() || game.busy || game.ended || !game.grid) return;
+    const pair = findHintPair(game.grid, game.rows, game.cols, findAnyPair);
+    if (!pair) {
+      setStatus(isLevelMode() ? "暂无可用配对，将自动洗牌" : "暂无可用配对,点「重排」试试");
+      return;
+    }
+    const first = pair.a.r * game.cols + pair.a.c;
+    const second = pair.b.r * game.cols + pair.b.c;
+    if (cellEls[first]) cellEls[first].classList.add("is-hint");
+    if (cellEls[second]) cellEls[second].classList.add("is-hint");
+    showTransientStatus("已高亮一对可用图案");
+    setTimeout(() => {
+      if (cellEls[first]) cellEls[first].classList.remove("is-hint");
+      if (cellEls[second]) cellEls[second].classList.remove("is-hint");
+    }, 1400);
+  }
+
   function bindControls() {
     const currentDiffKey = () => (difficultyEl ? difficultyEl.value : "medium");
     if (newBtn) newBtn.addEventListener("click", () => startGameForMode(currentDiffKey()));
     if (shuffleBtn) shuffleBtn.addEventListener("click", onShufflePressed);
+    if (hintBtn) hintBtn.addEventListener("click", () => activeMode3D() ? showHint3D() : showHint2D());
     if (difficultyEl) {
       difficultyEl.addEventListener("change", () => {
-        if (llkActive) startGameForMode(difficultyEl.value);
+        if (llkActive && llkModeKey !== "levels") startGameForMode(difficultyEl.value);
       });
     }
     if (modeEl) {
@@ -800,6 +1085,12 @@
           return;
         }
       }
+      if (key && key.toLowerCase() === "h" && !activeMode3D()) {
+        showHint2D();
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (key && key.toLowerCase() === "r") {
         e.stopPropagation();
       }
@@ -823,8 +1114,11 @@
         llk3dStartLoop();
       }
     } else if (!game.grid) {
-      const key = difficultyEl ? difficultyEl.value : "medium";
-      startNew(DIFFICULTIES[key] ? key : "medium");
+      if (llkModeKey === "levels") startLevel(1);
+      else {
+        const key = difficultyEl ? difficultyEl.value : "medium";
+        startNew(DIFFICULTIES[key] ? key : "medium");
+      }
     }
 
     // 切回时若因切走自动暂停则恢复(经典/3D 共用计时字段)
@@ -873,6 +1167,10 @@
       "拖动或按方向键旋转魔方、滚轮缩放。依次点选两个相同图案:若它们之间在立体表面上存在不超过两次转弯的通道即可消除;" +
       "被挡住时会提示,按 H 键显示可用配对,无解时点「重排」",
     tag: "旋转魔方,在立体表面上寻找能够连通的相同图案。",
+  };
+  const LEVEL_TEXT = {
+    hint: "选择已解锁关卡；障碍不可选择，消除后图案会按障碍分段下落。按 H 或「提示」高亮可用配对。",
+    tag: "逐关挑战固定布局，连续消除可累积 Combo 和得分。",
   };
 
   /* 渲染/交互可调参数 */
@@ -1918,6 +2216,7 @@
     game.baseMs = 0;
     game.startAt = null;
     stopTimer();
+    resetRunStats();
     shell.classList.remove("llk-won");
     if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
     setStatus("待开始");
@@ -1931,6 +2230,8 @@
     if (llkModeKey === "3d") {
       const cfg = LLK3D_DIFFICULTIES[key];
       start3DGame(cfg ? key : "medium");
+    } else if (llkModeKey === "levels") {
+      startLevel(game.levelId || 1);
     } else {
       const cfg = DIFFICULTIES[key];
       startNew(cfg ? key : "medium");
@@ -1944,7 +2245,7 @@
 
   /* 玩法切换(经典 <-> 3D) */
   function switchLlkMode(next) {
-    const target = next === "3d" ? "3d" : "classic";
+    const target = next === "3d" ? "3d" : (next === "levels" ? "levels" : "classic");
     if (target === llkModeKey) return;
     if (target === "3d" && !ensureLlk3DStage()) {
       setStatus("当前浏览器不支持 3D 画布");
@@ -1954,6 +2255,7 @@
     llkModeKey = target;
     if (modeEl) modeEl.value = target;
     shell.classList.toggle("llk-mode-3d", target === "3d");
+    shell.classList.toggle("llk-mode-levels", target === "levels");
     llk3d.sel = null;
     llk3dToast("");
     llk3dStopLoop();
@@ -1963,6 +2265,8 @@
     if (target === "3d") {
       const cfg = LLK3D_DIFFICULTIES[key];
       start3DGame(cfg ? key : "medium");
+    } else if (target === "levels") {
+      startLevel(1);
     } else {
       const cfg = DIFFICULTIES[key];
       startNew(cfg ? key : "medium");
@@ -2017,13 +2321,18 @@
   function applyLlkModeTexts() {
     applyLlkDifficultyLabels();
     const is3d = llkModeKey === "3d";
-    if (hintEl) hintEl.textContent = is3d ? LLK3D_TEXT.hint : LLK3D_TEXT.classicHint;
-    if (taglineEl) taglineEl.textContent = is3d ? LLK3D_TEXT.tag : LLK3D_TEXT.classicTag;
+    const isLevels = llkModeKey === "levels";
+    if (hintEl) hintEl.textContent = is3d ? LLK3D_TEXT.hint : (isLevels ? LEVEL_TEXT.hint : LLK3D_TEXT.classicHint);
+    if (taglineEl) taglineEl.textContent = is3d ? LLK3D_TEXT.tag : (isLevels ? LEVEL_TEXT.tag : LLK3D_TEXT.classicTag);
+    if (hintBtn) hintBtn.hidden = is3d;
+    if (difficultyEl && difficultyEl.parentElement) difficultyEl.parentElement.hidden = isLevels;
+    renderLevelPicker();
   }
 
   /* ----------------------------- 启动 ----------------------------- */
 
   function init() {
+    game.progress = readLevelProgress(getLocalStorage());
     buildCells();
     bindControls();
     applyLlkModeTexts(); // 难度选项/提示文案与当前玩法保持一致
@@ -2034,6 +2343,8 @@
       const key = difficultyEl ? difficultyEl.value : "medium";
       if (llkModeKey === "3d") {
         start3DGame(LLK3D_DIFFICULTIES[key] ? key : "medium");
+      } else if (llkModeKey === "levels") {
+        startLevel(1);
       } else {
         startNew(DIFFICULTIES[key] ? key : "medium");
       }
@@ -2068,6 +2379,17 @@
       segmentClear,
       computePathPoints,
       getLineStrokeWidth,
+      levelFlow: {
+        nextScore: nextPairScore,
+        resetCombo: resetLevelCombo,
+        isSelectable: isSelectableTile,
+        findHintPair,
+        defaultProgress: defaultLevelProgress,
+        readProgress: readLevelProgress,
+        writeProgress: writeLevelProgress,
+        recordCompletion: recordLevelCompletion,
+        ensureSolvable: ensureLevelSolvable,
+      },
       llk3d: {
         DIFFICULTIES: LLK3D_DIFFICULTIES,
         isSurfaceCell: isSurfaceCell3D,
