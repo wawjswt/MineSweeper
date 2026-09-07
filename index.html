@@ -14,7 +14,32 @@
   </head>
   <body>
     <div id="pageBackdrop" class="page-backdrop" aria-hidden="true"></div>
-    <main class="app-shell">
+
+    <nav class="game-tabs" role="tablist" aria-label="选择游戏">
+      <button
+        type="button"
+        role="tab"
+        class="game-tab is-active"
+        id="gameTabSweep"
+        aria-selected="true"
+        data-game="sweep"
+      >
+        扫雷
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="game-tab"
+        id="gameTabSudoku"
+        aria-selected="false"
+        tabindex="-1"
+        data-game="sudoku"
+      >
+        数独
+      </button>
+    </nav>
+
+    <main class="app-shell" id="sweepShell">
       <section class="panel">
         <header class="topbar">
           <div class="brand">
@@ -123,8 +148,60 @@
         </section>
       </section>
     </main>
+
+    <section class="sudoku-shell" id="sudokuShell" hidden>
+      <section class="panel">
+        <header class="sudoku-head">
+          <div class="brand">
+            <div class="brand-kicker">SUDOKU</div>
+            <h1>数独</h1>
+            <p>行、列、宫 均含 1–9,推理填空。</p>
+          </div>
+          <div class="sudoku-actions">
+            <label class="sudoku-field">
+              <span>难度</span>
+              <select id="sudokuDifficulty" aria-label="选择数独难度">
+                <option value="easy">简单</option>
+                <option value="medium" selected>中等</option>
+                <option value="hard">困难</option>
+              </select>
+            </label>
+            <button class="sd-btn sd-btn--primary" id="sudokuNew" type="button">新题</button>
+            <button class="sd-btn" id="sudokuCheck" type="button">校验</button>
+            <button class="sd-btn" id="sudokuPause" type="button">暂停</button>
+            <button class="sd-btn" id="sudokuReset" type="button">重开</button>
+          </div>
+        </header>
+
+        <section class="hud sudoku-hud" aria-label="数独信息">
+          <div class="hud-card">
+            <span class="hud-label">计时</span>
+            <strong id="sudokuTimer">0:00</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">状态</span>
+            <strong id="sudokuStatus">待开始</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">错误</span>
+            <strong id="sudokuErrors">0</strong>
+          </div>
+        </section>
+
+        <section class="board-wrap sudoku-board-wrap">
+          <div id="sudokuBoard" class="sudoku-board" role="grid" aria-label="数独棋盘"></div>
+        </section>
+
+        <div id="sudokuPad" class="sudoku-pad" role="group" aria-label="数字输入面板"></div>
+        <p class="hint sudoku-hint" id="sudokuHint">
+          点选格子后按数字键或用下方键盘填入;<kbd>Delete</kbd>/<kbd>0</kbd> 清除,方向键移动选格
+        </p>
+      </section>
+    </section>
+
     <div id="fireworksLayer" class="fireworks-layer" aria-hidden="true"></div>
 
     <script src="./dist/bundle.js"></script>
+    <script src="./src/sudoku-game.js"></script>
   </body>
 </html>

@@ -737,3 +737,325 @@ html[data-theme="light"] input[type="range"] {
     transform: translate(calc(-50% + var(--dx, 0px)), calc(-100% + var(--dy, 0px))) rotate(12deg) scaleY(1);
   }
 }
+
+/* ============================================================
+   独立数独小游戏(与扫雷同页 Tab 切换)
+   ============================================================ */
+
+/* 顶部游戏切换栏 */
+.game-tabs {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(14px);
+}
+
+.game-tab {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 22px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.16s ease, background-color 0.16s ease;
+}
+
+.game-tab:hover {
+  color: var(--text);
+}
+
+.game-tab.is-active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* 两个游戏壳共用顶部留白,避免内容被悬浮 Tab 遮挡 */
+main.app-shell,
+.sudoku-shell {
+  padding: 92px 24px 24px;
+}
+
+main.app-shell[hidden],
+.sudoku-shell[hidden] {
+  display: none;
+}
+
+.sudoku-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+/* 数独面板头部 */
+.sudoku-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.sudoku-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sudoku-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-right: 6px;
+}
+
+.sudoku-field > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sudoku-field select,
+.sudoku-actions select {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--control-text);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.sudoku-field select:focus-visible,
+.sd-btn:focus-visible,
+.sd-key:focus-visible,
+.sd-cell:focus-visible,
+.game-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sd-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--control-text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+
+.sd-btn:hover {
+  filter: brightness(1.12);
+}
+
+.sd-btn:active {
+  transform: translateY(1px);
+}
+
+.sd-btn--primary {
+  color: var(--bg0);
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 78%, var(--bg0)));
+  border-color: transparent;
+  font-weight: 700;
+}
+
+/* HUD(3 列) */
+.sudoku-hud {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* 棋盘容器 */
+.sudoku-board-wrap {
+  padding: 18px;
+  display: flex;
+  justify-content: center;
+}
+
+.sudoku-board {
+  --sd-cell: 44px;
+  display: grid;
+  grid-template-columns: repeat(9, var(--sd-cell));
+  gap: 0;
+  border: 2px solid var(--control-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--control-bg);
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.sd-cell {
+  position: relative;
+  width: var(--sd-cell);
+  height: var(--sd-cell);
+  padding: 0;
+  border: 0;
+  font: inherit;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--control-bg) 92%, var(--text) 8%);
+  cursor: pointer;
+  box-shadow: inset -1px -1px 0 0 color-mix(in srgb, var(--text) 9%, transparent);
+}
+
+/* 宫分隔:每行第 3/6/9 列右侧与每 3 行底部用粗线 */
+.sd-cell.sd-br {
+  box-shadow:
+    inset -2px -1px 0 0 color-mix(in srgb, var(--text) 34%, transparent),
+    inset 0 -1px 0 0 color-mix(in srgb, var(--text) 9%, transparent);
+}
+
+.sd-cell.sd-bb {
+  box-shadow:
+    inset -1px -2px 0 0 color-mix(in srgb, var(--text) 34%, transparent),
+    inset -1px 0 0 0 color-mix(in srgb, var(--text) 9%, transparent);
+}
+
+.sd-cell.sd-br.sd-bb {
+  box-shadow:
+    inset -2px -2px 0 0 color-mix(in srgb, var(--text) 34%, transparent);
+}
+
+/* 题面给定数字 */
+.sd-cell.is-given {
+  color: var(--text);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--control-bg) 82%, var(--text) 18%);
+}
+
+/* 高亮:同行列宫 */
+.sd-cell.is-peer {
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+/* 高亮:与当前选中格相同数字 */
+.sd-cell.is-same {
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+.sd-cell.is-peer.is-same {
+  box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--accent) 17%, transparent);
+}
+
+/* 当前选中格 */
+.sd-cell.is-sel {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* 误填(与答案不符) */
+.sd-cell.is-err {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, var(--control-bg));
+}
+
+/* 冲突(行列宫重复,但值恰为答案时只给红色文字) */
+.sd-cell.is-dup:not(.is-err) {
+  color: var(--danger);
+}
+
+/* 胜利时棋盘描边强调 */
+.sudoku-shell.sd-won .sudoku-board {
+  border-color: var(--win);
+  box-shadow: 0 0 0 1px var(--win), 0 0 34px color-mix(in srgb, var(--win) 30%, transparent);
+}
+
+/* 数字键盘 */
+.sudoku-pad {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  max-width: 500px;
+  margin: 16px auto 0;
+}
+
+.sd-key {
+  appearance: none;
+  height: 46px;
+  border-radius: 12px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.14s ease, transform 0.05s ease;
+}
+
+.sd-key:hover {
+  filter: brightness(1.14);
+}
+
+.sd-key:active {
+  transform: translateY(1px);
+}
+
+.sd-key--erase {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.sudoku-hint {
+  text-align: center;
+  margin-top: 14px;
+}
+
+.sudoku-hint kbd {
+  font-family: inherit;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .sudoku-board {
+    --sd-cell: 37px;
+  }
+  .sd-cell {
+    font-size: 18px;
+  }
+  .sudoku-board-wrap {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 400px) {
+  .sudoku-board {
+    --sd-cell: 31px;
+  }
+  .sd-cell {
+    font-size: 16px;
+  }
+  .sd-key {
+    height: 42px;
+  }
+  main.app-shell,
+  .sudoku-shell {
+    padding: 84px 12px 16px;
+  }
+}
