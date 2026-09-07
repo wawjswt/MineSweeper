@@ -289,11 +289,19 @@
     for (const pairKind of kinds) {
       if (remaining.filter((v) => v === pairKind).length < 2) continue;
       for (let a = 0; a < slots.length; a++) for (let b = a + 1; b < slots.length; b++) {
+        const next = grid.slice();
+        for (const index of slots) next[index] = 0;
+        next[slots[a]] = pairKind;
+        next[slots[b]] = pairKind;
         const candidate = remaining.slice();
         let removed = 0;
         for (let i = candidate.length - 1; i >= 0; i--) if (candidate[i] === pairKind && removed < 2) { candidate.splice(i, 1); removed++; }
-        candidate.unshift(pairKind, pairKind);
-        place(candidate);
+        let cursor = 0;
+        for (let i = 0; i < slots.length && cursor < candidate.length; i++) {
+          if (i === a || i === b) continue;
+          next[slots[i]] = candidate[cursor++];
+        }
+        for (const index of slots) grid[index] = next[index];
         if (findAnyPair(grid, rows, cols)) return true;
       }
     }
