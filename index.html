@@ -216,9 +216,16 @@
           <div class="brand">
             <div class="brand-kicker">LINK-LINK</div>
             <h1>连连看</h1>
-            <p>找到相同图案,用不超过两次转弯的路径相连,即可消除。</p>
+            <p id="llkTagline">找到相同图案,用不超过两次转弯的路径相连,即可消除。</p>
           </div>
           <div class="llk-actions">
+            <label class="llk-field">
+              <span>玩法</span>
+              <select id="llkMode" aria-label="选择连连看玩法">
+                <option value="classic" selected>经典 2D</option>
+                <option value="3d">3D 立体</option>
+              </select>
+            </label>
             <label class="llk-field">
               <span>难度</span>
               <select id="llkDifficulty" aria-label="选择连连看难度">
@@ -250,6 +257,11 @@
         <section class="board-wrap llk-board-wrap">
           <div id="llkPathLayer" class="llk-path-layer" aria-hidden="true"></div>
           <div id="llkBoard" class="llk-board" role="grid" aria-label="连连看棋盘"></div>
+          <div id="llk3dStage" class="llk3d-stage" aria-label="3D 立体连连看场景">
+            <canvas id="llk3dCanvas" class="llk3d-canvas"></canvas>
+            <div id="llk3dToast" class="llk3d-toast" role="status" aria-live="polite" hidden></div>
+            <div class="llk3d-hint" aria-hidden="true">拖动旋转 · 滚轮缩放 · 方向键微调 · H 键提示</div>
+          </div>
         </section>
 
         <p class="hint llk-hint" id="llkHint">

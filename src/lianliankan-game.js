@@ -16,8 +16,20 @@
 
   /* ----------------------------- 配置 ----------------------------- */
 
-  /* 图案集:全部使用单字符 emoji,同一图案用 id 编号表示。 */
-  const EMOJI_POOL = ["🍎", "🍌", "🍇", "🍊", "🍓", "🍉", "🍑", "🍒", "🥝", "🍍", "🥥", "🥭"];
+  /* 图案集:全部使用单字符 emoji,同一图案用 id 编号表示。
+   * 前 12 个为经典 2D 用;追加至 24 个供 3D 立体模式高难度使用。 */
+  const EMOJI_POOL = [
+    "🍎", "🍌", "🍇", "🍊", "🍓", "🍉", "🍑", "🍒", "🥝", "🍍", "🥥", "🥭",
+    "🍋", "🫐", "🍈", "🍐", "🍅", "🥑", "🌽", "🥕", "🍄", "🥦", "🍆", "🌶️",
+  ];
+
+  /* 3D 立体玩法难度:size = 魔方边长(每边小格数),kinds = 图案种类数
+   * (每类恰好 2 个,贴在外表面格上)。 */
+  const LLK3D_DIFFICULTIES = {
+    easy: { name: "简单", size: 3, kinds: 6 }, // 26 表面格,12 块
+    medium: { name: "中等", size: 4, kinds: 12 }, // 56 表面格,24 块
+    hard: { name: "困难", size: 5, kinds: 18 }, // 98 表面格,36 块
+  };
 
   /* 难度:rows×cols 需可被 kinds 整除且每类数量为偶数。 */
   const DIFFICULTIES = {
@@ -324,9 +336,14 @@
   const newBtn = document.getElementById("llkNew");
   const shuffleBtn = document.getElementById("llkShuffle");
   const pathLayer = document.getElementById("llkPathLayer");
-
+  const modeEl = document.getElementById("llkMode");
+  const stageEl = document.getElementById("llk3dStage");
+  const toastEl = document.getElementById("llk3dToast");
+  const taglineEl = document.getElementById("llkTagline");
+  const hintEl = document.getElementById("llkHint");
   let statusRevision = 0;
   let transientStatus = null;
+
   if (!shell || !boardEl || !timerEl || !statusEl || !leftEl) return;
 
   const game = {
@@ -348,6 +365,17 @@
 
   const cellEls = []; // 与 grid 索引一一对应的 button
   let llkActive = false;
+
+  /* 当前玩法:classic(经典 2D)/ 3d(魔方表面 3D) */
+  let llkModeKey = "classic";
+  if (modeEl && modeEl.value === "3d") llkModeKey = "3d";
+
+  /* 3D 模式状态容器:属性由下方「3D 立体模式」节填充(先声明避免 TDZ)。 */
+  const llk3d = {};
+
+  function activeMode3D() {
+    return llkModeKey === "3d" && !!llk3d.occ;
+  }
 
   function nowMs() {
     return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
@@ -429,7 +457,12 @@
 
   function setLeft() {
     if (!leftEl) return;
-    const pairs = Math.floor(countRemaining(game.grid) / 2);
+    let pairs = 0;
+    if (activeMode3D()) {
+      pairs = Math.floor(count3DRemaining(llk3d.occ) / 2);
+    } else if (game.grid) {
+      pairs = Math.floor(countRemaining(game.grid) / 2);
+    }
     leftEl.textContent = pairs + " 对";
   }
 
@@ -738,15 +771,23 @@
   }
 
   function bindControls() {
-    if (newBtn) newBtn.addEventListener("click", () => startNew(difficultyEl.value));
-    if (shuffleBtn) shuffleBtn.addEventListener("click", handleShuffle);
+    const currentDiffKey = () => (difficultyEl ? difficultyEl.value : "medium");
+    if (newBtn) newBtn.addEventListener("click", () => startGameForMode(currentDiffKey()));
+    if (shuffleBtn) shuffleBtn.addEventListener("click", onShufflePressed);
     if (difficultyEl) {
       difficultyEl.addEventListener("change", () => {
-        if (llkActive) startNew(difficultyEl.value);
+        if (llkActive) startGameForMode(difficultyEl.value);
       });
     }
+    if (modeEl) {
+      modeEl.addEventListener("change", () => switchLlkMode(modeEl.value));
+    }
     window.addEventListener("resize", () => {
-      if (game.grid) applyCellSize();
+      if (activeMode3D()) {
+        llk3dNeedsResize = true;
+      } else if (game.grid) {
+        applyCellSize();
+      }
     });
 
     const coordinator = typeof window !== "undefined" ? window.__GAME_TABS__ : null;
@@ -758,7 +799,9 @@
     }
   }
 
-  /* 连连看激活期间在捕获阶段接管键盘:拦截 R 防止误触扫雷重开 */
+  /* 连连看激活期间在捕获阶段接管键盘:
+   *  - 拦截 R 防止误触扫雷重开;
+   *  - 3D 玩法支持方向键旋转、+/- 缩放、H 提示。 */
   document.addEventListener(
     "keydown",
     (e) => {
@@ -766,6 +809,14 @@
       const tag = e.target && e.target.tagName;
       if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
       const key = e.key;
+      if (llkModeKey === "3d" && llk3d.onKey && activeMode3D()) {
+        const handled = llk3d.onKey(key);
+        if (handled) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
       if (key && key.toLowerCase() === "r") {
         e.stopPropagation();
       }
@@ -780,12 +831,20 @@
     // 清理扫雷胜利烟花残留层,避免悬浮在连连看上方
     const fireworksLayer = document.getElementById("fireworksLayer");
     if (fireworksLayer) fireworksLayer.innerHTML = "";
-    if (!game.grid) {
+
+    if (llkModeKey === "3d") {
+      if (!llk3d.built) {
+        const key = difficultyEl ? difficultyEl.value : "medium";
+        start3DGame(LLK3D_DIFFICULTIES[key] ? key : "medium");
+      } else {
+        llk3dStartLoop();
+      }
+    } else if (!game.grid) {
       const key = difficultyEl ? difficultyEl.value : "medium";
       startNew(DIFFICULTIES[key] ? key : "medium");
-      return;
     }
-    // 首次进入且未开始:保持待开始。切回时若因切走自动暂停则恢复
+
+    // 切回时若因切走自动暂停则恢复(经典/3D 共用计时字段)
     if (game.autoPaused) {
       game.autoPaused = false;
       if (game.started && !game.ended) {
@@ -794,17 +853,1189 @@
         renderTimer();
       }
     }
-    renderAll();
-    setLeft();
+
+    if (llkModeKey === "3d") {
+      setLeft();
+    } else {
+      renderAll();
+      setLeft();
+    }
   }
 
   function onLinkDeactivate() {
     llkActive = false;
-    // 切走:若进行中则自动暂停,防止后台静默计时
+    // 切走:若进行中则自动暂停,防止后台静默计时;同时停止 3D 渲染循环
     if (game.started && !game.ended && !game.paused) {
       game.autoPaused = true;
       pauseTimer();
     }
+    llk3dStopLoop();
+  }
+
+  /* ============================================================
+     3D 立体玩法(魔方表面连线)
+     ------------------------------------------------------------
+     模型:边长 size 的实心魔方,图块贴在外表面格上,每类恰好 2 个。
+     占用数组 occ 索引 idx=(x*ny+y)*nz+z:
+       -1 = 内部格(连线不得进入) 0 = 表面空格 >0 = 图块种类
+     连通规则:连线只能沿表面行走(相邻格曼哈顿距离 1,跨棱边时自然
+     接续到相邻面),整条路径 ≤2 次转弯,中间不得经过其它图块。
+     视图:Canvas 手绘透视投影,拖拽旋转 / 滚轮缩放 / 方向键微调。
+     ============================================================ */
+
+  const LLK3D_TEXT = {
+    classicHint: "依次点选两个相同图案,若可用不超过两次转弯的路径连通即消除;无可用配对时点「重排」",
+    classicTag: "找到相同图案,用不超过两次转弯的路径相连,即可消除。",
+    hint:
+      "拖动或按方向键旋转魔方、滚轮缩放。依次点选两个相同图案:若它们之间在立体表面上存在不超过两次转弯的通道即可消除;" +
+      "被挡住时会提示,按 H 键显示可用配对,无解时点「重排」",
+    tag: "旋转魔方,在立体表面上寻找能够连通的相同图案。",
+  };
+
+  /* 渲染/交互可调参数 */
+  const TILE_HALF = 0.42; // 图块小立方体半边长(世界单位,格距 1)
+
+  /* ---- 状态(在经典 2D 上独立,但共用 game 的计时/流程字段) ---- */
+  llk3d.d = null; // { nx, ny, nz }
+  llk3d.kinds = 0;
+  llk3d.occ = null;
+  llk3d.built = false;
+  llk3d.sel = null; // 当前选中格 {x,y,z}
+  llk3d.stage = null;
+  llk3d.canvas = null;
+  llk3d.ctx = null;
+  llk3d.toastEl = null;
+  llk3d.theme = { accent: [109, 211, 255], bg: [15, 23, 37] };
+  llk3d.yaw = 0.85;
+  llk3d.pitch = 0.42;
+  llk3d.zoom = 1;
+  llk3d.dragging = false;
+  llk3d.lastX = 0;
+  llk3d.lastY = 0;
+  llk3d.lastInput = 0;
+  llk3d.frame = 0;
+  llk3d.running = false;
+  llk3d.anim = { line: null, fading: null }; // 连线/淡出动画
+  llk3d.hintPair = null;
+  llk3d.hintUntil = 0;
+  llk3d.toastTimer = 0;
+  let llk3dNeedsResize = true;
+
+  /* --------------------------- 3D 纯逻辑 --------------------------- */
+
+  function isSurfaceCell3D(d, x, y, z) {
+    return x === 0 || x === d.nx - 1 || y === 0 || y === d.ny - 1 || z === 0 || z === d.nz - 1;
+  }
+
+  function idx3D(d, x, y, z) {
+    return (x * d.ny + y) * d.nz + z;
+  }
+
+  function dimsCube3D(n) {
+    return { nx: n, ny: n, nz: n };
+  }
+
+  function axisDiff3D(p, q) {
+    const dx = p.x - q.x;
+    const dy = p.y - q.y;
+    const dz = p.z - q.z;
+    const diffs = (dx !== 0 ? 1 : 0) + (dy !== 0 ? 1 : 0) + (dz !== 0 ? 1 : 0);
+    if (diffs !== 1) return -1;
+    if (dx !== 0) return 0;
+    if (dy !== 0) return 1;
+    return 2;
+  }
+
+  function surfaceCellList3D(d) {
+    const out = [];
+    for (let x = 0; x < d.nx; x++)
+      for (let y = 0; y < d.ny; y++)
+        for (let z = 0; z < d.nz; z++)
+          if (isSurfaceCell3D(d, x, y, z)) out.push({ x, y, z });
+    return out;
+  }
+
+  function emptySurfaceList3D(occ, d) {
+    const out = [];
+    for (let x = 0; x < d.nx; x++)
+      for (let y = 0; y < d.ny; y++)
+        for (let z = 0; z < d.nz; z++)
+          if (isSurfaceCell3D(d, x, y, z) && occ[idx3D(d, x, y, z)] === 0) out.push({ x, y, z });
+    return out;
+  }
+
+  function tileList3D(occ, d) {
+    const out = [];
+    for (let x = 0; x < d.nx; x++)
+      for (let y = 0; y < d.ny; y++)
+        for (let z = 0; z < d.nz; z++) {
+          const v = occ[idx3D(d, x, y, z)];
+          if (v > 0) out.push({ x, y, z, kind: v });
+        }
+    return out;
+  }
+
+  /* 沿 axis 从 p 到 q 的中间格(不含端点)是否全为表面空格 */
+  function legClear3D(occ, d, p, q, axis) {
+    const pv = [p.x, p.y, p.z];
+    const qv = [q.x, q.y, q.z];
+    const lo = Math.min(pv[axis], qv[axis]) + 1;
+    const hi = Math.max(pv[axis], qv[axis]);
+    for (let v = lo; v < hi; v++) {
+      const x = axis === 0 ? v : pv[0];
+      const y = axis === 1 ? v : pv[1];
+      const z = axis === 2 ? v : pv[2];
+      if (!isSurfaceCell3D(d, x, y, z)) return false;
+      if (occ[idx3D(d, x, y, z)] !== 0) return false;
+    }
+    return true;
+  }
+
+  /* 把拐点序列展开为逐格路径(含端点);非法返回 null */
+  function expandPath3D(d, corners) {
+    const out = [];
+    const pushCell = (c) => {
+      const last = out[out.length - 1];
+      if (!last || last.x !== c.x || last.y !== c.y || last.z !== c.z) out.push({ x: c.x, y: c.y, z: c.z });
+    };
+    for (let i = 0; i + 1 < corners.length; i++) {
+      const p = corners[i];
+      const q = corners[i + 1];
+      const ax = axisDiff3D(p, q);
+      if (ax < 0) return null;
+      const pv = [p.x, p.y, p.z];
+      const qv = [q.x, q.y, q.z];
+      const step = qv[ax] > pv[ax] ? 1 : -1;
+      const cu = [pv[0], pv[1], pv[2]];
+      pushCell(p);
+      while (cu[ax] !== qv[ax]) {
+        cu[ax] += step;
+        pushCell({ x: cu[0], y: cu[1], z: cu[2] });
+      }
+    }
+    return out;
+  }
+
+  /* 求两点间 ≤2 次转弯、全程沿表面的路径;返回拐点序列或 null */
+  function find3DPath(occ, d, a, b) {
+    const va = occ[idx3D(d, a.x, a.y, a.z)];
+    const vb = occ[idx3D(d, b.x, b.y, b.z)];
+    if (va === 0 || va !== vb) return null;
+    if (a.x === b.x && a.y === b.y && a.z === b.z) return null;
+
+    // 0 折:同一直线
+    const dab = axisDiff3D(a, b);
+    if (dab >= 0 && legClear3D(occ, d, a, b, dab)) return [a, b];
+
+    const empties = emptySurfaceList3D(occ, d);
+
+    // 1 折:一个拐点(须为表面空格)
+    for (let i = 0; i < empties.length; i++) {
+      const t = empties[i];
+      const ax = axisDiff3D(a, t);
+      if (ax < 0) continue;
+      const bx = axisDiff3D(t, b);
+      if (bx < 0 || bx === ax) continue;
+      if (legClear3D(occ, d, a, t, ax) && legClear3D(occ, d, t, b, bx)) return [a, t, b];
+    }
+
+    // 2 折:两个拐点(三段各自沿一条坐标轴,且路径不自交)
+    for (let i = 0; i < empties.length; i++) {
+      const t1 = empties[i];
+      const ax = axisDiff3D(a, t1);
+      if (ax < 0) continue;
+      for (let j = 0; j < empties.length; j++) {
+        if (j === i) continue;
+        const t2 = empties[j];
+        const mx = axisDiff3D(t1, t2);
+        if (mx < 0 || mx === ax) continue;
+        const bx = axisDiff3D(t2, b);
+        if (bx < 0 || bx === mx) continue;
+        if (!legClear3D(occ, d, a, t1, ax)) continue;
+        if (!legClear3D(occ, d, t1, t2, mx)) continue;
+        if (!legClear3D(occ, d, t2, b, bx)) continue;
+        const cells = expandPath3D(d, [a, t1, t2, b]);
+        if (!cells) continue;
+        const seen = new Set();
+        let dup = false;
+        for (let k = 0; k < cells.length; k++) {
+          const key = cells[k].x + "," + cells[k].y + "," + cells[k].z;
+          if (seen.has(key)) {
+            dup = true;
+            break;
+          }
+          seen.add(key);
+        }
+        if (!dup) return [a, t1, t2, b];
+      }
+    }
+    return null;
+  }
+
+  /* 扫描是否存在可消除配对 */
+  function find3DAnyPair(occ, d) {
+    const byKind = new Map();
+    const tiles = tileList3D(occ, d);
+    for (let i = 0; i < tiles.length; i++) {
+      const t = tiles[i];
+      if (!byKind.has(t.kind)) byKind.set(t.kind, []);
+      byKind.get(t.kind).push(t);
+    }
+    for (const group of byKind.values()) {
+      for (let i = 0; i < group.length; i++)
+        for (let j = i + 1; j < group.length; j++) {
+          if (find3DPath(occ, d, group[i], group[j])) return { a: group[i], b: group[j] };
+        }
+    }
+    return null;
+  }
+
+  function count3DRemaining(occ) {
+    let n = 0;
+    for (let i = 0; i < occ.length; i++) if (occ[i] > 0) n += 1;
+    return n;
+  }
+
+  function sameCell3D(a, b) {
+    return a.x === b.x && a.y === b.y && a.z === b.z;
+  }
+
+  function occValue3D(cell) {
+    return llk3d.occ[idx3D(llk3d.d, cell.x, cell.y, cell.z)];
+  }
+
+  function setOccValue3D(cell, v) {
+    llk3d.occ[idx3D(llk3d.d, cell.x, cell.y, cell.z)] = v;
+  }
+
+  /* 生成魔方表面棋盘:每类恰好 2 个,且第 1 类必放在相邻格(开局有解) */
+  function make3DBoard(size, kinds) {
+    const d = dimsCube3D(size);
+    const surf = surfaceCellList3D(d);
+    const total = d.nx * d.ny * d.nz;
+    if (kinds * 2 > surf.length) throw new Error("too many tiles for surface cells");
+    if (kinds > EMOJI_POOL.length) throw new Error("too many kinds for emoji pool");
+    const occ = new Array(total).fill(-1);
+    for (let i = 0; i < surf.length; i++) occ[idx3D(d, surf[i].x, surf[i].y, surf[i].z)] = 0;
+
+    const usedKeys = new Set();
+    const keyOf = (c) => c.x + "," + c.y + "," + c.z;
+    const claim = (c, kind) => {
+      usedKeys.add(keyOf(c));
+      occ[idx3D(d, c.x, c.y, c.z)] = kind;
+    };
+    const DIRS = [
+      [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+    ];
+
+    // 第 1 类:两个相邻表面格(直线必连,保证开局非死局)
+    let placed = false;
+    for (let attempt = 0; attempt < 500 && !placed; attempt++) {
+      const c = surf[Math.floor(Math.random() * surf.length)];
+      if (usedKeys.has(keyOf(c))) continue;
+      const nbrs = [];
+      for (let i = 0; i < DIRS.length; i++) {
+        const nx = c.x + DIRS[i][0];
+        const ny = c.y + DIRS[i][1];
+        const nz = c.z + DIRS[i][2];
+        if (nx < 0 || nx >= d.nx || ny < 0 || ny >= d.ny || nz < 0 || nz >= d.nz) continue;
+        if (!isSurfaceCell3D(d, nx, ny, nz)) continue;
+        if (!usedKeys.has(nx + "," + ny + "," + nz)) nbrs.push({ x: nx, y: ny, z: nz });
+      }
+      if (nbrs.length === 0) continue;
+      const nb = nbrs[Math.floor(Math.random() * nbrs.length)];
+      claim(c, 1);
+      claim(nb, 1);
+      placed = true;
+    }
+    if (!placed) throw new Error("failed to place guaranteed pair");
+
+    for (let k = 2; k <= kinds; k++) {
+      for (let n = 0; n < 2; n++) {
+        let cell = null;
+        for (let attempt = 0; attempt < 800 && !cell; attempt++) {
+          const c = surf[Math.floor(Math.random() * surf.length)];
+          if (!usedKeys.has(keyOf(c))) cell = c;
+        }
+        if (!cell) throw new Error("surface full while placing board");
+        claim(cell, k);
+      }
+    }
+    return { d, kinds, occ };
+  }
+
+  /* 重排剩余图块,保证重排后至少存在一对可连(就地修改 occ) */
+  function reshuffle3D(board) {
+    const d = board.d;
+    const occ = board.occ;
+    const cells = emptySurfaceList3D(occ, d);
+    if (cells.length < 4) return false;
+
+    // 剩余图块按“每类恰好 2 个”收集(本玩法设计如此;异常时按偶数收集)
+    const counts = new Map();
+    const tiles = tileList3D(occ, d);
+    for (let i = 0; i < tiles.length; i++) {
+      const k = tiles[i].kind;
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    const kindsLeft = [];
+    for (const entry of counts) if (entry[1] % 2 === 0) kindsLeft.push(entry[0]);
+    if (kindsLeft.length === 0) return false;
+
+    const DIRS = [
+      [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+    ];
+    const clear = () => {
+      for (let i = 0; i < occ.length; i++) if (occ[i] > 0) occ[i] = 0;
+    };
+
+    // 随机铺放若干次,直到有解
+    for (let attempt = 0; attempt < 80; attempt++) {
+      clear();
+      const pool = emptySurfaceList3D(occ, d);
+      shuffle(pool);
+      if (pool.length < kindsLeft.length * 2) break;
+      const order = shuffle(kindsLeft.slice());
+      let pi = 0;
+      for (let i = 0; i < order.length; i++) {
+        const c1 = pool[pi++];
+        const c2 = pool[pi++];
+        occ[idx3D(d, c1.x, c1.y, c1.z)] = order[i];
+        occ[idx3D(d, c2.x, c2.y, c2.z)] = order[i];
+      }
+      if (find3DAnyPair(occ, d)) return true;
+    }
+
+    // 保底:任选一类放到一对相邻空格(相邻必可直线消除)
+    for (let attempt = 0; attempt < 300; attempt++) {
+      clear();
+      const pool = emptySurfaceList3D(occ, d);
+      shuffle(pool);
+      if (pool.length < kindsLeft.length * 2) break;
+      const pickKind = kindsLeft[Math.floor(Math.random() * kindsLeft.length)];
+      // 找一对相邻空格
+      let anchor = null;
+      let mate = null;
+      for (let i = 0; i < pool.length && !anchor; i++) {
+        const c = pool[i];
+        for (let j = 0; j < DIRS.length; j++) {
+          const nx = c.x + DIRS[j][0];
+          const ny = c.y + DIRS[j][1];
+          const nz = c.z + DIRS[j][2];
+          if (nx < 0 || nx >= d.nx || ny < 0 || ny >= d.ny || nz < 0 || nz >= d.nz) continue;
+          if (!isSurfaceCell3D(d, nx, ny, nz)) continue;
+          if (occ[idx3D(d, nx, ny, nz)] !== 0) continue;
+          anchor = c;
+          mate = { x: nx, y: ny, z: nz };
+          break;
+        }
+      }
+      if (!anchor || !mate) continue;
+      occ[idx3D(d, anchor.x, anchor.y, anchor.z)] = pickKind;
+      occ[idx3D(d, mate.x, mate.y, mate.z)] = pickKind;
+      // 其余类铺到剩余空格
+      const restKinds = kindsLeft.filter((k) => k !== pickKind);
+      shuffle(restKinds);
+      let pi = 0;
+      for (let i = 0; i < pool.length; i++) {
+        const c = pool[i];
+        if (sameCell3D(c, anchor) || sameCell3D(c, mate)) continue;
+        if (pi < restKinds.length * 2) {
+          const kind = restKinds[Math.floor(pi / 2)];
+          occ[idx3D(d, c.x, c.y, c.z)] = kind;
+          pi++;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /* --------------------------- 3D 视图 --------------------------- */
+
+  function cssColorToRgb(str) {
+    if (!str) return null;
+    str = String(str).trim();
+    if (str.charAt(0) === "#") {
+      const m = /^#([0-9a-f]{6})$/i.exec(str);
+      if (!m) return null;
+      return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16)];
+    }
+    const m = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(str);
+    if (m) return [Math.round(parseFloat(m[1])), Math.round(parseFloat(m[2])), Math.round(parseFloat(m[3]))];
+    return null;
+  }
+
+  function readThemeColors3D() {
+    try {
+      const cs = window.getComputedStyle ? getComputedStyle(document.documentElement) : null;
+      if (!cs) return;
+      const a = cssColorToRgb(cs.getPropertyValue("--accent"));
+      const b = cssColorToRgb(cs.getPropertyValue("--control-bg"));
+      if (a) llk3d.theme.accent = a;
+      if (b) llk3d.theme.bg = b;
+    } catch (err) {
+      /* 保留默认配色 */
+    }
+  }
+
+  /* 构造相机(渲染与拾取共用,保证一致) */
+  function llkCam(cssW, cssH) {
+    const d = llk3d.d;
+    const R = Math.sqrt(d.nx * d.nx + d.ny * d.ny + d.nz * d.nz) / 2 + 0.7;
+    const fov = Math.min(cssW, cssH) * 0.92 * llk3d.zoom;
+    const dist = R * 3.05;
+    const cY = Math.cos(llk3d.yaw);
+    const sY = Math.sin(llk3d.yaw);
+    const cP = Math.cos(llk3d.pitch);
+    const sP = Math.sin(llk3d.pitch);
+    const toEye = (x, y, z) => {
+      const rx = x * cY + z * sY;
+      const rz = -x * sY + z * cY;
+      const ry2 = y * cP - rz * sP;
+      const rz2 = y * sP + rz * cP;
+      return { x: rx, y: ry2, z: rz2 };
+    };
+    const project = (e) => {
+      const denom = dist - e.z;
+      if (denom <= 1e-4) return null;
+      const s = fov / denom;
+      return { x: cssW / 2 + e.x * s, y: cssH / 2 - e.y * s, z: e.z, s };
+    };
+    return { toEye, project };
+  }
+
+  function cellWorld3D(cell) {
+    return {
+      x: cell.x - (llk3d.d.nx - 1) / 2,
+      y: cell.y - (llk3d.d.ny - 1) / 2,
+      z: cell.z - (llk3d.d.nz - 1) / 2,
+    };
+  }
+
+  function rgbaStr(rgb, a) {
+    return "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + a + ")";
+  }
+
+  function shadeRgb(rgb, m) {
+    return [Math.min(255, Math.round(rgb[0] * m)), Math.min(255, Math.round(rgb[1] * m)), Math.min(255, Math.round(rgb[2] * m))];
+  }
+
+  /* 主渲染:一次 rAF 一帧 */
+  function renderLlk3D() {
+    if (!llk3d.canvas || !llk3d.ctx || !llk3d.occ) return;
+    const stage = llk3d.stage;
+    const cssW = stage.clientWidth || 0;
+    const cssH = stage.clientHeight || 0;
+    if (cssW < 40 || cssH < 40) return;
+    const canvas = llk3d.canvas;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pw = Math.round(cssW * dpr);
+    const ph = Math.round(cssH * dpr);
+    if (canvas.width !== pw || canvas.height !== ph || llk3dNeedsResize) {
+      canvas.width = pw;
+      canvas.height = ph;
+      llk3dNeedsResize = false;
+    }
+    const ctx = llk3d.ctx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    llk3d.frame += 1;
+
+    // 闲置自动旋转(便于观察各面)
+    if (!llk3d.dragging && nowMs() - llk3d.lastInput > 2600) {
+      llk3d.yaw += 0.0024;
+    }
+
+    readThemeColors3D();
+    const d = llk3d.d;
+    const cam = llkCam(cssW, cssH);
+    const HA = [d.nx / 2, d.ny / 2, d.nz / 2];
+    const ac = llk3d.theme.accent;
+    const bg = llk3d.theme.bg;
+    const base = [Math.round(ac[0] * 0.32 + bg[0] * 0.68), Math.round(ac[1] * 0.32 + bg[1] * 0.68), Math.round(ac[2] * 0.32 + bg[2] * 0.68)];
+    const labelFont = '"Noto Sans SC","Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",system-ui';
+
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.lineJoin = "round";
+
+    const items = []; // { z, draw } 按 z 升序(远→近)绘制
+
+    /* 1) 大魔方六面:半透明填充 + 网格线 */
+    for (let a = 0; a < 3; a++) {
+      const u = (a + 1) % 3;
+      const v = (a + 2) % 3;
+      for (let s = 0; s < 2; s++) {
+        const sign = s === 0 ? -1 : 1;
+        const center = [0, 0, 0];
+        center[a] = sign * HA[a];
+        const e = cam.toEye(center[0], center[1], center[2]);
+        const pr = cam.project(e);
+        if (!pr) continue;
+        const corners = [];
+        const cs = [-1, 1];
+        for (let i = 0; i < 2; i++)
+          for (let j = 0; j < 2; j++) {
+            const pt = [center[0], center[1], center[2]];
+            pt[u] = cs[i] * HA[u];
+            pt[v] = cs[j] * HA[v];
+            corners.push(pt);
+          }
+        items.push({
+          z: e.z,
+          draw() {
+            const pts = corners.map((pt) => cam.project(cam.toEye(pt[0], pt[1], pt[2]))).filter(Boolean);
+            if (pts.length < 3) return;
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+            ctx.closePath();
+            ctx.fillStyle = rgbaStr(ac, 0.055);
+            ctx.fill();
+            // 网格线(沿两轴)
+            ctx.strokeStyle = rgbaStr(ac, 0.22);
+            ctx.lineWidth = 1;
+            const nU = u === 0 ? d.nx : u === 1 ? d.ny : d.nz;
+            const nV = v === 0 ? d.nx : v === 1 ? d.ny : d.nz;
+            const hU = HA[u];
+            const hV = HA[v];
+            ctx.beginPath();
+            for (let k = 0; k <= nV; k++) {
+              const pt1 = [center[0], center[1], center[2]];
+              const pt2 = [center[0], center[1], center[2]];
+              pt1[u] = -hU;
+              pt2[u] = hU;
+              pt1[v] = -hV + k;
+              pt2[v] = -hV + k;
+              const a1 = cam.project(cam.toEye(pt1[0], pt1[1], pt1[2]));
+              const a2 = cam.project(cam.toEye(pt2[0], pt2[1], pt2[2]));
+              if (a1 && a2) {
+                ctx.moveTo(a1.x, a1.y);
+                ctx.lineTo(a2.x, a2.y);
+              }
+            }
+            for (let k = 0; k <= nU; k++) {
+              const pt1 = [center[0], center[1], center[2]];
+              const pt2 = [center[0], center[1], center[2]];
+              pt1[u] = -hU + k;
+              pt2[u] = -hU + k;
+              pt1[v] = -hV;
+              pt2[v] = hV;
+              const a1 = cam.project(cam.toEye(pt1[0], pt1[1], pt1[2]));
+              const a2 = cam.project(cam.toEye(pt2[0], pt2[1], pt2[2]));
+              if (a1 && a2) {
+                ctx.moveTo(a1.x, a1.y);
+                ctx.lineTo(a2.x, a2.y);
+              }
+            }
+            ctx.stroke();
+          },
+        });
+      }
+    }
+
+    /* 2) 图块:小立方体(面向相机的面)+ 屏幕直立 emoji 标签 */
+    const tiles = tileList3D(llk3d.occ, d);
+    const now = nowMs();
+    const fading = llk3d.anim && llk3d.anim.fading ? llk3d.anim.fading : [];
+
+    const pushTile = (cell, kind, scale, alpha, zBoost) => {
+      const cw = cellWorld3D(cell);
+      const e = cam.toEye(cw.x, cw.y, cw.z);
+      const pr = cam.project(e);
+      if (!pr) return;
+      const h = TILE_HALF * scale;
+      const faces = [];
+      for (let a = 0; a < 3; a++) {
+        for (const sg of [-1, 1]) {
+          const nrm = [0, 0, 0];
+          nrm[a] = sg;
+          const ne = cam.toEye(nrm[0], nrm[1], nrm[2]);
+          if (ne.z <= 0.001) continue;
+          faces.push({ ne, nrm });
+        }
+      }
+      items.push({
+        z: e.z,
+        draw() {
+          ctx.globalAlpha = alpha;
+          // 可见面
+          for (let i = 0; i < faces.length; i++) {
+            const f = faces[i];
+            const m = 0.46 + 0.54 * Math.min(1, Math.max(0, f.ne.z));
+            const col = shadeRgb(base, m);
+            const nAxis = f.nrm[0] !== 0 ? 0 : f.nrm[1] !== 0 ? 1 : 2;
+            const uAxis = (nAxis + 1) % 3;
+            const vAxis = (nAxis + 2) % 3;
+            // 面的四个角:法向偏移 + 两个切向单位轴(依序绕行,避免自交)
+            const nv = [f.nrm[0] * h, f.nrm[1] * h, f.nrm[2] * h];
+            const uv = [0, 0, 0];
+            const vv = [0, 0, 0];
+            uv[uAxis] = h;
+            vv[vAxis] = h;
+            const cornerOffsets = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+            ctx.beginPath();
+            let started = false;
+            for (let c2 = 0; c2 < cornerOffsets.length; c2++) {
+              const su = cornerOffsets[c2][0];
+              const sv = cornerOffsets[c2][1];
+              const p2 = cam.project(
+                cam.toEye(
+                  cw.x + nv[0] + uv[0] * su + vv[0] * sv,
+                  cw.y + nv[1] + uv[1] * su + vv[1] * sv,
+                  cw.z + nv[2] + uv[2] * su + vv[2] * sv,
+                ),
+              );
+              if (!p2) {
+                started = false;
+                continue;
+              }
+              if (!started) {
+                ctx.moveTo(p2.x, p2.y);
+                started = true;
+              } else {
+                ctx.lineTo(p2.x, p2.y);
+              }
+            }
+            ctx.closePath();
+            ctx.fillStyle = rgbaStr(col, 1);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(0,0,0,0.16)";
+            ctx.lineWidth = 0.75;
+            ctx.stroke();
+          }
+          // 屏幕直立 emoji(加深度偏置,避免被自己的正面盖住)
+          const glyph = EMOJI_POOL[kind - 1];
+          const fontPx = Math.max(11, Math.min(34, pr.s * TILE_HALF * 2.1 * scale));
+          ctx.font = "700 " + fontPx + "px " + labelFont;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.lineWidth = Math.max(2, fontPx / 7);
+          ctx.strokeStyle = "rgba(0,0,0,0.6)";
+          ctx.strokeText(glyph, pr.x, pr.y);
+          ctx.fillStyle = "rgba(255,255,255," + alpha + ")";
+          ctx.fillText(glyph, pr.x, pr.y);
+          ctx.globalAlpha = 1;
+        },
+      });
+    };
+
+    for (let i = 0; i < tiles.length; i++) {
+      const t = tiles[i];
+      pushTile(t, t.kind, 1, 1, 0);
+    }
+    for (let i = 0; i < fading.length; i++) {
+      const f = fading[i];
+      const p = (now - f.start) / f.dur;
+      if (p >= 1) continue;
+      const k = 1 - p;
+      pushTile(f, f.kind, 0.6 + 0.6 * k, k, 0);
+    }
+
+    items.sort((x, y) => x.z - y.z);
+    for (let i = 0; i < items.length; i++) items[i].draw();
+
+    /* 3) 覆盖层:选中环 / 同类脉冲 / 提示环 / 连线动画 */
+    drawLlk3DOverlay(ctx, cam, cssW, cssH);
+  }
+
+  function drawLlk3DOverlay(ctx, cam, cssW, cssH) {
+    if (!llk3d.occ) return;
+    const d = llk3d.d;
+    const now = nowMs();
+    const ring = (cell, color, alpha, lw, dash) => {
+      const cw = cellWorld3D(cell);
+      const e = cam.toEye(cw.x, cw.y, cw.z);
+      const pr = cam.project(e);
+      if (!pr) return;
+      const r = Math.min(34, Math.max(10, pr.s * TILE_HALF * 1.45));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lw;
+      if (dash) ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.arc(pr.x, pr.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const ac = llk3d.theme.accent;
+    const accentStr = rgbaStr(ac, 1);
+    const win = [246, 211, 101];
+    const winStr = rgbaStr(win, 1);
+
+    // 已选中:仅实心环标注当前格,不提示其它同类位置(提示只由 H 键触发)
+    if (llk3d.sel && occValue3D(llk3d.sel) > 0) {
+      ring(llk3d.sel, accentStr, 1, 3, null);
+    }
+
+    // H 键提示
+    if (llk3d.hintPair && now < llk3d.hintUntil) {
+      ring(llk3d.hintPair.a, winStr, 0.95, 3, null);
+      ring(llk3d.hintPair.b, winStr, 0.95, 3, null);
+    }
+
+    // 连线动画
+    const anim = llk3d.anim;
+    if (anim && anim.line && anim.line.cells && anim.line.cells.length > 1) {
+      const t = Math.min(1, (now - anim.line.start) / anim.line.dur);
+      const pts = [];
+      for (let i = 0; i < anim.line.cells.length; i++) {
+        const cw = cellWorld3D(anim.line.cells[i]);
+        const e = cam.toEye(cw.x, cw.y, cw.z);
+        const pr = cam.project(e);
+        if (!pr) {
+          pts.push(null);
+        } else {
+          pts.push(pr);
+        }
+      }
+      // 按折线累计长度求当前进度端点
+      const segs = [];
+      let total = 0;
+      for (let i = 1; i < pts.length; i++) {
+        if (!pts[i - 1] || !pts[i]) {
+          segs.push(null);
+          continue;
+        }
+        const L = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+        segs.push(L);
+        total += L;
+      }
+      if (total > 0) {
+        let left = total * t;
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        let drawn = false;
+        let head = null;
+        for (let i = 1; i < pts.length; i++) {
+          if (!pts[i - 1] || !pts[i] || !segs[i - 1]) continue;
+          const L = segs[i - 1];
+          if (left <= 0) break;
+          const take = Math.min(L, left);
+          const ratio = take / L;
+          const ex = pts[i - 1].x + (pts[i].x - pts[i - 1].x) * ratio;
+          const ey = pts[i - 1].y + (pts[i].y - pts[i - 1].y) * ratio;
+          if (!drawn) {
+            ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+            drawn = true;
+          }
+          ctx.lineTo(ex, ey);
+          head = { x: ex, y: ey };
+          left -= take;
+        }
+        if (drawn) {
+          ctx.strokeStyle = accentStr;
+          ctx.lineWidth = 4;
+          ctx.shadowColor = rgbaStr(ac, 0.9);
+          ctx.shadowBlur = 10;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+          if (head) {
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(head.x, head.y, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  /* --------------------------- 3D 交互 --------------------------- */
+
+  function ensureLlk3DStage() {
+    if (llk3d.ctx) return true;
+    if (!stageEl) return false;
+    let canvas = document.getElementById("llk3dCanvas");
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvas.className = "llk3d-canvas";
+      canvas.id = "llk3dCanvas";
+      stageEl.appendChild(canvas);
+    }
+    const ctx = canvas.getContext ? canvas.getContext("2d") : null;
+    if (!ctx) return false;
+    llk3d.stage = stageEl;
+    llk3d.canvas = canvas;
+    llk3d.ctx = ctx;
+    llk3d.toastEl = toastEl;
+    bindLlk3DInput(canvas);
+    llk3dNeedsResize = true;
+    return true;
+  }
+
+  function bindLlk3DInput(canvas) {
+    let down = false;
+    let moved = 0;
+    const local = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    canvas.addEventListener("pointerdown", (e) => {
+      if (!activeMode3D() || game.ended || game.busy) return;
+      down = true;
+      moved = 0;
+      const p = local(e);
+      llk3d.lastX = p.x;
+      llk3d.lastY = p.y;
+      llk3d.dragging = true;
+      llk3d.lastInput = nowMs();
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch (err) {
+        /* ignore */
+      }
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!down) return;
+      const p = local(e);
+      const dx = p.x - llk3d.lastX;
+      const dy = p.y - llk3d.lastY;
+      llk3d.lastX = p.x;
+      llk3d.lastY = p.y;
+      moved += Math.abs(dx) + Math.abs(dy);
+      llk3d.yaw += dx * 0.008;
+      llk3d.pitch = Math.max(-1.25, Math.min(1.25, llk3d.pitch + dy * 0.007));
+      llk3d.lastInput = nowMs();
+    });
+    const endDrag = (e) => {
+      if (!down) return;
+      down = false;
+      llk3d.dragging = false;
+      if (moved < 6 && activeMode3D()) {
+        const p = local(e);
+        handleLlk3DPick(p.x, p.y);
+      }
+    };
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", () => {
+      down = false;
+      llk3d.dragging = false;
+    });
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (!activeMode3D()) return;
+        e.preventDefault();
+        const f = e.deltaY > 0 ? 1 / 1.12 : 1.12;
+        llk3d.zoom = Math.max(0.45, Math.min(3.2, llk3d.zoom * f));
+        llk3d.lastInput = nowMs();
+      },
+      { passive: false },
+    );
+  }
+
+  function pickTile3D(px, py) {
+    const d = llk3d.d;
+    const stage = llk3d.stage;
+    const cam = llkCam(stage.clientWidth || 1, stage.clientHeight || 1);
+    const tiles = tileList3D(llk3d.occ, d);
+    let best = null;
+    let bestZ = -Infinity;
+    for (let i = 0; i < tiles.length; i++) {
+      const cw = cellWorld3D(tiles[i]);
+      const e = cam.toEye(cw.x, cw.y, cw.z);
+      const pr = cam.project(e);
+      if (!pr) continue;
+      const dx = pr.x - px;
+      const dy = pr.y - py;
+      const r = Math.min(32, Math.max(13, pr.s * TILE_HALF * 1.6));
+      if (dx * dx + dy * dy <= r * r && e.z > bestZ) {
+        bestZ = e.z;
+        best = { x: tiles[i].x, y: tiles[i].y, z: tiles[i].z };
+      }
+    }
+    return best;
+  }
+
+  function llk3dToast(text, isError) {
+    const el = llk3d.toastEl;
+    if (!el) {
+      if (text) setStatus(text);
+      return;
+    }
+    if (llk3d.toastTimer) {
+      clearTimeout(llk3d.toastTimer);
+      llk3d.toastTimer = 0;
+    }
+    if (!text) {
+      el.classList.remove("is-show", "is-error");
+      el.hidden = true;
+      return;
+    }
+    el.textContent = text;
+    el.classList.toggle("is-error", !!isError);
+    el.hidden = false;
+    requestAnimationFrame(() => {
+      el.classList.add("is-show");
+    });
+    llk3d.toastTimer = setTimeout(() => {
+      el.classList.remove("is-show");
+      setTimeout(() => {
+        if (!el.classList.contains("is-show")) el.hidden = true;
+      }, 220);
+      llk3d.toastTimer = 0;
+    }, 1500);
+  }
+
+  function showHint3D() {
+    if (!activeMode3D() || game.busy || game.ended) return;
+    const pair = find3DAnyPair(llk3d.occ, llk3d.d);
+    if (!pair) {
+      llk3dToast("暂无可用配对,点「重排」试试", true);
+      if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
+      return;
+    }
+    llk3d.hintPair = pair;
+    llk3d.hintUntil = nowMs() + 2400;
+    llk3dToast("已高亮一对可用图案");
+  }
+
+  /* 点击拾取:选中/配对/消除流程(与经典共用计时字段) */
+  function handleLlk3DPick(px, py) {
+    if (!activeMode3D() || game.busy || game.ended || game.paused) return;
+    const hit = pickTile3D(px, py);
+    if (!hit) {
+      llk3d.sel = null; // 点到空白:取消选中
+      return;
+    }
+    if (!game.started) {
+      game.started = true;
+      game.paused = false;
+      startTimer();
+      setStatus("进行中");
+    }
+    if (llk3d.sel && sameCell3D(llk3d.sel, hit)) {
+      llk3d.sel = null; // 再点一次取消
+      return;
+    }
+    if (!llk3d.sel) {
+      llk3d.sel = hit;
+      return;
+    }
+    const a = llk3d.sel;
+    const b = hit;
+    const va = occValue3D(a);
+    const vb = occValue3D(b);
+    if (va !== vb) {
+      llk3d.sel = hit;
+      llk3dToast("图案不同", true);
+      return;
+    }
+    const path = find3DPath(llk3d.occ, llk3d.d, a, b);
+    if (!path) {
+      llk3d.sel = hit;
+      llk3dToast("被其它方块挡住了,换一对试试", true);
+      return;
+    }
+
+    // 配对成功
+    llk3d.sel = null;
+    game.busy = true;
+    const cells = expandPath3D(llk3d.d, path) || path;
+    llk3d.anim.line = { cells, start: nowMs(), dur: 380 };
+    llk3d.anim.fading = [];
+    setTimeout(() => {
+      // 画线完成:消除两格并播放缩小淡出
+      setOccValue3D(a, 0);
+      setOccValue3D(b, 0);
+      llk3d.anim.line = null;
+      llk3d.anim.fading = [
+        { x: a.x, y: a.y, z: a.z, kind: va, start: nowMs(), dur: 300 },
+        { x: b.x, y: b.y, z: b.z, kind: vb, start: nowMs(), dur: 300 },
+      ];
+      setTimeout(() => {
+        llk3d.anim.fading = [];
+        game.busy = false;
+        if (count3DRemaining(llk3d.occ) === 0) {
+          win();
+          return;
+        }
+        setLeft();
+        if (!find3DAnyPair(llk3d.occ, llk3d.d)) {
+          setStatus("无可用配对,点「重排」");
+          if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
+        } else if (shuffleBtn) {
+          shuffleBtn.classList.remove("is-highlight");
+        }
+      }, 320);
+    }, 400);
+  }
+
+  function handleShuffle3D() {
+    if (game.ended || game.busy) return;
+    if (!activeMode3D()) return;
+    if (count3DRemaining(llk3d.occ) === 0) return;
+    const ok = reshuffle3D({ d: llk3d.d, kinds: llk3d.kinds, occ: llk3d.occ });
+    if (!game.started) {
+      game.started = true;
+      startTimer();
+    }
+    setStatus(ok ? "已重排,继续配对" : "重排后仍无解,可再试一次");
+    if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
+    llk3d.sel = null;
+    llk3d.anim.line = null;
+    llk3d.anim.fading = [];
+    llk3d.hintPair = null;
+    setLeft();
+  }
+
+  /* --------------------------- 3D 编排与模式切换 --------------------------- */
+
+  function llk3dStartLoop() {
+    if (llk3d.running) return;
+    llk3d.running = true;
+    const tick = () => {
+      if (!llk3d.running) return;
+      if (llkActive && activeMode3D()) {
+        try {
+          renderLlk3D();
+        } catch (err) {
+          if (typeof console !== "undefined") console.error("[llk3d]", err);
+        }
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  function llk3dStopLoop() {
+    llk3d.running = false;
+  }
+
+  function start3DGame(key) {
+    const cfg = LLK3D_DIFFICULTIES[key] || LLK3D_DIFFICULTIES.medium;
+    if (!ensureLlk3DStage()) {
+      setStatus("3D 画布不可用,请更换浏览器");
+      return;
+    }
+    if (difficultyEl) difficultyEl.value = cfg === LLK3D_DIFFICULTIES[key] ? key : "medium";
+    const board = make3DBoard(cfg.size, cfg.kinds);
+    llk3d.d = board.d;
+    llk3d.kinds = board.kinds;
+    llk3d.occ = board.occ;
+    llk3d.built = true;
+    llk3d.sel = null;
+    llk3d.anim.line = null;
+    llk3d.anim.fading = [];
+    llk3d.hintPair = null;
+    llk3d.frame = 0;
+    llk3dToast("");
+    game.difficulty = key;
+    game.sel = null;
+    game.started = false;
+    game.ended = false;
+    game.paused = false;
+    game.busy = false;
+    game.autoPaused = false;
+    game.baseMs = 0;
+    game.startAt = null;
+    stopTimer();
+    shell.classList.remove("llk-won");
+    if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
+    setStatus("待开始");
+    renderTimer();
+    setLeft();
+    llk3dStartLoop();
+  }
+
+  /* 新局(按当前玩法) */
+  function startGameForMode(key) {
+    if (llkModeKey === "3d") {
+      const cfg = LLK3D_DIFFICULTIES[key];
+      start3DGame(cfg ? key : "medium");
+    } else {
+      const cfg = DIFFICULTIES[key];
+      startNew(cfg ? key : "medium");
+    }
+  }
+
+  function onShufflePressed() {
+    if (llkModeKey === "3d") handleShuffle3D();
+    else handleShuffle();
+  }
+
+  /* 玩法切换(经典 <-> 3D) */
+  function switchLlkMode(next) {
+    const target = next === "3d" ? "3d" : "classic";
+    if (target === llkModeKey) return;
+    if (target === "3d" && !ensureLlk3DStage()) {
+      setStatus("当前浏览器不支持 3D 画布");
+      if (modeEl) modeEl.value = "classic";
+      return;
+    }
+    llkModeKey = target;
+    if (modeEl) modeEl.value = target;
+    shell.classList.toggle("llk-mode-3d", target === "3d");
+    llk3d.sel = null;
+    llk3dToast("");
+    llk3dStopLoop();
+    applyLlkModeTexts();
+    clearLine();
+    const key = difficultyEl ? difficultyEl.value : "medium";
+    if (target === "3d") {
+      const cfg = LLK3D_DIFFICULTIES[key];
+      start3DGame(cfg ? key : "medium");
+    } else {
+      const cfg = DIFFICULTIES[key];
+      startNew(cfg ? key : "medium");
+    }
+  }
+
+  /* 键盘:方向键旋转、+/- 缩放、H 提示 */
+  llk3d.onKey = (key) => {
+    if (key === "ArrowLeft" || key === "ArrowRight" || key === "ArrowUp" || key === "ArrowDown") {
+      const step = 0.3;
+      if (key === "ArrowLeft") llk3d.yaw -= step;
+      else if (key === "ArrowRight") llk3d.yaw += step;
+      else if (key === "ArrowUp") llk3d.pitch = Math.max(-1.25, Math.min(1.25, llk3d.pitch + step));
+      else llk3d.pitch = Math.max(-1.25, Math.min(1.25, llk3d.pitch - step));
+      llk3d.lastInput = nowMs();
+      return true;
+    }
+    if (key === "+" || key === "=") {
+      llk3d.zoom = Math.min(3.2, llk3d.zoom * 1.15);
+      llk3d.lastInput = nowMs();
+      return true;
+    }
+    if (key === "-" || key === "_") {
+      llk3d.zoom = Math.max(0.45, llk3d.zoom / 1.15);
+      llk3d.lastInput = nowMs();
+      return true;
+    }
+    if (key && key.toLowerCase() === "h") {
+      showHint3D();
+      return true;
+    }
+    return false;
+  };
+
+  /* 难度/提示/副标题等界面文案与当前玩法同步 */
+  function applyLlkDifficultyLabels() {
+    if (!difficultyEl || !difficultyEl.options) return;
+    const opts = difficultyEl.options;
+    for (let i = 0; i < opts.length; i++) {
+      const opt = opts[i];
+      const key = opt.value;
+      if (llkModeKey === "3d") {
+        const cfg = LLK3D_DIFFICULTIES[key];
+        if (cfg) opt.textContent = cfg.name + " " + cfg.size + "³";
+      } else {
+        const cfg = DIFFICULTIES[key];
+        if (cfg) opt.textContent = cfg.name + " " + cfg.rows + "×" + cfg.cols;
+      }
+    }
+  }
+
+  function applyLlkModeTexts() {
+    applyLlkDifficultyLabels();
+    const is3d = llkModeKey === "3d";
+    if (hintEl) hintEl.textContent = is3d ? LLK3D_TEXT.hint : LLK3D_TEXT.classicHint;
+    if (taglineEl) taglineEl.textContent = is3d ? LLK3D_TEXT.tag : LLK3D_TEXT.classicTag;
   }
 
   /* ----------------------------- 启动 ----------------------------- */
@@ -812,12 +2043,17 @@
   function init() {
     buildCells();
     bindControls();
+    applyLlkModeTexts(); // 难度选项/提示文案与当前玩法保持一致
     // 有协调器时由协调器统一路由;首次进入 lianliankan 前先建好初始棋盘
     const coordinator = typeof window !== "undefined" ? window.__GAME_TABS__ : null;
     if (coordinator && typeof coordinator.getCurrent === "function") {
-      // 预生成当前难度棋盘(切换 Tab 后首帧即有内容)
+      // 预生成当前玩法棋盘(切换 Tab 后首帧即有内容)
       const key = difficultyEl ? difficultyEl.value : "medium";
-      startNew(DIFFICULTIES[key] ? key : "medium");
+      if (llkModeKey === "3d") {
+        start3DGame(LLK3D_DIFFICULTIES[key] ? key : "medium");
+      } else {
+        startNew(DIFFICULTIES[key] ? key : "medium");
+      }
       if (coordinator.getCurrent() === "lianliankan") onLinkActivate();
     }
   }
@@ -826,8 +2062,18 @@
 
   /* 暴露纯逻辑,供 Node 测试与调试 */
   if (typeof window !== "undefined") {
+    window.addEventListener("error", (e) => {
+      try {
+        window.__llk3dError = (e && e.error && (e.error.stack || e.error.message)) || (e && e.message) || String(e);
+      } catch (err) {
+        /* ignore */
+      }
+    });
+  }
+  if (typeof window !== "undefined") {
     window.__LLK__ = {
       DIFFICULTIES,
+      LLK3D_DIFFICULTIES,
       EMOJI_POOL,
       makeBoard,
       findPath,
@@ -839,6 +2085,22 @@
       segmentClear,
       computePathPoints,
       getLineStrokeWidth,
+      llk3d: {
+        DIFFICULTIES: LLK3D_DIFFICULTIES,
+        isSurfaceCell: isSurfaceCell3D,
+        idx: idx3D,
+        dimsCube: dimsCube3D,
+        axisDiff: axisDiff3D,
+        makeBoard: make3DBoard,
+        findPath: find3DPath,
+        findAnyPair: find3DAnyPair,
+        countRemaining: count3DRemaining,
+        reshuffle: reshuffle3D,
+        expandPath: expandPath3D,
+        surfaceCells: surfaceCellList3D,
+        emptyCells: emptySurfaceList3D,
+        tiles: tileList3D,
+      },
     };
   }
 })();
