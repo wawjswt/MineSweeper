@@ -294,6 +294,14 @@ context.__refreshDifficultyOptions();
 if (!customCard.hidden || customCard.getAttribute("aria-hidden") !== "true") {
   throw new Error("switching from custom to a preset should hide the card again");
 }
+for (const mode of ["offset", "hex", "ring"]) {
+  context.__setDifficulty("custom");
+  context.__setMode(mode);
+  context.__refreshDifficultyOptions();
+  if (!customCard.hidden || customCard.getAttribute("aria-hidden") !== "true") {
+    throw new Error(`${mode} custom difficulty should hide the card with aria-hidden=true`);
+  }
+}
 context.__setDifficulty("custom");
 context.__setMode("sudoku");
 context.__refreshDifficultyOptions();

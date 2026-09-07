@@ -387,7 +387,7 @@ function formatDifficultyLabel(spec) {
 }
 function updateCustomDifficultyVisibility() {
   if (elements.customDifficultyCard) {
-    const visible = modeKey !== "sudoku" && difficultyKey === "custom";
+    const visible = modeKey === "classic" && difficultyKey === "custom";
     elements.customDifficultyCard.hidden = !visible;
     elements.customDifficultyCard.setAttribute("aria-hidden", String(!visible));
   }
