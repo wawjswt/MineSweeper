@@ -1,247 +1,308 @@
-import { DIFFICULTIES, SUDOKU_DIFFICULTIES } from "./config.js";
+import { generateClassicBoard } from "./minesweeper-generator.js";
+import { analyzePosition } from "./minesweeper-solver.js";
+import { generateSudokuMines } from "./sudoku-minesweeper.js";
 
-function shuffle(list) {
-  for (let i = list.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [list[i], list[j]] = [list[j], list[i]];
+function shuffle(list, rng) {
+  for (let index = list.length - 1; index > 0; index--) {
+    const randomIndex = Math.floor(rng() * (index + 1));
+    [list[index], list[randomIndex]] = [list[randomIndex], list[index]];
   }
   return list;
 }
 
-const SUDOKU_TEMPLATE = {
-  regions: [
-    [1, 1, 0, 0, 0],
-    [2, 1, 1, 1, 0],
-    [2, 2, 2, 3, 0],
-    [4, 2, 3, 3, 3],
-    [4, 4, 4, 4, 3],
-  ],
-  mines: [
-    [0, 4],
-    [1, 2],
-    [2, 0],
-    [3, 3],
-    [4, 1],
-  ],
-};
-
-function rotateGrid(grid) {
-  const size = grid.length;
-  return Array.from({ length: size }, (_, r) =>
-    Array.from({ length: size }, (_, c) => grid[size - 1 - c][r]),
-  );
+function createEmptyBoard(rows, cols) {
+  return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({
+    mine: false,
+    revealed: false,
+    flagged: false,
+    questioned: false,
+    exploded: false,
+    crossed: false,
+    givenMine: false,
+    count: 0,
+    region: 0,
+  })));
 }
 
-function flipGrid(grid) {
-  return grid.map((row) => [...row].reverse());
-}
-
-function transformPoint([r, c], size, rotation, flipped) {
-  let x = r;
-  let y = c;
-  for (let i = 0; i < rotation; i++) {
-    [x, y] = [y, size - 1 - x];
-  }
-  if (flipped) y = size - 1 - y;
-  return [x, y];
-}
-
-export function createGameLogic(getState, getDifficultyKey) {
+export function createGameLogic({
+  getState,
+  getDifficultySpec,
+  getGenerationMode = () => "standard",
+  rng = Math.random,
+}) {
   let timerId = null;
+  let timerStartAt = null;
 
-  function inBounds(r, c) {
-    const state = getState();
-    return r >= 0 && r < state.rows && c >= 0 && c < state.cols;
+  function state() {
+    return getState();
+  }
+
+  function inBounds(row, col) {
+    const current = state();
+    return row >= 0 && row < current.rows && col >= 0 && col < current.cols;
   }
 
   function isSudokuMode() {
-    return getState().modeKey === "sudoku";
+    return state().modeKey === "sudoku";
   }
 
-  function neighbors(r, c) {
-    const out = [];
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (!dr && !dc) continue;
-        const nr = r + dr;
-        const nc = c + dc;
-        if (inBounds(nr, nc)) out.push([nr, nc]);
+  function isHexMode() {
+    return state().modeKey === "hex";
+  }
+
+  function isRingMode() {
+    return state().modeKey === "ring";
+  }
+
+  function isOffsetMode() {
+    return state().modeKey === "offset";
+  }
+
+  function neighbors(row, col) {
+    const current = state();
+    if (isHexMode()) {
+      const q = col;
+      const cubeRow = row - Math.floor((col - (col & 1)) / 2);
+      const cubeCol = -q - cubeRow;
+      const directions = [
+        [1, -1, 0], [1, 0, -1], [0, 1, -1],
+        [-1, 1, 0], [-1, 0, 1], [0, -1, 1],
+      ];
+      return directions.map(([dq, dr, ds]) => {
+        const nextQ = q + dq;
+        const nextR = cubeRow + dr;
+        const nextS = cubeCol + ds;
+        void nextS;
+        return [nextR + Math.floor((nextQ - (nextQ & 1)) / 2), nextQ];
+      }).filter(([nextRow, nextCol]) => inBounds(nextRow, nextCol));
+    }
+
+    const result = [];
+    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+      for (let colOffset = -1; colOffset <= 1; colOffset++) {
+        if (rowOffset === 0 && colOffset === 0) continue;
+        const nextRow = row + rowOffset;
+        let nextCol = col + colOffset;
+        if (isRingMode()) {
+          if (nextRow < 0 || nextRow >= current.rows) continue;
+          nextCol = (nextCol + current.cols) % current.cols;
+          if (nextRow === row && nextCol === col) continue;
+          result.push([nextRow, nextCol]);
+        } else if (inBounds(nextRow, nextCol)) {
+          result.push([nextRow, nextCol]);
+        }
       }
     }
-    return out;
+    return result;
   }
 
-  function countAround(board, r, c) {
-    let total = 0;
-    for (const [nr, nc] of neighbors(r, c)) total += board[nr][nc].mine ? 1 : 0;
-    return total;
-  }
-
-  function countOffsetMines(r, c) {
-    const state = getState();
-    let total = 0;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const nr = r - 1 + dr;
-        const nc = c + dc;
-        if (inBounds(nr, nc) && state.board[nr][nc].mine) total++;
+  function offsetNeighbors(row, col) {
+    const result = [];
+    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+      for (let colOffset = -1; colOffset <= 1; colOffset++) {
+        const nextRow = row - 1 + rowOffset;
+        const nextCol = col + colOffset;
+        if (inBounds(nextRow, nextCol)) result.push([nextRow, nextCol]);
       }
     }
-    return total;
+    return result;
   }
 
-  function generateSudokuLayout(state) {
-    const size = state.rows;
-    const rotation = Math.floor(Math.random() * 4);
-    const flipped = Math.random() < 0.5;
-    let regions = SUDOKU_TEMPLATE.regions;
-    let mines = SUDOKU_TEMPLATE.mines;
-    for (let i = 0; i < rotation; i++) {
-      regions = rotateGrid(regions);
-      mines = mines.map((point) => transformPoint(point, size, 1, false));
-    }
-    if (flipped) {
-      regions = flipGrid(regions);
-      mines = mines.map((point) => transformPoint(point, size, 0, true));
-    }
-    state.regions = regions;
-    for (let r = 0; r < size; r++) {
-      for (let c = 0; c < size; c++) {
-        const cell = state.board[r][c];
-        cell.mine = mines.some(([mr, mc]) => mr === r && mc === c);
+  function countAround(board, row, col) {
+    const adjacent = isOffsetMode() ? offsetNeighbors(row, col) : neighbors(row, col);
+    return adjacent.reduce((total, [neighborRow, neighborCol]) => total + (board[neighborRow][neighborCol].mine ? 1 : 0), 0);
+  }
+
+  function resetCells(current) {
+    for (const row of current.board) {
+      for (const cell of row) {
+        cell.mine = false;
         cell.revealed = false;
-        cell.count = 0;
-        cell.region = regions[r][c];
         cell.flagged = false;
         cell.questioned = false;
+        cell.exploded = false;
+        cell.crossed = false;
         cell.givenMine = false;
+        cell.count = 0;
+        cell.region = 0;
       }
     }
-    const [givenRow, givenCol] = mines[0];
-    state.board[givenRow][givenCol].flagged = true;
-    state.board[givenRow][givenCol].givenMine = true;
-    return true;
+  }
+
+  function prepareSudoku() {
+    const current = state();
+    if (!isSudokuMode()) return;
+    const generated = generateSudokuMines(current.rows, { rng });
+    current.regions = generated.regions;
+    current.sudokuGeneration = generated;
+    current.mines = generated.mines.length;
+    resetCells(current);
+    for (const [row, col] of generated.mines) {
+      current.board[row][col].mine = true;
+    }
+    for (let row = 0; row < current.rows; row++) {
+      for (let col = 0; col < current.cols; col++) current.board[row][col].region = current.regions[row][col];
+    }
+    const [givenRow, givenCol] = generated.mines[0];
+    current.board[givenRow][givenCol].flagged = true;
+    current.board[givenRow][givenCol].givenMine = true;
   }
 
   function layMines(safeRow, safeCol) {
-    const state = getState();
+    const current = state();
     if (isSudokuMode()) {
-      generateSudokuLayout(state);
+      prepareSudoku();
       return;
     }
+    if (current.modeKey === "classic") {
+      const generated = generateClassicBoard({
+        rows: current.rows,
+        cols: current.cols,
+        mines: current.mines,
+        safeRow,
+        safeCol,
+        rng,
+        generationMode: getGenerationMode(),
+      });
+      current.board = generated.board;
+      current.generationMode = generated.generationMode;
+      current.generationFallback = generated.fallback;
+      current.notice = generated.fallback ? "可推理棋盘生成失败，已使用标准随机棋盘。" : "";
+      return;
+    }
+
+    resetCells(current);
     const forbidden = new Set([`${safeRow},${safeCol}`]);
-    for (const [r, c] of neighbors(safeRow, safeCol)) forbidden.add(`${r},${c}`);
+    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+      for (let colOffset = -1; colOffset <= 1; colOffset++) {
+        const row = safeRow + rowOffset;
+        const col = safeCol + colOffset;
+        if (inBounds(row, col)) forbidden.add(`${row},${col}`);
+      }
+    }
     const spots = [];
-    for (let r = 0; r < state.rows; r++) {
-      for (let c = 0; c < state.cols; c++) {
-        if (!forbidden.has(`${r},${c}`)) spots.push([r, c]);
+    for (let row = 0; row < current.rows; row++) {
+      for (let col = 0; col < current.cols; col++) {
+        if (!forbidden.has(`${row},${col}`)) spots.push([row, col]);
       }
     }
-    shuffle(spots);
-    for (let i = 0; i < state.mines; i++) {
-      const [r, c] = spots[i];
-      state.board[r][c].mine = true;
+    shuffle(spots, rng);
+    for (let index = 0; index < current.mines && index < spots.length; index++) {
+      const [row, col] = spots[index];
+      current.board[row][col].mine = true;
     }
-    for (let r = 0; r < state.rows; r++) {
-      for (let c = 0; c < state.cols; c++) {
-        state.board[r][c].count = getState().modeKey === "offset"
-          ? countOffsetMines(r, c)
-          : countAround(state.board, r, c);
-      }
+    for (let row = 0; row < current.rows; row++) {
+      for (let col = 0; col < current.cols; col++) current.board[row][col].count = countAround(current.board, row, col);
     }
   }
 
   function floodReveal(row, col) {
-    const state = getState();
-    const q = [[row, col]];
-    while (q.length) {
-      const [r, c] = q.shift();
-      const cell = state.board[r][c];
-      if (cell.revealed || cell.flagged) continue;
+    const current = state();
+    const queue = [[row, col]];
+    let index = 0;
+    while (index < queue.length) {
+      const [currentRow, currentCol] = queue[index++];
+      const cell = current.board[currentRow][currentCol];
+      if (cell.revealed || cell.flagged || cell.mine) continue;
       cell.revealed = true;
-      if (cell.count !== 0 || cell.mine) continue;
-      for (const [nr, nc] of neighbors(r, c)) {
-        const next = state.board[nr][nc];
-        if (!next.revealed && !next.flagged && !next.mine) q.push([nr, nc]);
+      if (cell.count !== 0) continue;
+      for (const [neighborRow, neighborCol] of neighbors(currentRow, currentCol)) {
+        const neighbor = current.board[neighborRow][neighborCol];
+        if (!neighbor.revealed && !neighbor.flagged && !neighbor.mine) queue.push([neighborRow, neighborCol]);
       }
     }
   }
 
   function revealAllMines(exploded) {
-    const state = getState();
-    for (let r = 0; r < state.rows; r++) {
-      for (let c = 0; c < state.cols; c++) {
-        const cell = state.board[r][c];
+    const current = state();
+    for (let row = 0; row < current.rows; row++) {
+      for (let col = 0; col < current.cols; col++) {
+        const cell = current.board[row][col];
         if (cell.mine) cell.revealed = true;
-        if (exploded && exploded[0] === r && exploded[1] === c) cell.exploded = true;
+        if (exploded && exploded[0] === row && exploded[1] === col) cell.exploded = true;
+      }
+    }
+  }
+
+  function markSudokuFailure() {
+    const current = state();
+    current.ended = true;
+    current.win = false;
+    stopTimer();
+    for (const row of current.board) {
+      for (const cell of row) {
+        if (cell.mine) cell.revealed = true;
+        if (cell.flagged && !cell.mine) cell.exploded = true;
       }
     }
   }
 
   function checkWin() {
-    const state = getState();
+    const current = state();
     if (isSudokuMode()) {
-      const allMinesFlagged = state.board.flat().every((cell) => (cell.mine ? cell.flagged : !cell.flagged));
-      if (allMinesFlagged) {
-        state.ended = true;
-        state.win = true;
+      if (current.board.flat().every((cell) => !cell.mine || cell.flagged)) {
+        current.ended = true;
+        current.win = true;
         stopTimer();
         return true;
       }
       return false;
     }
-    if (state.board.flat().every((cell) => cell.mine || cell.revealed)) {
-      state.ended = true;
-      state.win = true;
+    if (current.board.flat().every((cell) => cell.mine || cell.revealed)) {
+      current.ended = true;
+      current.win = true;
       stopTimer();
-      for (const row of state.board) {
-        for (const cell of row) {
-          if (cell.mine) cell.flagged = true;
-        }
-      }
+      for (const row of current.board) for (const cell of row) if (cell.mine) cell.flagged = true;
       return true;
     }
     return false;
   }
 
-  function startTimer(onTick) {
+  function startTimer(onTick = () => {}) {
     if (timerId) return;
+    const now = globalThis.performance?.now?.() ?? Date.now();
+    timerStartAt = now - state().timer * 1000;
     timerId = setInterval(() => {
-      const state = getState();
-      if (state.started && !state.ended) {
-        state.timer = Math.min(999, state.timer + 1);
+      const current = state();
+      if (current.started && !current.ended && timerStartAt !== null) {
+        const timestamp = globalThis.performance?.now?.() ?? Date.now();
+        current.timer = Math.min(999, (timestamp - timerStartAt) / 1000);
         onTick();
       }
-    }, 1000);
+    }, 100);
   }
 
   function stopTimer() {
-    clearInterval(timerId);
+    if (timerId) clearInterval(timerId);
     timerId = null;
+    timerStartAt = null;
   }
 
   function reveal(row, col, onTick) {
-    const state = getState();
-    if (state.ended) return;
+    const current = state();
+    if (current.ended) return;
     if (isSudokuMode()) {
-      if (!state.started) {
-        state.started = true;
-        layMines(row, col);
+      if (!current.started) {
+        current.started = true;
         startTimer(onTick);
       }
+      const cell = current.board[row][col];
+      if (!cell.givenMine && !cell.revealed) cell.crossed = !cell.crossed;
       if (checkWin()) return "win";
       return "continue";
     }
-    if (!state.started) {
-      state.started = true;
+    if (!current.started) {
+      current.started = true;
       layMines(row, col);
       startTimer(onTick);
     }
-    const cell = state.board[row][col];
+    const cell = current.board[row][col];
     if (cell.revealed || cell.flagged) return;
+    current.hint = null;
+    current.notice = "";
     if (cell.mine) {
       cell.revealed = true;
-      state.ended = true;
+      current.ended = true;
       stopTimer();
       revealAllMines([row, col]);
       return "lose";
@@ -252,21 +313,18 @@ export function createGameLogic(getState, getDifficultyKey) {
   }
 
   function chord(row, col, onTick) {
-    if (isSudokuMode()) return;
-    const state = getState();
-    if (state.ended) return;
-    const cell = state.board[row][col];
+    const current = state();
+    if (current.ended || isSudokuMode()) return;
+    const cell = current.board[row][col];
     if (!cell.revealed || !cell.count) return;
-    const around = neighbors(row, col);
-    const flagged = around.reduce(
-      (sum, [nr, nc]) => sum + (state.board[nr][nc].flagged ? 1 : 0),
-      0,
-    );
+    const adjacent = isOffsetMode() ? offsetNeighbors(row, col) : neighbors(row, col);
+    const flagged = adjacent.reduce((total, [neighborRow, neighborCol]) => total + (current.board[neighborRow][neighborCol].flagged ? 1 : 0), 0);
     if (flagged !== cell.count) return;
-    for (const [nr, nc] of around) {
-      const next = state.board[nr][nc];
-      if (!next.revealed && !next.flagged) {
-        const result = reveal(nr, nc, onTick);
+    current.hint = null;
+    for (const [neighborRow, neighborCol] of adjacent) {
+      const neighbor = current.board[neighborRow][neighborCol];
+      if (!neighbor.revealed && !neighbor.flagged) {
+        const result = reveal(neighborRow, neighborCol, onTick);
         if (result === "lose") return "lose";
       }
     }
@@ -275,27 +333,48 @@ export function createGameLogic(getState, getDifficultyKey) {
   }
 
   function cycleMark(row, col) {
-    const state = getState();
-    if (state.ended) return;
-    const cell = state.board[row][col];
-    if (!isSudokuMode() && cell.revealed) return;
+    const current = state();
+    if (current.ended) return "continue";
+    const cell = current.board[row][col];
+    current.hint = null;
+    current.notice = "";
+    if (isSudokuMode()) {
+      if (cell.givenMine || cell.revealed) return "continue";
+      if (cell.flagged) {
+        cell.flagged = false;
+        cell.crossed = false;
+        return "continue";
+      }
+      if (!cell.mine) {
+        cell.flagged = true;
+        markSudokuFailure();
+        return "lose";
+      }
+      cell.flagged = true;
+      cell.crossed = false;
+      return checkWin() ? "win" : "continue";
+    }
+    if (cell.revealed) return "continue";
     if (!cell.flagged && !cell.questioned) cell.flagged = true;
     else if (cell.flagged) {
       cell.flagged = false;
       cell.questioned = true;
-    } else {
-      cell.questioned = false;
-    }
+    } else cell.questioned = false;
+    return "continue";
   }
 
-  function resetTimer() {
-    stopTimer();
+  function getHint() {
+    const current = state();
+    if (current.modeKey !== "classic") return { kind: "none", target: null, related: [], message: "提示仅适用于经典扫雷。" };
+    return analyzePosition({ board: current.board, rows: current.rows, cols: current.cols, totalMines: current.mines });
   }
 
   return {
     reveal,
     chord,
     cycleMark,
-    resetTimer,
+    getHint,
+    prepareSudoku,
+    resetTimer: stopTimer,
   };
 }

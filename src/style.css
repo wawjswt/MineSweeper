@@ -132,6 +132,8 @@ body { min-height: 100vh; }
 }
 
 .topbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 16px; }
+.sweep-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.sweep-actions .control-action { width: auto; }
 .brand-kicker { font-size: 12px; letter-spacing: 0.28em; color: var(--accent); margin-bottom: 8px; }
 h1 { margin: 0; font-size: clamp(28px, 5vw, 44px); line-height: 1; }
 .brand p { margin: 10px 0 0; color: var(--muted); }
@@ -233,6 +235,7 @@ h1 { margin: 0; font-size: clamp(28px, 5vw, 44px); line-height: 1; }
   display: grid;
   gap: 5px;
 }
+.control-field[hidden] { display: none; }
 .control-field--wide {
   grid-column: 1 / -1;
 }
@@ -270,6 +273,13 @@ input[type="file"] {
 }
 input[type="file"]::file-selector-button { border: 1px solid var(--control-border); background: var(--control-bg); color: var(--control-text); border-radius: 10px; padding: 8px 10px; margin-inline-end: 10px; font: inherit; cursor: pointer; }
 .hint { font-size: 14px; }
+.hint-feedback {
+  min-height: 20px;
+  margin-top: 9px;
+  color: var(--accent2);
+  font-size: 13px;
+  line-height: 1.5;
+}
 kbd { padding: 2px 7px; border: 1px solid var(--panel-border); border-bottom-width: 2px; border-radius: 8px; background: #10192a; color: var(--text); }
 .board-wrap { position: relative; overflow: auto; padding: 38px 94px 12px 12px; border-radius: 22px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); user-select: none; }
 .board-mine-counter,
@@ -384,6 +394,16 @@ kbd { padding: 2px 7px; border: 1px solid var(--panel-border); border-bottom-wid
 .cell.flagged, .cell.questioned { color: #c98f12; }
 .cell.mine { background: linear-gradient(180deg, #a33a4e, #6b2030); }
 .cell.exploded { outline: 2px solid var(--danger); outline-offset: -2px; }
+.cell.hint-target {
+  outline: 3px solid var(--win);
+  outline-offset: 2px;
+  animation: hint-pulse 0.9s ease-in-out infinite;
+}
+.cell.hint-related { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 48%, transparent); }
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--win) 0%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--win) 24%, transparent); }
+}
 .cell.sudoku {
   color: var(--region-fg, var(--text));
   background-color: var(--region-color);
@@ -1125,10 +1145,11 @@ main.app-shell[hidden],
 }
 
 @media (max-width: 640px) {
+  .sweep-actions { max-width: 100%; }
+  .sweep-actions .control-action { flex: 1 1 auto; }
   .sudoku-hud {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
   .sudoku-actions {
     width: 100%;
   }
@@ -1431,6 +1452,7 @@ main.app-shell[hidden],
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .cell.hint-target { animation: none; }
   .llk-cell.is-clearing {
     transition: none;
   }

@@ -2,6 +2,8 @@ const DEFAULTS = {
   themeKey: "dark",
   backgroundUrl: "",
   backgroundOpacity: "0.45",
+  modeKey: "classic",
+  generationMode: "standard",
 };
 
 export function loadSettings() {
@@ -10,6 +12,9 @@ export function loadSettings() {
     backgroundUrl: localStorage.getItem("minesweeper-background") || DEFAULTS.backgroundUrl,
     backgroundOpacity:
       localStorage.getItem("minesweeper-background-opacity") || DEFAULTS.backgroundOpacity,
+    modeKey: localStorage.getItem("minesweeper-mode") || DEFAULTS.modeKey,
+    generationMode:
+      localStorage.getItem("minesweeper-generation-mode") || DEFAULTS.generationMode,
   };
 }
 
@@ -26,4 +31,12 @@ export function saveBackgroundUrl(backgroundUrl) {
 
 export function saveBackgroundOpacity(backgroundOpacity) {
   localStorage.setItem("minesweeper-background-opacity", backgroundOpacity);
+}
+
+export function saveModeKey(modeKey) {
+  localStorage.setItem("minesweeper-mode", modeKey);
+}
+
+export function saveGenerationMode(generationMode) {
+  localStorage.setItem("minesweeper-generation-mode", generationMode);
 }
