@@ -10,8 +10,8 @@
  *     生命周期回调(如"切走自动暂停、切回恢复"),本文件不感知游戏内部;
  *  4. 支持 #sweep / #sudoku / #lianliankan 锚点直达(默认 sweep)。
  *
- * 加载顺序:位于 bundle.js(扫雷)之后、sudoku-game.js / lianliankan-game.js
- * 之前。协调器不触碰 bundle.js 的全局词法(无顶层声明外泄)。
+ * 加载顺序:与 sudoku-game.js / lianliankan-game.js 同页加载。
+ * 协调器不触碰扫雷模块的全局词法(无顶层声明外泄)。
  */
 (function () {
   "use strict";

@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/minesweeper.test.js && node tests/sudoku-generator.test.cjs && node tests/classic-sudoku.test.cjs && node tests/lianliankan.test.cjs && node tests/lianliankan3d.test.cjs && node tests/lianliankan-levels.test.cjs && node tests/lianliankan-level-flow.test.cjs"
+  }
+}
