@@ -130,6 +130,11 @@ const collapsed = levels.collapseColumns(falling, 4, 3);
 assert.deepStrictEqual(collapsed.grid, [0, 0, -1, 0, 0, 3, 1, -1, 4, 2, 0, 5]);
 assert(collapsed.moves.some((move) => move.from === 0 && move.to === 6 && move.value === 1));
 assert(collapsed.moves.some((move) => move.from === 3 && move.to === 9 && move.value === 2));
+assert.deepStrictEqual(collapsed.dropMoves, collapsed.moves);
+for (const move of collapsed.dropMoves) {
+  assert.strictEqual(falling[move.from], move.value);
+  assert.strictEqual(collapsed.grid[move.to], move.value);
+}
 assert.deepStrictEqual(collapsed.grid.filter((v, i) => falling[i] === -1), [-1, -1]);
 assert.notStrictEqual(collapsed.grid, falling);
 

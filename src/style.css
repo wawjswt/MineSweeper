@@ -1260,6 +1260,17 @@ main.app-shell[hidden],
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
+.llk-cell.is-clearing {
+  opacity: 0;
+  transform: scale(0.72);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  pointer-events: none;
+}
+
+.llk-cell.is-dropping {
+  will-change: transform;
+}
+
 .llk-cell.is-empty {
   background: transparent;
   border: 1px dashed color-mix(in srgb, var(--cell-border) 55%, transparent);
@@ -1315,6 +1326,16 @@ main.app-shell[hidden],
   }
   .llk-board-wrap {
     padding: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .llk-cell.is-clearing {
+    transition: none;
+  }
+
+  .llk-cell.is-dropping {
+    transition: none !important;
   }
 }
 

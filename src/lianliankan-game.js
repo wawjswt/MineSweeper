@@ -41,6 +41,8 @@
   /* 连线动画时长与消除延时(ms) */
   const LINE_MS = 260;
   const CLEAR_MS = 160;
+  const DROP_MS = 320;
+  const DROP_EASING = "cubic-bezier(0.22, 0.75, 0.28, 1)";
 
   /* ----------------------------- 纯逻辑 -----------------------------
    * 棋盘以二维索引 grid[r * cols + c] 存储,-1 = 障碍,0 = 空位,>0 = 图案 id(1..kinds)。
@@ -258,6 +260,20 @@
     let n = 0;
     for (let i = 0; i < grid.length; i++) if (grid[i] > 0) n += 1;
     return n;
+  }
+
+  /* 将逻辑下落记录转换为 DOM 动画所需的行列位移。 */
+  function makeDropPlan(moves, cols) {
+    if (!Array.isArray(moves) || !Number.isInteger(cols) || cols <= 0) return [];
+    return moves
+      .filter((move) => move && Number.isInteger(move.from) && Number.isInteger(move.to) && move.from !== move.to)
+      .map((move) => ({
+        from: move.from,
+        to: move.to,
+        value: move.value,
+        deltaRows: Math.floor(move.to / cols) - Math.floor(move.from / cols),
+        deltaCols: (move.to % cols) - (move.from % cols),
+      }));
   }
 
   /* 将剩余图案重新随机铺满所有空位,并保证重排后至少存在一对可连。
@@ -495,10 +511,12 @@
     maxCombo: 0,
     lastSuccessMs: null,
     progress: null,
+    animationToken: 0,
   };
 
   const cellEls = []; // 与 grid 索引一一对应的 button
   let llkActive = false;
+  const pendingAnimationTimers = new Set();
 
   /* 当前玩法:classic(经典 2D)/ 3d(魔方表面 3D) */
   let llkModeKey = "classic";
@@ -663,6 +681,51 @@
         setStatus(notice.previousStatus);
       }
     }, 1200);
+  }
+
+  function prefersReducedMotion() {
+    try {
+      return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function setBoardBusy(busy) {
+    if (!boardEl) return;
+    if (busy) boardEl.setAttribute("aria-busy", "true");
+    else boardEl.removeAttribute("aria-busy");
+  }
+
+  function clearAnimationStyles() {
+    for (const cell of cellEls) {
+      cell.classList.remove("is-clearing", "is-dropping");
+      if (!cell.style) continue;
+      cell.style.transform = "";
+      cell.style.transition = "";
+      cell.style.willChange = "";
+    }
+    setBoardBusy(false);
+  }
+
+  function scheduleAnimation(callback, delay, token) {
+    const timer = setTimeout(() => {
+      pendingAnimationTimers.delete(timer);
+      if (token !== game.animationToken) return;
+      callback();
+    }, Math.max(0, delay));
+    pendingAnimationTimers.add(timer);
+    return timer;
+  }
+
+  function cancelAnimations() {
+    game.animationToken += 1;
+    for (const timer of pendingAnimationTimers) clearTimeout(timer);
+    pendingAnimationTimers.clear();
+    clearAnimationStyles();
+    clearLine();
+    game.busy = false;
   }
 
   function setLeft() {
@@ -830,7 +893,125 @@
     if (pathLayer) pathLayer.innerHTML = "";
   }
 
+  function animateLevelDrop(nextGrid, dropMoves, token, onComplete) {
+    if (token !== game.animationToken) return;
+
+    game.grid = nextGrid;
+    renderAll();
+
+    const plan = makeDropPlan(dropMoves, game.cols);
+    if (!plan.length || prefersReducedMotion()) {
+      clearAnimationStyles();
+      onComplete();
+      return;
+    }
+
+    const rects = cellEls.map((cell) => (
+      cell && typeof cell.getBoundingClientRect === "function"
+        ? cell.getBoundingClientRect()
+        : null
+    ));
+    const animatedCells = [];
+    for (const move of plan) {
+      const source = cellEls[move.from];
+      const target = cellEls[move.to];
+      const sourceRect = rects[move.from];
+      const targetRect = rects[move.to];
+      if (!source || !target || !sourceRect || !targetRect) continue;
+
+      const dx = sourceRect.left - targetRect.left;
+      const dy = sourceRect.top - targetRect.top;
+      if (!Number.isFinite(dx) || !Number.isFinite(dy)) continue;
+
+      target.classList.add("is-dropping");
+      target.style.willChange = "transform";
+      target.style.transition = "none";
+      target.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+      animatedCells.push(target);
+    }
+
+    if (!animatedCells.length) {
+      clearAnimationStyles();
+      onComplete();
+      return;
+    }
+
+    const raf = typeof requestAnimationFrame === "function"
+      ? requestAnimationFrame
+      : (callback) => setTimeout(callback, 0);
+    raf(() => raf(() => {
+      if (token !== game.animationToken) return;
+      for (const cell of animatedCells) {
+        // 读取一次布局，确保初始 transform 已提交后再开启过渡。
+        cell.getBoundingClientRect();
+        cell.style.transition = `transform ${DROP_MS}ms ${DROP_EASING}`;
+        cell.style.transform = "translate3d(0, 0, 0)";
+      }
+      scheduleAnimation(() => {
+        clearAnimationStyles();
+        onComplete();
+      }, DROP_MS, token);
+    }));
+  }
+
   /* ----------------------------- 游戏流程 ----------------------------- */
+
+  function finishPairResolution(token) {
+    if (token !== game.animationToken) return;
+    clearLine();
+    clearAnimationStyles();
+    game.busy = false;
+
+    if (countRemaining(game.grid) === 0) {
+      win();
+      return;
+    }
+
+    setLeft();
+    // 关卡模式自动洗牌；经典模式保留原来的手动重排提示。
+    if (!findAnyPair(game.grid, game.rows, game.cols)) {
+      if (isLevelMode()) {
+        const levels = getLevelApi();
+        const result = ensureLevelSolvable(game.grid, game.rows, game.cols, levels, findAnyPair);
+        if (result.autoReshuffled) {
+          game.grid = result.grid;
+          renderAll();
+          setStatus("无可用配对，已自动洗牌");
+        } else {
+          setStatus("无可用配对，自动洗牌失败");
+        }
+      } else {
+        setStatus("无可用配对,点「重排」");
+        if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
+      }
+    } else if (shuffleBtn) {
+      shuffleBtn.classList.remove("is-highlight");
+    }
+  }
+
+  function beginLevelPairResolution(a, b, poly, token) {
+    setBoardBusy(true);
+    const reducedMotion = prefersReducedMotion();
+    if (poly && poly.style) {
+      poly.style.transition = `opacity ${reducedMotion ? 0 : CLEAR_MS}ms ease`;
+      poly.style.opacity = "0";
+    }
+    if (!reducedMotion) {
+      if (cellEls[a.r * game.cols + a.c]) cellEls[a.r * game.cols + a.c].classList.add("is-clearing");
+      if (cellEls[b.r * game.cols + b.c]) cellEls[b.r * game.cols + b.c].classList.add("is-clearing");
+    }
+
+    scheduleAnimation(() => {
+      setCellValue(a.r, a.c, 0);
+      setCellValue(b.r, b.c, 0);
+
+      const levels = getLevelApi();
+      const result = levels && typeof levels.collapseColumns === "function"
+        ? levels.collapseColumns(game.grid, game.rows, game.cols)
+        : { grid: game.grid.slice(), dropMoves: [] };
+      animateLevelDrop(result.grid, result.dropMoves || result.moves, token, () => finishPairResolution(token));
+    }, reducedMotion ? 0 : CLEAR_MS, token);
+  }
 
   function win() {
     if (game.ended) return;
@@ -895,50 +1076,24 @@
       // 配对成功:锁输入、画线,线画完后再让两格消失
       game.sel = null;
       game.busy = true;
+      if (isLevelMode()) setBoardBusy(true);
       awardPair();
       clearSelection();
       const poly = drawLine(path);
-      setTimeout(() => {
-        // 消除两格并淡出连线
+      const animationToken = game.animationToken;
+      scheduleAnimation(() => {
+        if (isLevelMode()) {
+          beginLevelPairResolution(a, b, poly, animationToken);
+          return;
+        }
+
+        // 经典模式保持原有即时消除节奏,仅复用新的取消/完成保护。
         setCellValue(a.r, a.c, 0);
         setCellValue(b.r, b.c, 0);
-        if (isLevelMode()) {
-          const levels = getLevelApi();
-          if (levels && typeof levels.collapseColumns === "function") {
-            game.grid = levels.collapseColumns(game.grid, game.rows, game.cols).grid;
-            renderAll();
-          }
-        }
         if (poly && poly.style) poly.style.transition = "opacity " + CLEAR_MS + "ms ease";
         if (poly && poly.style) poly.style.opacity = "0";
-        setTimeout(() => {
-          clearLine();
-          game.busy = false;
-          if (countRemaining(game.grid) === 0) {
-            win();
-          } else {
-            setLeft();
-            // 关卡模式自动洗牌；经典模式保留原来的手动重排提示。
-            if (!findAnyPair(game.grid, game.rows, game.cols)) {
-              if (isLevelMode()) {
-                const result = ensureLevelSolvable(game.grid, game.rows, game.cols, getLevelApi(), findAnyPair);
-                if (result.autoReshuffled) {
-                  game.grid = result.grid;
-                  renderAll();
-                  setStatus("无可用配对，已自动洗牌");
-                } else {
-                  setStatus("无可用配对，自动洗牌失败");
-                }
-              } else {
-                setStatus("无可用配对,点「重排」");
-                if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
-              }
-            } else if (shuffleBtn) {
-              shuffleBtn.classList.remove("is-highlight");
-            }
-          }
-        }, CLEAR_MS);
-      }, LINE_MS);
+        scheduleAnimation(() => finishPairResolution(animationToken), CLEAR_MS, animationToken);
+      }, LINE_MS, animationToken);
     } else {
       // 配对失败:新点击的格成为选中格
       resetCurrentCombo();
@@ -950,6 +1105,7 @@
   }
 
   function loadBoard(rows, cols, kinds) {
+    cancelAnimations();
     const result = makeBoard(rows, cols, kinds);
     game.rows = result.rows;
     game.cols = result.cols;
@@ -1005,6 +1161,7 @@
   }
 
   function startLevel(levelId) {
+    cancelAnimations();
     const levels = getLevelApi();
     const entries = levels && Array.isArray(levels.levels) ? levels.levels : (Array.isArray(levels) ? levels : []);
     const level = entries.find((entry) => entry.id === levelId);
@@ -2248,6 +2405,7 @@
   }
 
   function start3DGame(key) {
+    cancelAnimations();
     const cfg = LLK3D_DIFFICULTIES[key] || LLK3D_DIFFICULTIES.medium;
     if (!ensureLlk3DStage()) {
       setStatus("3D 画布不可用,请更换浏览器");
@@ -2444,6 +2602,7 @@
         expireCombo: expireLevelCombo,
         scorePair: scorePairForMode,
         applyClearBonus: applyLevelClearBonus,
+        dropPlan: makeDropPlan,
         isSelectable: isSelectableTile,
         findHintPair,
         defaultProgress: defaultLevelProgress,

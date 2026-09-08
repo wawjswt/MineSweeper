@@ -7,26 +7,91 @@ const path = require("path");
 const vm = require("vm");
 
 function element() {
-  return {
+  const classes = new Set();
+  const listeners = new Map();
+  const attributes = new Map();
+  const elementValue = {
     textContent: "", value: "medium", dataset: {}, children: [], hidden: false,
-    style: { setProperty() {} }, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
-    addEventListener() {}, appendChild(child) { this.children.push(child); return child; },
-    setAttribute() {}, removeAttribute() {},
+    disabled: false, style: { setProperty(name, value) { this[name] = value; } },
+    classList: {
+      add(...names) { names.forEach((name) => classes.add(name)); },
+      remove(...names) { names.forEach((name) => classes.delete(name)); },
+      toggle(name, force) {
+        if (force === undefined) {
+          if (classes.has(name)) { classes.delete(name); return false; }
+          classes.add(name);
+          return true;
+        }
+        if (force) classes.add(name); else classes.delete(name);
+        return force;
+      },
+      contains(name) { return classes.has(name); },
+    },
+    addEventListener(type, callback) { listeners.set(type, callback); },
+    fire(type) {
+      const callback = listeners.get(type);
+      if (callback) callback({ target: elementValue });
+    },
+    appendChild(child) {
+      child.parentElement = elementValue;
+      child._index = elementValue.children.length;
+      elementValue.children.push(child);
+      return child;
+    },
+    setAttribute(name, value) { attributes.set(name, String(value)); },
+    removeAttribute(name) { attributes.delete(name); },
+    getAttribute(name) { return attributes.has(name) ? attributes.get(name) : null; },
+    getBoundingClientRect() {
+      const index = Number.isInteger(elementValue._index) ? elementValue._index : 0;
+      return { left: (index % 10) * 45, top: Math.floor(index / 10) * 45, width: 40, height: 40 };
+    },
+    parentElement: { clientWidth: 720, getBoundingClientRect() { return { left: 0, top: 0, width: 720, height: 720 }; } },
   };
+  Object.defineProperty(elementValue, "className", {
+    get() { return Array.from(classes).join(" "); },
+    set(value) { classes.clear(); String(value).split(/\s+/).filter(Boolean).forEach((name) => classes.add(name)); },
+  });
+  Object.defineProperty(elementValue, "innerHTML", {
+    get() { return elementValue._innerHTML || ""; },
+    set(value) {
+      elementValue._innerHTML = String(value);
+      if (value === "") elementValue.children.length = 0;
+    },
+  });
+  return elementValue;
 }
 
 const elements = new Map();
+for (const id of [
+  "lianliankanShell", "llkBoard", "llkTimer", "llkStatus", "llkLeft", "llkDifficulty",
+  "llkNew", "llkShuffle", "llkHint", "llkPathLayer", "llkMode", "llkLevelPicker",
+  "llk3dStage", "llk3dToast", "llkTagline",
+]) elements.set(id, element());
 const document = {
   getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
   createElement() { return element(); },
+  createElementNS() { return element(); },
   addEventListener() {},
 };
+elements.get("llkBoard").parentElement = { clientWidth: 720, getBoundingClientRect() { return { left: 0, top: 0, width: 720, height: 720 }; } };
+elements.get("llkPathLayer").parentElement = elements.get("llkBoard").parentElement;
 const sandbox = {
   document, console, Math, Date, Number, String, Array, Set, Map, Infinity,
   location: { hash: "" }, performance: { now: () => Date.now() },
-  requestAnimationFrame(callback) { callback(); }, addEventListener() {},
-  setTimeout, clearTimeout, setInterval, clearInterval,
+  requestAnimationFrame(callback) { animationFrames.push(callback); }, addEventListener() {},
+  setTimeout(callback, delay) {
+    const timer = { callback, delay };
+    animationTimers.push(timer);
+    return timer;
+  },
+  clearTimeout(timer) {
+    const index = animationTimers.indexOf(timer);
+    if (index >= 0) animationTimers.splice(index, 1);
+  },
+  setInterval() { return null; }, clearInterval() {},
 };
+const animationFrames = [];
+const animationTimers = [];
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 for (const file of ["lianliankan-levels.js", "lianliankan-game.js"]) {
@@ -38,6 +103,79 @@ const LLK = sandbox.__LLK__;
 assert(LLK.levelFlow, "level flow helpers should be exposed for integration tests");
 const flow = LLK.levelFlow;
 const plain = (value) => JSON.parse(JSON.stringify(value));
+const flushAnimationFrames = () => {
+  while (animationFrames.length) animationFrames.shift()();
+};
+const runTimer = (delay) => {
+  const index = animationTimers.findIndex((timer) => timer.delay === delay);
+  assert(index >= 0, "expected animation timer with delay " + delay + "ms");
+  const timer = animationTimers.splice(index, 1)[0];
+  timer.callback();
+};
+
+// 下落动画计划必须只描述真实移动，并保留图案值及垂直/水平位移。
+assert.strictEqual(typeof flow.dropPlan, "function", "drop plan helper should be exposed");
+assert.deepStrictEqual(
+  plain(flow.dropPlan([
+    { from: 0, to: 6, value: 3 },
+    { from: 8, to: 8, value: 4 },
+    { from: 5, to: 11, value: 2 },
+  ], 3)),
+  [
+    { from: 0, to: 6, value: 3, deltaRows: 2, deltaCols: 0 },
+    { from: 5, to: 11, value: 2, deltaRows: 2, deltaCols: 0 },
+  ],
+  "drop plan should omit stationary cells and preserve source/target positions",
+);
+
+// 真实关卡流程：连线完成后先锁定并淡出，再进入 FLIP 下落，完成后才解除锁定。
+{
+  const mode = elements.get("llkMode");
+  const board = elements.get("llkBoard");
+  const newButton = elements.get("llkNew");
+  mode.value = "levels";
+  mode.fire("change");
+  const startPair = () => {
+    // 第 1 关的固定起手对：索引 7 与 14，需要一折连接。
+    board.children[7].fire("click");
+    board.children[14].fire("click");
+  };
+  const movingCells = () => board.children.filter((cell) => cell.classList.contains("is-dropping"));
+
+  startPair();
+  assert.strictEqual(board.getAttribute("aria-busy"), "true", "successful pair should lock the level board");
+  flushAnimationFrames();
+  runTimer(260);
+  assert(board.children[7].classList.contains("is-clearing"), "matched tiles should enter the clear phase");
+  runTimer(160);
+  assert(movingCells().length > 0, "collapse moves should create dropping tiles");
+  const initialTransforms = movingCells().map((cell) => cell.style.transform);
+  assert(initialTransforms.some((value) => value && value !== "translate3d(0, 0, 0)"),
+    "dropping tiles should start from their source positions");
+  assert.strictEqual(animationFrames.length, 1, "drop should wait for the second animation frame");
+  animationFrames.shift()();
+  assert.strictEqual(animationFrames.length, 1, "drop should use two animation frames before transitioning");
+  animationFrames.shift()();
+  assert(movingCells().every((cell) => cell.style.transform === "translate3d(0, 0, 0)"),
+    "dropping tiles should transition to their target positions");
+  runTimer(320);
+  assert.strictEqual(board.getAttribute("aria-busy"), null, "completed drop should unlock the level board");
+  assert.strictEqual(movingCells().length, 0, "completed drop should clean temporary classes");
+
+  // 在下落 RAF 尚未执行前开新局，旧回调不得污染新棋盘。
+  newButton.fire("click");
+  startPair();
+  flushAnimationFrames();
+  runTimer(260);
+  runTimer(160);
+  assert(movingCells().length > 0, "second pair should schedule a drop");
+  newButton.fire("click");
+  flushAnimationFrames();
+  assert.strictEqual(board.getAttribute("aria-busy"), null, "new game should cancel the old busy state");
+  assert.strictEqual(elements.get("llkStatus").textContent, "第 1 关，待开始", "old animation must not update new-game status");
+  assert.strictEqual(board.children.filter((cell) => cell.classList.contains("is-dropping")).length, 0,
+    "old animation must not leave drop classes on the new board");
+}
 
 // 评分错误（基础分、层数或 3 秒窗口）应使本组断言失败。
 let combo = flow.nextScore({ score: 0, combo: 0, maxCombo: 0, lastSuccessMs: null }, 100);
