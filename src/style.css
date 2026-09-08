@@ -891,9 +891,9 @@ main.app-shell[hidden],
   font-weight: 700;
 }
 
-/* HUD(3 列) */
+/* HUD(4 列) */
 .sudoku-hud {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 /* 棋盘容器 */
@@ -1023,6 +1023,10 @@ main.app-shell[hidden],
   background: color-mix(in srgb, var(--win) 10%, var(--control-bg));
 }
 
+.sd-cell.is-hint-affected {
+  background: color-mix(in srgb, var(--win) 17%, var(--control-bg));
+}
+
 .sd-cell.is-hint-target {
   outline: 2px solid var(--win);
   outline-offset: -3px;
@@ -1121,6 +1125,10 @@ main.app-shell[hidden],
 }
 
 @media (max-width: 640px) {
+  .sudoku-hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .sudoku-actions {
     width: 100%;
   }
