@@ -12,12 +12,16 @@ const source = fs.readFileSync(path.join(__dirname, "..", "src", "lianliankan-ga
 function createElementStub() {
   const classes = new Set();
   const listeners = new Map();
+  const styleValues = new Map();
   const element = {
     textContent: "",
     hidden: false,
     value: "medium",
     dataset: {},
-    style: { setProperty() {} },
+    style: {
+      setProperty(name, value) { styleValues.set(name, String(value)); },
+      getPropertyValue(name) { return styleValues.get(name) || ""; },
+    },
     children: [],
     classList: {
       add(...names) { names.forEach((n) => classes.add(n)); },
@@ -52,6 +56,17 @@ const IDs = [
 const elements = new Map(IDs.map((id) => [id, createElementStub()]));
 const scheduledTimers = [];
 const scheduledIntervals = [];
+const llkShell = elements.get("lianliankanShell");
+const llkBoard = elements.get("llkBoard");
+const llkCoordinator = {
+  handler: null,
+  register(name, handler) {
+    if (name === "lianliankan") this.handler = handler;
+  },
+  getCurrent() { return "sweep"; },
+};
+llkShell.hidden = true;
+llkBoard.parentElement = { clientWidth: 0 };
 
 const document = {
   getElementById(id) {
@@ -91,6 +106,7 @@ const sandbox = {
     const index = scheduledIntervals.indexOf(interval);
     if (index >= 0) scheduledIntervals.splice(index, 1);
   },
+  __GAME_TABS__: llkCoordinator,
   Math,
   Date,
   Number,
@@ -109,6 +125,18 @@ const LLK = sandbox.__LLK__;
 if (!LLK) throw new Error("window.__LLK__ not exposed (script early-returned?)");
 
 assert(typeof LLK.computePathPoints === "function", "computePathPoints should be exposed for geometry regression coverage");
+
+// 首次进入连连看时,棋盘可能已在隐藏面板中预生成。激活后必须按可见容器重新计算格子尺寸,
+// 否则会一直保留隐藏状态下的最小尺寸,直到用户点击“新局”。
+assert.strictEqual(llkBoard.style.getPropertyValue("--llk-cell"), "24px",
+  "hidden pre-generated board should use the minimum fallback size in the fixture");
+assert(llkCoordinator.handler && typeof llkCoordinator.handler.onActivate === "function",
+  "game-tab coordinator should register the Link-Link activation handler");
+llkShell.hidden = false;
+llkBoard.parentElement.clientWidth = 892;
+llkCoordinator.handler.onActivate();
+assert.strictEqual(llkBoard.style.getPropertyValue("--llk-cell"), "46px",
+  "activating Link-Link should recalculate cell size after the board becomes visible");
 
 // 连线坐标必须以真实格子中心为准,不能只用理论 cell 尺寸推算。
 // 这里模拟棋盘存在 gap、内边距且路径层位于外层容器内的情况。

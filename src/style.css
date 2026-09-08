@@ -876,6 +876,14 @@ main.app-shell[hidden],
   transform: translateY(1px);
 }
 
+.sd-btn:disabled,
+.sd-key:disabled,
+.sudoku-field select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
 .sd-btn--primary {
   color: var(--bg0);
   background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 78%, var(--bg0)));
@@ -922,6 +930,48 @@ main.app-shell[hidden],
   background: color-mix(in srgb, var(--control-bg) 92%, var(--text) 8%);
   cursor: pointer;
   box-shadow: inset -1px -1px 0 0 color-mix(in srgb, var(--text) 9%, transparent);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.sd-value,
+.sd-notes {
+  grid-area: 1 / 1;
+}
+
+.sd-value[hidden],
+.sd-notes[hidden] {
+  display: none;
+}
+
+.sd-value {
+  display: grid;
+  place-items: center;
+}
+
+.sd-notes {
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  color: var(--muted);
+  font-size: clamp(8px, calc(var(--sd-cell) * 0.23), 11px);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sd-note {
+  display: grid;
+  place-items: center;
+  visibility: hidden;
+}
+
+.sd-note.is-visible {
+  visibility: visible;
 }
 
 /* 宫分隔:每行第 3/6/9 列右侧与每 3 行底部用粗线 */
@@ -966,6 +1016,17 @@ main.app-shell[hidden],
 /* 当前选中格 */
 .sd-cell.is-sel {
   box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* 提示高亮:相关行、列、宫用浅色,目标格再加一圈强调 */
+.sd-cell.is-hint-unit {
+  background: color-mix(in srgb, var(--win) 10%, var(--control-bg));
+}
+
+.sd-cell.is-hint-target {
+  outline: 2px solid var(--win);
+  outline-offset: -3px;
+  z-index: 1;
 }
 
 /* 误填(与答案不符) */
@@ -1016,9 +1077,33 @@ main.app-shell[hidden],
   transform: translateY(1px);
 }
 
+.sd-key.is-active {
+  color: var(--bg0);
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 75%, var(--bg0)));
+  border-color: transparent;
+}
+
 .sd-key--erase {
   color: var(--muted);
   font-weight: 600;
+}
+
+.sudoku-digit-info,
+.sudoku-explanation {
+  max-width: 500px;
+  margin: 12px auto 0;
+  padding: 9px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--control-bg) 88%, var(--accent) 12%);
+  text-align: center;
+  font-size: 13px;
+}
+
+.sudoku-explanation {
+  color: var(--control-text);
+  background: color-mix(in srgb, var(--control-bg) 92%, var(--win) 8%);
 }
 
 .sudoku-hint {
@@ -1036,6 +1121,14 @@ main.app-shell[hidden],
 }
 
 @media (max-width: 640px) {
+  .sudoku-actions {
+    width: 100%;
+  }
+
+  .sudoku-actions .sd-btn {
+    flex: 1 1 auto;
+  }
+
   .sudoku-board {
     --sd-cell: 37px;
   }

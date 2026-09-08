@@ -181,6 +181,10 @@
             <button class="sd-btn" id="sudokuCheck" type="button">校验</button>
             <button class="sd-btn" id="sudokuPause" type="button">暂停</button>
             <button class="sd-btn" id="sudokuReset" type="button">重开</button>
+            <button class="sd-btn" id="sudokuNotesToggle" type="button" aria-pressed="false" aria-label="切换笔记模式">笔记：关</button>
+            <button class="sd-btn" id="sudokuUndo" type="button" aria-label="撤销" title="撤销 (Ctrl/Cmd+Z)">撤销</button>
+            <button class="sd-btn" id="sudokuRedo" type="button" aria-label="重做" title="重做 (Ctrl/Cmd+Y)">重做</button>
+            <button class="sd-btn" id="sudokuHintButton" type="button" aria-label="获取一步基础提示">提示</button>
           </div>
         </header>
 
@@ -191,7 +195,7 @@
           </div>
           <div class="hud-card">
             <span class="hud-label">状态</span>
-            <strong id="sudokuStatus">待开始</strong>
+            <strong id="sudokuStatus" aria-live="polite">待开始</strong>
           </div>
           <div class="hud-card">
             <span class="hud-label">错误</span>
@@ -204,8 +208,15 @@
         </section>
 
         <div id="sudokuPad" class="sudoku-pad" role="group" aria-label="数字输入面板"></div>
+        <div class="sudoku-digit-info" id="sudokuDigitInfo" aria-live="polite">
+          输入或选择数字后显示剩余位置
+        </div>
+        <div class="sudoku-explanation" id="sudokuHintText" aria-live="polite">
+          点击“提示”获取一个基础解题思路。
+        </div>
         <p class="hint sudoku-hint" id="sudokuHint">
-          点选格子后按数字键或用下方键盘填入;<kbd>Delete</kbd>/<kbd>0</kbd> 清除,方向键移动选格
+          点选格子后按数字键或用下方键盘填入;<kbd>N</kbd> 切换笔记,<kbd>Delete</kbd>/<kbd>0</kbd> 清除,
+          <kbd>Ctrl/Cmd+Z</kbd> 撤销,<kbd>Ctrl/Cmd+Y</kbd> 重做,方向键移动选格
         </p>
       </section>
     </section>

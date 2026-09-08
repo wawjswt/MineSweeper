@@ -1350,6 +1350,8 @@
     if (llkModeKey === "3d") {
       setLeft();
     } else {
+      // 棋盘可能在隐藏面板中预生成,切入后按可见容器重新计算格子尺寸。
+      applyCellSize();
       renderAll();
       setLeft();
     }
