@@ -70,7 +70,7 @@ const IDs = [
   "sudokuShell", "sudokuBoard", "sudokuPad", "sudokuTimer", "sudokuStatus",
   "sudokuErrors", "sudokuDifficulty", "sudokuNew", "sudokuCheck", "sudokuPause",
   "sudokuReset", "sudokuNotesToggle", "sudokuUndo", "sudokuRedo", "sudokuHintButton",
-  "sudokuDigitInfo", "sudokuHintText", "sweepShell", "fireworksLayer", "gameTabSweep", "gameTabSudoku",
+  "sudokuDigitInfo", "sudokuHintText", "sudokuRating", "sweepShell", "fireworksLayer", "gameTabSweep", "gameTabSudoku",
 ];
 const elements = new Map(IDs.map((id) => [id, createElementStub()]));
 
@@ -198,6 +198,7 @@ for (const key of ["easy", "medium"]) {
   const result = SUDOKU.makePuzzle(cfg.blanks);
   const removed = assertConsistentPuzzle(result, cfg.blanks, key);
   assert(removed === cfg.blanks, `${key}: expected ${cfg.blanks} blanks, got ${removed}`);
+  assert(result.rating && result.rating.level, `${key}: generated puzzle should include logic rating`);
   console.log(`classic sudoku: ${key} => ${removed} blanks, unique, ${Date.now() - started}ms elapsed`);
 }
 
@@ -277,6 +278,72 @@ nodeAssert.strictEqual(hiddenHint.index, 36);
 nodeAssert.strictEqual(hiddenHint.digit, 4);
 assert(!/[1-9]/.test(hiddenHint.explanation), "hidden hint explanation should not expose an answer digit");
 
+const lockedReference = [
+  5, 0, 0, 0, 0, 0, 9, 0, 0,
+  0, 0, 2, 0, 0, 0, 3, 4, 0,
+  0, 0, 0, 3, 4, 0, 0, 0, 0,
+  8, 0, 9, 7, 6, 0, 0, 0, 0,
+  0, 0, 0, 8, 0, 0, 0, 0, 1,
+  0, 0, 0, 0, 2, 0, 0, 0, 6,
+  0, 6, 0, 5, 3, 0, 2, 0, 0,
+  2, 0, 7, 0, 0, 0, 6, 0, 0,
+  3, 0, 5, 2, 0, 6, 0, 0, 0,
+];
+const lockedHint = SUDOKU.findHint(lockedReference);
+assert(lockedHint, "advanced hint should find locked candidates");
+nodeAssert.strictEqual(lockedHint.strategy, "locked-candidates");
+nodeAssert.deepStrictEqual(Array.from(lockedHint.targetCells), [43, 52]);
+nodeAssert.deepStrictEqual(Array.from(lockedHint.affectedCells), [61, 70, 79]);
+nodeAssert.deepStrictEqual(JSON.parse(JSON.stringify(lockedHint.eliminations)), [
+  { index: 61, digits: [9] },
+  { index: 70, digits: [9] },
+  { index: 79, digits: [9] },
+]);
+assert(!/[1-9]/.test(lockedHint.explanation), "locked-candidates explanation should not expose an answer digit");
+
+const pairReference = [
+  0, 3, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 2, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 4, 2, 0, 6, 7,
+  0, 5, 0, 0, 6, 0, 4, 2, 3,
+  0, 0, 0, 0, 0, 3, 7, 0, 0,
+  0, 0, 3, 0, 2, 4, 0, 5, 0,
+  0, 0, 1, 0, 0, 0, 0, 0, 0,
+  0, 0, 7, 0, 1, 0, 6, 0, 0,
+  0, 0, 5, 2, 0, 0, 0, 0, 0,
+];
+const pairHint = SUDOKU.findHint(pairReference);
+assert(pairHint, "advanced hint should find a naked pair");
+nodeAssert.strictEqual(pairHint.strategy, "naked-pair");
+nodeAssert.deepStrictEqual(Array.from(pairHint.targetCells), [20, 29]);
+nodeAssert.deepStrictEqual(Array.from(pairHint.affectedCells), [2, 38]);
+nodeAssert.deepStrictEqual(JSON.parse(JSON.stringify(pairHint.eliminations)), [{ index: 2, digits: [8, 9] }, { index: 38, digits: [8, 9] }]);
+assert(!/[1-9]/.test(pairHint.explanation), "naked-pair explanation should not expose an answer digit");
+
+const ratingBefore = referencePuzzle.slice();
+const rating = SUDOKU.ratePuzzle(referencePuzzle);
+assert(rating && rating.level && Number.isInteger(rating.score), "rating should return a stable difficulty result");
+assert(rating.counts && Object.prototype.hasOwnProperty.call(rating.counts, "naked-single"));
+nodeAssert.deepStrictEqual(referencePuzzle, ratingBefore, "rating should not mutate its input board");
+nodeAssert.deepStrictEqual(
+  JSON.parse(JSON.stringify(SUDOKU.ratePuzzle(referencePuzzle))),
+  JSON.parse(JSON.stringify(rating)),
+  "rating should be deterministic for the same puzzle",
+);
+nodeAssert.strictEqual(SUDOKU.ratePuzzle(new Array(80).fill(0)), null, "invalid board length should be rejected");
+nodeAssert.strictEqual(SUDOKU.ratePuzzle(referenceSolution.slice().fill(1)), null, "conflicting board should be rejected");
+const oneBlankPuzzle = referenceSolution.slice();
+oneBlankPuzzle[0] = 0;
+const oneBlankRating = SUDOKU.ratePuzzle(oneBlankPuzzle);
+nodeAssert.strictEqual(oneBlankRating.score, 10);
+nodeAssert.strictEqual(oneBlankRating.level, "basic");
+nodeAssert.strictEqual(oneBlankRating.maxStrategy, "naked-single");
+nodeAssert.strictEqual(oneBlankRating.steps, 1);
+nodeAssert.strictEqual(oneBlankRating.solvedByLogic, true);
+nodeAssert.strictEqual(oneBlankRating.requiresGuess, false);
+nodeAssert.strictEqual(oneBlankRating.stoppedReason, null);
+nodeAssert.strictEqual(oneBlankRating.counts["naked-single"], 1);
+
 const saveRecord = {
   difficulty: "medium",
   puzzle: referencePuzzle,
@@ -313,6 +380,8 @@ const notesToggle = elements.get("sudokuNotesToggle");
 let state = SUDOKU.getState();
 nodeAssert.strictEqual(state.difficulty, "medium");
 nodeAssert.strictEqual(state.paused, true, "restored in-progress games should start paused");
+assert(state.rating && state.rating.level, "restored v1 saves should recompute the logic rating");
+assert(elements.get("sudokuRating").textContent !== "--", "logic difficulty HUD should show the restored rating");
 nodeAssert.strictEqual(sudokuPad.children[0].disabled, true, "input controls should be disabled while paused");
 elements.get("sudokuPause").click();
 state = SUDOKU.getState();
@@ -353,9 +422,15 @@ elements.get("sudokuHintButton").click();
 state = SUDOKU.getState();
 nodeAssert.deepStrictEqual(state.values, beforeHint.values, "hint should not modify the board");
 nodeAssert.strictEqual(state.hintTarget.index, 40);
+nodeAssert.deepStrictEqual(Array.from(state.hintTarget.targetCells), [40]);
+assert(sudokuBoard.children[40].classList.contains("is-hint-target"), "hint target should be highlighted");
 assert(!/[1-9]/.test(elements.get("sudokuHintText").textContent), "UI hint should not expose the answer digit");
 nodeAssert.ok(state.baseMs >= beforeHint.baseMs + 30000, "successful hint should add 30 seconds");
 nodeAssert.match(elements.get("sudokuDigitInfo").textContent, /数字 [1-9]：还剩 \d+ 个空位/);
+const afterFirstHint = state.baseMs;
+elements.get("sudokuHintButton").click();
+state = SUDOKU.getState();
+nodeAssert.ok(state.baseMs < afterFirstHint + 1000, "repeating a hint on the same board should not add time again");
 
 // 错误局面不应扣提示时间,切换难度会保留各自存档。
 const beforeErrorHint = SUDOKU.getState().baseMs;

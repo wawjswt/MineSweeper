@@ -116,31 +116,36 @@
     return candidates;
   }
 
-  function makeHint(strategy, index, digit, unitType, unitIndex) {
-    let explanation = "高亮格的候选数只剩一个，可以直接完成这一格。";
-    if (strategy === "hidden-single") {
-      const unitName = unitType === "row" ? "这一行" : unitType === "column" ? "这一列" : "这一宫";
-      explanation = "在" + unitName + "中，高亮格是某个数字唯一可以放置的位置。";
-    }
-    return { strategy, index, digit, unitType, unitIndex, explanation };
-  }
+  const DIGIT_MASK = (digit) => 1 << (digit - 1);
+  const ALL_DIGITS_MASK = (1 << SIZE) - 1;
+  const STRATEGY_WEIGHTS = {
+    "naked-single": 10,
+    "hidden-single": 20,
+    "locked-candidates": 40,
+    "naked-pair": 80,
+  };
+  const STRATEGY_RANKS = {
+    "naked-single": 1,
+    "hidden-single": 2,
+    "locked-candidates": 3,
+    "naked-pair": 4,
+  };
 
-  function findBasicHint(board) {
-    if (!isBoardArray(board)) return null;
-
-    for (let index = 0; index < TOTAL; index++) {
-      const candidates = getCandidates(board, index);
-      if (candidates.length === 1) {
-        return makeHint("naked-single", index, candidates[0], null, null);
-      }
-    }
-
+  function makeUnits() {
     const units = [];
     for (let row = 0; row < SIZE; row++) {
-      units.push({ type: "row", index: row, cells: Array.from({ length: SIZE }, (_, col) => row * SIZE + col) });
+      units.push({
+        type: "row",
+        index: row,
+        cells: Array.from({ length: SIZE }, (_, col) => row * SIZE + col),
+      });
     }
     for (let col = 0; col < SIZE; col++) {
-      units.push({ type: "column", index: col, cells: Array.from({ length: SIZE }, (_, row) => row * SIZE + col) });
+      units.push({
+        type: "column",
+        index: col,
+        cells: Array.from({ length: SIZE }, (_, row) => row * SIZE + col),
+      });
     }
     for (let box = 0; box < SIZE; box++) {
       const br = Math.floor(box / 3) * 3;
@@ -151,18 +156,315 @@
       }
       units.push({ type: "box", index: box, cells });
     }
+    return units;
+  }
 
-    for (const unit of units) {
+  const LOGIC_UNITS = makeUnits();
+
+  function makePeerSets() {
+    const peers = new Array(TOTAL);
+    for (let index = 0; index < TOTAL; index++) {
+      const row = rowOf(index);
+      const col = colOf(index);
+      const br = Math.floor(row / 3) * 3;
+      const bc = Math.floor(col / 3) * 3;
+      const set = new Set();
+      for (let offset = 0; offset < SIZE; offset++) {
+        set.add(row * SIZE + offset);
+        set.add(offset * SIZE + col);
+      }
+      for (let dr = 0; dr < 3; dr++) {
+        for (let dc = 0; dc < 3; dc++) set.add((br + dr) * SIZE + bc + dc);
+      }
+      set.delete(index);
+      peers[index] = Array.from(set).sort((left, right) => left - right);
+    }
+    return peers;
+  }
+
+  const LOGIC_PEERS = makePeerSets();
+
+  function bitCount(mask) {
+    let count = 0;
+    for (let rest = mask; rest; rest &= rest - 1) count += 1;
+    return count;
+  }
+
+  function digitsFromMask(mask) {
+    const digits = [];
+    for (let digit = 1; digit <= SIZE; digit++) {
+      if (mask & DIGIT_MASK(digit)) digits.push(digit);
+    }
+    return digits;
+  }
+
+  function makeCandidateState(board) {
+    if (!isNumberArray(board, 0, SIZE)) return null;
+    for (let index = 0; index < TOTAL; index++) {
+      const value = board[index];
+      if (value === 0) continue;
+      for (const peer of LOGIC_PEERS[index]) {
+        if (board[peer] === value) return null;
+      }
+    }
+    const masks = new Array(TOTAL).fill(0);
+    for (let index = 0; index < TOTAL; index++) {
+      if (board[index] !== 0) continue;
+      let mask = ALL_DIGITS_MASK;
+      for (const peer of LOGIC_PEERS[index]) {
+        if (board[peer] !== 0) mask &= ~DIGIT_MASK(board[peer]);
+      }
+      if (mask === 0) return null;
+      masks[index] = mask;
+    }
+    return { values: board.slice(), masks };
+  }
+
+  function makeHint(strategy, index, digit, unitType, unitIndex, targetCells, affectedCells, eliminations) {
+    let explanation = "高亮格的候选数只剩一个，可以直接完成这一格。";
+    if (strategy === "hidden-single") {
+      const unitName = unitType === "row" ? "这一行" : unitType === "column" ? "这一列" : "这一宫";
+      explanation = "在" + unitName + "中，高亮格是某个数字唯一可以放置的位置。";
+    } else if (strategy === "locked-candidates") {
+      explanation = "高亮区域中的候选被限制在同一行或同一列,其余高亮位置可以排除该候选。";
+    } else if (strategy === "naked-pair") {
+      explanation = "高亮的两个格子共享同一组候选,同一单元中的其他格子可以排除这组候选。";
+    }
+    return {
+      strategy,
+      index,
+      digit,
+      unitType,
+      unitIndex,
+      targetCells: targetCells.slice().sort((left, right) => left - right),
+      affectedCells: affectedCells.slice().sort((left, right) => left - right),
+      eliminations: eliminations
+        .map((item) => ({ index: item.index, digits: item.digits.slice().sort((left, right) => left - right) }))
+        .sort((left, right) => left.index - right.index),
+      explanation,
+    };
+  }
+
+  function findNakedSingle(state) {
+    for (let index = 0; index < TOTAL; index++) {
+      if (bitCount(state.masks[index]) === 1) {
+        return makeHint("naked-single", index, digitsFromMask(state.masks[index])[0], null, null, [index], [], []);
+      }
+    }
+    return null;
+  }
+
+  function findHiddenSingle(state) {
+    for (const unit of LOGIC_UNITS) {
       for (let digit = 1; digit <= SIZE; digit++) {
+        const mask = DIGIT_MASK(digit);
         const possibleCells = unit.cells.filter(
-          (index) => board[index] === 0 && getCandidates(board, index).includes(digit),
+          (index) => state.values[index] === 0 && (state.masks[index] & mask) !== 0,
         );
         if (possibleCells.length === 1) {
-          return makeHint("hidden-single", possibleCells[0], digit, unit.type, unit.index);
+          return makeHint("hidden-single", possibleCells[0], digit, unit.type, unit.index, [possibleCells[0]], [], []);
         }
       }
     }
     return null;
+  }
+
+  function makeEliminationHint(strategy, unit, targetCells, eliminations, digit) {
+    const affectedCells = eliminations.map((item) => item.index);
+    return makeHint(
+      strategy,
+      targetCells[0],
+      digit,
+      unit.type,
+      unit.index,
+      targetCells,
+      affectedCells,
+      eliminations,
+    );
+  }
+
+  function findLockedCandidates(state) {
+    // 宫指向行/列
+    for (let box = 0; box < SIZE; box++) {
+      const unit = LOGIC_UNITS[18 + box];
+      for (let digit = 1; digit <= SIZE; digit++) {
+        const mask = DIGIT_MASK(digit);
+        const sourceCells = unit.cells.filter(
+          (index) => state.values[index] === 0 && (state.masks[index] & mask) !== 0,
+        );
+        if (sourceCells.length < 2) continue;
+        const rows = new Set(sourceCells.map(rowOf));
+        const cols = new Set(sourceCells.map(colOf));
+        if (rows.size === 1) {
+          const rowUnit = LOGIC_UNITS[sourceCells[0] >= 0 ? rowOf(sourceCells[0]) : 0];
+          const eliminations = rowUnit.cells
+            .filter(
+              (index) =>
+                state.values[index] === 0 &&
+                !unit.cells.includes(index) &&
+                (state.masks[index] & mask) !== 0,
+            )
+            .map((index) => ({ index, digits: [digit] }));
+          if (eliminations.length > 0) return makeEliminationHint("locked-candidates", unit, sourceCells, eliminations, digit);
+        }
+        if (cols.size === 1) {
+          const colUnit = LOGIC_UNITS[9 + colOf(sourceCells[0])];
+          const eliminations = colUnit.cells
+            .filter(
+              (index) =>
+                state.values[index] === 0 &&
+                !unit.cells.includes(index) &&
+                (state.masks[index] & mask) !== 0,
+            )
+            .map((index) => ({ index, digits: [digit] }));
+          if (eliminations.length > 0) return makeEliminationHint("locked-candidates", unit, sourceCells, eliminations, digit);
+        }
+      }
+    }
+
+    // 行/列归属宫
+    for (let line = 0; line < 18; line++) {
+      const unit = LOGIC_UNITS[line];
+      for (let digit = 1; digit <= SIZE; digit++) {
+        const mask = DIGIT_MASK(digit);
+        const sourceCells = unit.cells.filter(
+          (index) => state.values[index] === 0 && (state.masks[index] & mask) !== 0,
+        );
+        if (sourceCells.length < 2) continue;
+        const boxes = new Set(sourceCells.map((index) => Math.floor(rowOf(index) / 3) * 3 + Math.floor(colOf(index) / 3)));
+        if (boxes.size !== 1) continue;
+        const box = Array.from(boxes)[0];
+        const boxUnit = LOGIC_UNITS[18 + box];
+        const eliminations = boxUnit.cells
+          .filter(
+            (index) =>
+              state.values[index] === 0 &&
+              !unit.cells.includes(index) &&
+              (state.masks[index] & mask) !== 0,
+          )
+          .map((index) => ({ index, digits: [digit] }));
+        if (eliminations.length > 0) return makeEliminationHint("locked-candidates", unit, sourceCells, eliminations, digit);
+      }
+    }
+    return null;
+  }
+
+  function findNakedPair(state) {
+    for (const unit of LOGIC_UNITS) {
+      for (let left = 0; left < unit.cells.length; left++) {
+        const first = unit.cells[left];
+        if (state.values[first] !== 0 || bitCount(state.masks[first]) !== 2) continue;
+        for (let right = left + 1; right < unit.cells.length; right++) {
+          const second = unit.cells[right];
+          if (
+            state.values[second] !== 0 ||
+            state.masks[second] !== state.masks[first] ||
+            bitCount(state.masks[second]) !== 2
+          ) continue;
+          const matchingCells = unit.cells.filter(
+            (index) => state.values[index] === 0 && state.masks[index] === state.masks[first],
+          );
+          if (matchingCells.length !== 2) continue;
+          const eliminations = unit.cells
+            .filter(
+              (index) =>
+                index !== first &&
+                index !== second &&
+                state.values[index] === 0 &&
+                (state.masks[index] & state.masks[first]) !== 0,
+            )
+            .map((index) => ({ index, digits: digitsFromMask(state.masks[index] & state.masks[first]) }));
+          if (eliminations.length > 0) {
+            const pairDigits = digitsFromMask(state.masks[first]);
+            return makeEliminationHint("naked-pair", unit, [first, second], eliminations, pairDigits[0]);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function findHintFromState(state) {
+    return findNakedSingle(state) || findHiddenSingle(state) || findLockedCandidates(state) || findNakedPair(state);
+  }
+
+  function findHint(board) {
+    const state = makeCandidateState(board);
+    return state ? findHintFromState(state) : null;
+  }
+
+  function findBasicHint(board) {
+    return findHint(board);
+  }
+
+  function applyHintToState(state, hint) {
+    if (hint.strategy === "naked-single" || hint.strategy === "hidden-single") {
+      const index = hint.index;
+      const bit = DIGIT_MASK(hint.digit);
+      if (state.values[index] !== 0 || (state.masks[index] & bit) === 0) return false;
+      state.values[index] = hint.digit;
+      state.masks[index] = 0;
+      for (const peer of LOGIC_PEERS[index]) {
+        if (state.values[peer] !== 0) continue;
+        state.masks[peer] &= ~bit;
+        if (state.masks[peer] === 0) return false;
+      }
+      return true;
+    }
+    for (const elimination of hint.eliminations) {
+      let removeMask = 0;
+      for (const digit of elimination.digits) removeMask |= DIGIT_MASK(digit);
+      state.masks[elimination.index] &= ~removeMask;
+      if (state.masks[elimination.index] === 0) return false;
+    }
+    return true;
+  }
+
+  function ratePuzzle(puzzle) {
+    const state = makeCandidateState(puzzle);
+    if (!state) return null;
+    const counts = {
+      "naked-single": 0,
+      "hidden-single": 0,
+      "locked-candidates": 0,
+      "naked-pair": 0,
+    };
+    let steps = 0;
+    let maxRank = 0;
+    let stoppedReason = null;
+    while (state.values.some((value) => value === 0)) {
+      if (steps >= 500) {
+        stoppedReason = "step-limit";
+        break;
+      }
+      const hint = findHintFromState(state);
+      if (!hint) {
+        stoppedReason = "no-logical-step";
+        break;
+      }
+      if (!applyHintToState(state, hint)) {
+        stoppedReason = "no-logical-step";
+        break;
+      }
+      counts[hint.strategy] += 1;
+      steps += 1;
+      maxRank = Math.max(maxRank, STRATEGY_RANKS[hint.strategy]);
+    }
+    const solvedByLogic = !state.values.some((value) => value === 0);
+    const requiresGuess = !solvedByLogic;
+    if (!stoppedReason && !solvedByLogic) stoppedReason = "no-logical-step";
+    const score = Object.keys(counts).reduce((sum, strategy) => sum + counts[strategy] * STRATEGY_WEIGHTS[strategy], 0) + (requiresGuess ? 1000 : 0);
+    const maxStrategy = maxRank === 0 ? "none" : Object.keys(STRATEGY_RANKS).find((strategy) => STRATEGY_RANKS[strategy] === maxRank);
+    const level = requiresGuess
+      ? "expert"
+      : maxRank === 4
+        ? "hard"
+        : maxRank === 3
+          ? "medium"
+          : maxRank === 2
+            ? "easy"
+            : "basic";
+    return { score, level, maxStrategy, steps, counts, solvedByLogic, requiresGuess, stoppedReason };
   }
 
   function countRemaining(solution, values, digit) {
@@ -242,7 +544,7 @@
 
   /*
    * 生成一道唯一解题目。
-   * 返回值: { solution, puzzle, removed }
+   * 返回值: { solution, puzzle, removed, rating }
    *  - solution: 完整解(81)
    *  - puzzle:   题目(81,0 表示空格)
    *  - removed:  实际挖掉的数量(困难档可能受时间预算限制而略少)
@@ -272,7 +574,7 @@
         removed += 1;
       }
     }
-    return { solution, puzzle, removed };
+    return { solution, puzzle, removed, rating: ratePuzzle(puzzle) };
   }
 
   /* ----------------------------- 渲染与游戏状态 ----------------------------- */
@@ -294,6 +596,7 @@
   const hintBtn = document.getElementById("sudokuHintButton");
   const digitInfoEl = document.getElementById("sudokuDigitInfo");
   const hintTextEl = document.getElementById("sudokuHintText");
+  const ratingEl = document.getElementById("sudokuRating");
   const sweepShell = document.getElementById("sweepShell");
   const fireworksLayer = document.getElementById("fireworksLayer");
   const tabSweep = document.getElementById("gameTabSweep");
@@ -329,10 +632,12 @@
     puzzle: null, // 81 题目(0=空)
     values: null, // 81 用户当前值(0=空)
     given: null, // 81 是否题目格
+    rating: null,
     notes: new Array(TOTAL).fill(0), // 每格 9 位候选数位掩码
     noteMode: false,
     activeDigit: 0,
     hintTarget: null,
+    hintedStates: new Set(),
     past: [],
     future: [],
     started: false,
@@ -530,7 +835,7 @@
 
   function clearHint() {
     game.hintTarget = null;
-    if (hintTextEl) hintTextEl.textContent = "点击“提示”获取一个基础解题思路。";
+    if (hintTextEl) hintTextEl.textContent = "点击“提示”获取一步解题思路,提示只引导下一步,不会自动填数。";
   }
 
   function setDisabled(element, disabled) {
@@ -547,6 +852,18 @@
     }
     digitInfoEl.textContent =
       "数字 " + game.activeDigit + "：还剩 " + countRemaining(game.solution, game.values, game.activeDigit) + " 个空位";
+  }
+
+  function renderRating() {
+    if (!ratingEl) return;
+    const levelNames = {
+      basic: "基础",
+      easy: "简单",
+      medium: "中等",
+      hard: "困难",
+      expert: "专家",
+    };
+    ratingEl.textContent = game.rating && levelNames[game.rating.level] ? levelNames[game.rating.level] : "--";
   }
 
   function updateControls() {
@@ -591,7 +908,14 @@
     const value = game.values[index];
     const isGiven = game.given[index];
     const hintIndex = game.hintTarget ? game.hintTarget.index : -1;
-    const inHintUnit = hintIndex >= 0 && (index === hintIndex || PEER_SETS[hintIndex].has(index));
+    const targetCells = game.hintTarget && game.hintTarget.targetCells ? game.hintTarget.targetCells : [];
+    const affectedCells = game.hintTarget && game.hintTarget.affectedCells ? game.hintTarget.affectedCells : [];
+    const isHintTarget = targetCells.includes(index);
+    const isHintAffected = affectedCells.includes(index);
+    const inHintUnit =
+      isHintTarget ||
+      isHintAffected ||
+      (hintIndex >= 0 && (index === hintIndex || PEER_SETS[hintIndex].has(index)));
 
     btn.classList.toggle("is-given", isGiven);
     btn.classList.toggle("is-sel", index === game.sel);
@@ -603,7 +927,8 @@
     btn.classList.toggle("is-err", !isGiven && value !== 0 && value !== game.solution[index]);
     btn.classList.toggle("is-dup", value !== 0 && hasDuplicate(index));
     btn.classList.toggle("is-hint-unit", inHintUnit);
-    btn.classList.toggle("is-hint-target", index === hintIndex);
+    btn.classList.toggle("is-hint-affected", isHintAffected);
+    btn.classList.toggle("is-hint-target", isHintTarget || (targetCells.length === 0 && index === hintIndex));
 
     if (btn.valueEl) {
       btn.valueEl.textContent = value === 0 ? "" : String(value);
@@ -627,6 +952,7 @@
     renderTimer();
     setErrors(countMistakes());
     renderDigitInfo();
+    renderRating();
     updateControls();
   }
 
@@ -814,30 +1140,38 @@
 
   function requestHint() {
     if (!game.values || game.ended || game.paused || game.generating) return;
-    clearHint();
     if (countMistakes() > 0) {
+      clearHint();
       setStatus("请先修正错误");
       if (hintTextEl) hintTextEl.textContent = "请先修正错误";
       renderHud();
       return;
     }
-    const hint = findBasicHint(game.values);
+    const hint = findHint(game.values);
     if (!hint) {
+      clearHint();
       setStatus("当前局面暂无基础提示，可以尝试更高级推理");
       if (hintTextEl) hintTextEl.textContent = "当前局面暂无基础提示，可以尝试更高级推理";
       renderHud();
       return;
     }
-    beginInput();
+    const signature = game.values.join("");
+    const repeated = game.hintedStates.has(signature);
+    if (!repeated) {
+      beginInput();
+      game.hintedStates.add(signature);
+      game.baseMs += 30000;
+    }
     game.hintTarget = {
       index: hint.index,
       strategy: hint.strategy,
       unitType: hint.unitType,
       unitIndex: hint.unitIndex,
+      targetCells: hint.targetCells.slice(),
+      affectedCells: hint.affectedCells.slice(),
     };
-    game.baseMs += 30000;
     if (hintTextEl) hintTextEl.textContent = hint.explanation;
-    setStatus("已显示一个基础提示");
+    setStatus(repeated ? "已保留当前提示" : "已显示一步提示");
     render();
     persistProgress();
     lastSavedSecond = elapsedSeconds();
@@ -849,6 +1183,7 @@
     const opts = options || {};
     game.solution = solution.slice();
     game.puzzle = puzzle.slice();
+    game.rating = opts.rating || ratePuzzle(game.puzzle);
     game.values = (opts.values || puzzle).slice();
     game.given = puzzle.map((v) => v !== 0);
     game.notes = (opts.notes || new Array(TOTAL).fill(0)).slice();
@@ -861,6 +1196,7 @@
     game.activeDigit = 0;
     game.noteMode = false;
     game.hintTarget = null;
+    game.hintedStates.clear();
     game.past = [];
     game.future = [];
     lastSavedSecond = Math.floor(game.baseMs / 1000);
@@ -923,7 +1259,7 @@
       const config = DIFFICULTIES[key] || DIFFICULTIES.medium;
       const result = makePuzzle(config.blanks);
       game.generating = false;
-      loadPuzzle(result.puzzle, result.solution);
+      loadPuzzle(result.puzzle, result.solution, { rating: result.rating });
       persistProgress();
       updateControls();
     }, 30);
@@ -1191,7 +1527,12 @@
             strategy: game.hintTarget.strategy,
             unitType: game.hintTarget.unitType,
             unitIndex: game.hintTarget.unitIndex,
+            targetCells: game.hintTarget.targetCells.slice(),
+            affectedCells: game.hintTarget.affectedCells.slice(),
           }
+        : null,
+      rating: game.rating
+        ? { ...game.rating, counts: { ...game.rating.counts } }
         : null,
       canUndo: game.past.length > 0 && !game.paused && !game.ended,
       canRedo: game.future.length > 0 && !game.paused && !game.ended,
@@ -1228,7 +1569,9 @@
       solveOnce,
       shuffle,
       getCandidates,
+      findHint,
       findBasicHint,
+      ratePuzzle,
       countRemaining,
       serializeSave,
       deserializeSave,
