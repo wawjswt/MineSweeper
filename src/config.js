@@ -33,6 +33,7 @@ export const MODES = {
   sudoku: { label: "数独扫雷" },
   hex: { label: "Hex 扫雷" },
   ring: { label: "环形棋盘" },
+  rogue: { label: "战术扫雷" },
 };
 
 export const CUSTOM_DIFFICULTY_CONFIG = {

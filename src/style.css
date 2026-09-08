@@ -404,6 +404,152 @@ kbd { padding: 2px 7px; border: 1px solid var(--panel-border); border-bottom-wid
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--win) 0%, transparent); }
   50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--win) 24%, transparent); }
 }
+
+.rogue-view {
+  display: grid;
+  gap: 14px;
+  margin-top: 4px;
+}
+.rogue-view[hidden],
+.rogue-reward[hidden],
+.rogue-result[hidden],
+.hud[hidden],
+.board-wrap[hidden],
+.control-card[hidden] {
+  display: none !important;
+}
+.rogue-hud {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.rogue-upgrade-summary {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--panel-border));
+  border-radius: 14px;
+  color: var(--accent2);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.rogue-tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.rogue-tool {
+  display: grid;
+  gap: 5px;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 15px;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025));
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+.rogue-tool:hover:not(:disabled),
+.rogue-tool:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+.rogue-tool.is-selected {
+  border-color: var(--accent2);
+  background: color-mix(in srgb, var(--accent2) 14%, var(--control-bg));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent2) 24%, transparent);
+}
+.rogue-tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+.rogue-tool strong { font-size: 15px; }
+.rogue-tool span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.rogue-tool small { color: var(--accent2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.rogue-feedback {
+  min-height: 22px;
+}
+.rogue-board-wrap {
+  padding: 12px;
+}
+.rogue-board {
+  margin-inline: auto;
+}
+.rogue-board .rogue-cell.neutralized {
+  color: #d6fff0;
+  background: linear-gradient(180deg, #177b70 0%, #104b50 100%);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent2) 55%, transparent), 0 3px 10px rgba(0,0,0,0.22);
+}
+.rogue-board .rogue-cell.exploded {
+  animation: rogue-explosion 0.55s ease-out;
+}
+@keyframes rogue-explosion {
+  0% { transform: scale(1); filter: saturate(1); }
+  45% { transform: scale(1.1); filter: saturate(1.7) brightness(1.25); }
+  100% { transform: scale(1); filter: saturate(1); }
+}
+.rogue-reward {
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--win) 36%, var(--panel-border));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--win) 5%, transparent);
+}
+.rogue-reward h2,
+.rogue-result h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+.rogue-reward-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.rogue-reward-card {
+  display: grid;
+  gap: 8px;
+  min-height: 112px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--win) 34%, var(--panel-border));
+  border-radius: 14px;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.025));
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+.rogue-reward-card:hover,
+.rogue-reward-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--win);
+  background: color-mix(in srgb, var(--win) 12%, var(--control-bg));
+}
+.rogue-reward-card strong { color: var(--win); font-size: 15px; }
+.rogue-reward-card span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.rogue-result {
+  padding: 18px;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.rogue-result p { margin: 0 0 14px; color: var(--muted); }
+.rogue-result button { width: auto; }
+html[data-theme="light"] .rogue-tool,
+html[data-theme="light"] .rogue-reward-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(239,245,252,0.96));
+}
+@media (max-width: 640px) {
+  .rogue-hud,
+  .rogue-tools,
+  .rogue-reward-options { grid-template-columns: 1fr; }
+  .rogue-tool { min-height: 0; }
+  .rogue-result button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rogue-tool,
+  .rogue-reward-card { transition: none; }
+  .rogue-board .rogue-cell.exploded { animation: none; }
+}
 .cell.sudoku {
   color: var(--region-fg, var(--text));
   background-color: var(--region-color);
