@@ -76,21 +76,47 @@ loadScript("lianliankan-levels.js", levelSandbox);
 const levels = levelSandbox.__LLK_LEVELS__;
 assert(levels, "level script should expose window.__LLK_LEVELS__");
 
-const expected = [[6, 6, 4], [6, 8, 4], [8, 8, 8], [8, 10, 8], [10, 10, 10]];
+const expected = [
+  [6, 6, 4, 4, 7],
+  [6, 8, 8, 4, 9],
+  [8, 8, 12, 4, 12],
+  [8, 10, 16, 4, 15],
+  [10, 10, 20, 4, 19],
+];
 assert.strictEqual(levels.length, 5);
 for (let i = 0; i < levels.length; i++) {
   const level = levels[i];
-  const [rows, cols, obstacles] = expected[i];
+  const [rows, cols, obstacles, empty, kinds] = expected[i];
   assert.strictEqual(level.id, i + 1);
   assert.strictEqual(level.rows, rows);
   assert.strictEqual(level.cols, cols);
-  assert(Number.isInteger(level.kinds) && level.kinds > 0);
+  assert.strictEqual(level.kinds, kinds);
   assert.strictEqual(level.layout.length, rows * cols);
   assert.strictEqual(level.layout.filter((v) => v === -1).length, obstacles);
+  assert.strictEqual(level.layout.filter((v) => v === 0).length, empty);
   const counts = new Map();
   for (const value of level.layout) if (value > 0) counts.set(value, (counts.get(value) || 0) + 1);
   for (const count of counts.values()) assert(count > 0 && count % 2 === 0);
   assert(LLK.findAnyPair(level.layout, rows, cols), `level ${level.id} should start with a move`);
+
+  // 关卡开局不应出现“同类相邻，直接一键消除”的保姆式配对。
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const value = level.layout[r * cols + c];
+      if (value <= 0) continue;
+      for (const [dr, dc] of [[0, 1], [1, 0]]) {
+        const nr = r + dr;
+        const nc = c + dc;
+        if (nr < rows && nc < cols) {
+          assert.notStrictEqual(
+            level.layout[nr * cols + nc],
+            value,
+            `level ${level.id} has an adjacent matching pair at ${r},${c}`,
+          );
+        }
+      }
+    }
+  }
 }
 
 const copy = levels.cloneLayout(1);

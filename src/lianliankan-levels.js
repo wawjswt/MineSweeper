@@ -2,27 +2,103 @@
 (function () {
   "use strict";
 
-  function makeLayout(rows, cols, obstacleIndexes, kinds) {
+  /*
+   * 关卡图案不再按“同类整块填充”。每个关卡使用错位轮换和邻格约束，
+   * 每种图案恰好出现四次(两对)，让玩家必须在障碍和下落变化中规划。
+   */
+  function makeLayout(rows, cols, obstacleIndexes, emptyIndexes, kinds, anchorIndexes) {
     const layout = new Array(rows * cols).fill(0);
     for (const index of obstacleIndexes) layout[index] = -1;
-    const perKind = (rows * cols - obstacleIndexes.length) / kinds;
-    let kind = 1;
-    let placed = 0;
+    for (const index of emptyIndexes) layout[index] = 0;
+
+    // 每关保留一个需要一折连接的起手配对，避免开局死局，
+    // 但不再提供相邻同类的无脑直连。
+    for (const index of anchorIndexes) {
+      if (layout[index] !== 0) throw new Error("anchor must be an empty board cell");
+      layout[index] = 1;
+    }
+
+    const reserved = new Set([...obstacleIndexes, ...emptyIndexes, ...anchorIndexes]);
+    const slots = [];
     for (let i = 0; i < layout.length; i++) {
-      if (layout[i] !== 0) continue;
-      layout[i] = kind;
-      placed++;
-      if (placed === perKind) { kind++; placed = 0; }
+      if (!reserved.has(i)) slots.push(i);
+    }
+    const remaining = new Array(kinds + 1).fill(4);
+    remaining[1] -= anchorIndexes.length;
+    if (remaining[1] < 0) {
+      throw new Error("challenge layout has too many anchor tiles");
+    }
+    if (slots.length !== remaining.slice(1).reduce((sum, count) => sum + count, 0)) {
+      throw new Error("challenge layout must contain four tiles per kind");
+    }
+
+    let cursor = 0;
+    for (const index of slots) {
+      const row = Math.floor(index / cols);
+      const col = index % cols;
+      let chosen = 0;
+      for (let step = 0; step < kinds; step++) {
+        const candidate = ((cursor + step) % kinds) + 1;
+        if (!remaining[candidate]) continue;
+        const neighbors = [
+          row > 0 ? layout[index - cols] : 0,
+          col > 0 ? layout[index - 1] : 0,
+          row + 1 < rows ? layout[index + cols] : 0,
+          col + 1 < cols ? layout[index + 1] : 0,
+        ];
+        if (neighbors.includes(candidate)) continue;
+        chosen = candidate;
+        break;
+      }
+      if (!chosen) throw new Error("challenge layout cannot avoid adjacent pairs");
+      layout[index] = chosen;
+      remaining[chosen]--;
+      cursor = chosen % kinds;
     }
     return layout;
   }
 
   const levels = [
-    { id: 1, name: "初探", rows: 6, cols: 6, kinds: 4, layout: makeLayout(6, 6, [5, 6, 29, 35], 4) },
-    { id: 2, name: "分流", rows: 6, cols: 8, kinds: 2, layout: makeLayout(6, 8, [7, 8, 39, 47], 2) },
-    { id: 3, name: "交错", rows: 8, cols: 8, kinds: 4, layout: makeLayout(8, 8, [7, 8, 15, 16, 47, 55, 56, 63], 4) },
-    { id: 4, name: "长廊", rows: 8, cols: 10, kinds: 4, layout: makeLayout(8, 10, [9, 10, 19, 20, 69, 79, 70, 78], 4) },
-    { id: 5, name: "终局", rows: 10, cols: 10, kinds: 5, layout: makeLayout(10, 10, [9, 10, 19, 20, 89, 90, 91, 98, 99, 79], 5) },
+    {
+      id: 1,
+      name: "交错",
+      rows: 6,
+      cols: 6,
+      kinds: 7,
+      layout: makeLayout(6, 6, [0, 5, 30, 35], [8, 15, 20, 27], 7, [7, 14]),
+    },
+    {
+      id: 2,
+      name: "断桥",
+      rows: 6,
+      cols: 8,
+      kinds: 9,
+      layout: makeLayout(6, 8, [0, 1, 6, 7, 40, 41, 46, 47], [10, 17, 30, 37], 9, [9, 18]),
+    },
+    {
+      id: 3,
+      name: "迷阵",
+      rows: 8,
+      cols: 8,
+      kinds: 12,
+      layout: makeLayout(8, 8, [0, 1, 6, 7, 8, 15, 48, 55, 56, 57, 62, 63], [10, 17, 42, 49], 12, [9, 18]),
+    },
+    {
+      id: 4,
+      name: "回廊",
+      rows: 8,
+      cols: 10,
+      kinds: 15,
+      layout: makeLayout(8, 10, [1, 2, 7, 8, 11, 12, 17, 18, 61, 62, 67, 68, 71, 72, 77, 78], [23, 34, 45, 56], 15, [22, 33]),
+    },
+    {
+      id: 5,
+      name: "终局",
+      rows: 10,
+      cols: 10,
+      kinds: 19,
+      layout: makeLayout(10, 10, [0, 1, 8, 9, 10, 11, 18, 19, 44, 45, 54, 55, 80, 81, 88, 89, 90, 91, 98, 99], [23, 34, 65, 76], 19, [22, 33]),
+    },
   ];
 
   function cloneLayout(levelOrId) {
