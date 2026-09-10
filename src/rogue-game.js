@@ -9,8 +9,24 @@ import {
   getToolDefinition,
   getUpgradeDefinition,
 } from "./rogue-items.js";
+import {
+  getContractDefinition,
+  getContractOptions,
+  getContractReward,
+} from "./rogue-contracts.js";
 
 const TOOL_KEYS = ["scoutPulse", "defusalKit", "reactionShield"];
+
+function createLevelStats() {
+  return {
+    damageTaken: 0,
+    safeReveals: 0,
+    toolsUsed: {},
+    trueMinesDefused: 0,
+    shieldedHits: 0,
+    specialCellsCollected: 0,
+  };
+}
 
 export function createRogueGame({ rng = Math.random, levelFactory = createRogueLevel } = {}) {
   let currentState = createRogueRunState();
@@ -39,6 +55,104 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     currentState.notice = "";
   }
 
+  function resetCurrentLevelContract() {
+    currentState.contractOptions = getContractOptions({
+      floor: currentState.floor,
+      rng,
+    });
+    currentState.selectedContract = null;
+    currentState.contractProgress = 0;
+    currentState.contractTarget = 1;
+    currentState.contractCompleted = false;
+    currentState.contractRewardGranted = false;
+    currentState.levelStats = createLevelStats();
+  }
+
+  function contractRewardText(reward) {
+    if (reward.type === "energy") return `能量 +${reward.amount}`;
+    if (reward.type === "toolBonus") {
+      const tool = getToolDefinition(reward.toolKey);
+      return `${tool?.label || reward.toolKey}下层使用次数 +${reward.amount}`;
+    }
+    if (reward.type === "score") {
+      const streak = reward.streakAmount ? `，安全连击 +${reward.streakAmount}` : "";
+      return `分数 +${reward.amount}${streak}`;
+    }
+    return "已获得额外奖励";
+  }
+
+  function completedContractNotice() {
+    if (!currentState.selectedContract || !currentState.contractCompleted) return "";
+    const definition = getContractDefinition(currentState.selectedContract);
+    const reward = getContractReward(currentState.selectedContract);
+    return definition && reward
+      ? `契约「${definition.label}」完成，${contractRewardText(reward)}。`
+      : "";
+  }
+
+  function applyContractReward() {
+    if (currentState.contractRewardGranted || !currentState.selectedContract) return "";
+    const reward = getContractReward(currentState.selectedContract);
+    if (!reward) return "";
+    if (reward.type === "energy") {
+      currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + reward.amount);
+    } else if (reward.type === "toolBonus" && TOOL_KEYS.includes(reward.toolKey)) {
+      currentState.nextLevelToolBonus[reward.toolKey] += reward.amount;
+    } else if (reward.type === "score") {
+      currentState.score += reward.amount;
+      currentState.safeRevealStreak += reward.streakAmount || 0;
+    }
+    currentState.contractRewardGranted = true;
+    return completedContractNotice();
+  }
+
+  function completeCurrentContract() {
+    if (!currentState.selectedContract || currentState.contractCompleted) {
+      return completedContractNotice();
+    }
+    const definition = getContractDefinition(currentState.selectedContract);
+    if (!definition) return "";
+    currentState.contractProgress = definition.target;
+    currentState.contractTarget = definition.target;
+    currentState.contractCompleted = true;
+    const notice = applyContractReward();
+    currentState.notice = notice;
+    return notice;
+  }
+
+  function resolveLevelContract() {
+    const stats = currentState.levelStats;
+    if (currentState.selectedContract === "noDamage" && stats.damageTaken === 0) {
+      completeCurrentContract();
+    } else if (currentState.selectedContract === "reservePower" && currentState.energy >= 1) {
+      completeCurrentContract();
+    }
+    return currentState.contractCompleted
+      ? completedContractNotice()
+      : currentState.selectedContract
+        ? `本层契约「${getContractDefinition(currentState.selectedContract).label}」未完成。`
+        : "";
+  }
+
+  function recordToolUse(toolKey) {
+    const toolsUsed = currentState.levelStats.toolsUsed;
+    toolsUsed[toolKey] = (toolsUsed[toolKey] || 0) + 1;
+  }
+
+  function selectContract(contractId) {
+    if (currentState.status !== "ready") return "invalid";
+    if (!currentState.contractOptions.some(({ id }) => id === contractId)) return "invalid";
+    const definition = getContractDefinition(contractId);
+    currentState.selectedContract = contractId;
+    currentState.contractOptions = [];
+    currentState.contractProgress = 0;
+    currentState.contractTarget = definition.target;
+    currentState.contractCompleted = false;
+    currentState.contractRewardGranted = false;
+    currentState.notice = `已选择契约「${definition.label}」。`;
+    return "continue";
+  }
+
   function createLevel(floor) {
     return levelFactory({
       floor,
@@ -50,6 +164,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
   function reset() {
     currentState = createRogueRunState();
     currentState.level = createLevel(1);
+    resetCurrentLevelContract();
     selectedTool = null;
     return "continue";
   }
@@ -60,6 +175,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
 
   function awardSafeReveal(count) {
     if (count <= 0) return;
+    currentState.levelStats.safeReveals += count;
     currentState.level.safeCellsRemaining = Math.max(0, currentState.level.safeCellsRemaining - count);
     currentState.score += count;
     currentState.safeRevealStreak += 1;
@@ -74,10 +190,11 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     if (currentState.level.safeCellsRemaining > 0) return "continue";
     currentState.level.ended = true;
     currentState.score += 10;
+    const contractNotice = resolveLevelContract();
     selectedTool = null;
     if (currentState.floor >= currentState.totalFloors) {
       currentState.status = "won";
-      currentState.notice = "战术扫雷通关！";
+      currentState.notice = [contractNotice, "战术扫雷通关！"].filter(Boolean).join(" ");
       return "win";
     }
     currentState.status = "reward";
@@ -85,7 +202,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
       ownedUpgrades: currentState.upgrades,
       rng,
     });
-    currentState.notice = "关卡完成，请选择一项强化。";
+    currentState.notice = [contractNotice, "关卡完成，请选择一项强化。"].filter(Boolean).join(" ");
     return "reward";
   }
 
@@ -98,9 +215,11 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     currentState.safeRevealStreak = 0;
     if (currentState.level.shieldActive) {
       currentState.level.shieldActive = false;
+      currentState.levelStats.shieldedHits += 1;
       currentState.notice = "反应护盾已抵挡这次爆炸。";
     } else {
       currentState.lives -= 1;
+      currentState.levelStats.damageTaken += 1;
       currentState.notice = `触发地雷，损失 1 点生命。还剩 ${currentState.lives} 点。`;
     }
     if (currentState.lives <= 0) {
@@ -113,7 +232,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
   }
 
   function reveal(row, col) {
-    if (isBlocked() || !inBounds(row, col)) return "invalid";
+    if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
     const level = currentState.level;
     if (!level.started) {
       currentState.level = levelFactory({
@@ -143,7 +262,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
   }
 
   function chord(row, col) {
-    if (isBlocked() || !inBounds(row, col)) return "invalid";
+    if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
     const level = currentState.level;
     const cell = level.board[row][col];
     if (!cell.revealed || cell.mine || cell.count === 0) return "invalid";
@@ -165,7 +284,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
   }
 
   function cycleMark(row, col) {
-    if (isBlocked() || !inBounds(row, col)) return "invalid";
+    if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
     const cell = currentState.level.board[row][col];
     if (cell.revealed) return "invalid";
     clearNotice();
@@ -212,6 +331,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     const level = currentState.level;
     if (toolKey === "reactionShield") {
       consumeTool(toolKey);
+      recordToolUse(toolKey);
       level.shieldActive = true;
       selectedTool = null;
       currentState.notice = "反应护盾已启动，本层下一次踩雷不会损失生命。";
@@ -222,6 +342,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     if (toolKey === "scoutPulse") {
       if (cell.revealed) return "invalid";
       consumeTool(toolKey);
+      recordToolUse(toolKey);
       const startRow = Math.max(0, row - 1);
       const endRow = Math.min(level.rows - 1, row + 1);
       const startCol = Math.max(0, col - 1);
@@ -238,6 +359,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     }
     if (!cell.flagged) return "invalid";
     consumeTool(toolKey);
+    recordToolUse(toolKey);
     selectedTool = null;
     if (cell.mine) {
       cell.neutralized = true;
@@ -280,6 +402,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     currentState.rewardOptions = [];
     currentState.floor += 1;
     currentState.level = createLevel(currentState.floor);
+    resetCurrentLevelContract();
     currentState.status = "ready";
     currentState.safeRevealStreak = 0;
     currentState.notice = `已获得「${option.label}」，准备进入第 ${currentState.floor} 层。`;
@@ -291,6 +414,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
   return {
     getState,
     reset,
+    selectContract,
     reveal,
     chord,
     cycleMark,

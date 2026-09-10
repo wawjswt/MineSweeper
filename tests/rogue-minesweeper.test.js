@@ -170,9 +170,43 @@ function makeKnownLevel(game) {
     activeToolUses: { scoutPulse: 1, defusalKit: 1, reactionShield: 1 },
     shieldActive: false,
   };
+  state.contractOptions = [];
+  state.selectedContract = "noDamage";
+  state.contractProgress = 0;
+  state.contractTarget = 1;
+  state.contractCompleted = false;
+  state.contractRewardGranted = false;
+  state.levelStats = {
+    damageTaken: 0,
+    safeReveals: 0,
+    toolsUsed: {},
+    trueMinesDefused: 0,
+    shieldedHits: 0,
+    specialCellsCollected: 0,
+  };
   state.status = "playing";
   return state;
 }
+
+test("rogue actions are blocked until a contract is selected", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const state = game.getState();
+  const before = JSON.stringify(state);
+  assert.equal(state.contractOptions.length, 2);
+  assert.equal(game.reveal(0, 0), "invalid");
+  assert.equal(game.cycleMark(0, 0), "invalid");
+  assert.equal(game.selectTool("scoutPulse"), false);
+  assert.equal(JSON.stringify(state), before);
+});
+
+test("selecting a pending contract enables the first reveal", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const id = game.getState().contractOptions[0].id;
+  assert.equal(game.selectContract(id), "continue");
+  assert.equal(game.getState().selectedContract, id);
+  assert.equal(game.reveal(0, 0), "continue");
+  assert.equal(game.getState().status, "playing");
+});
 
 test("reward choices are distinct with an injected rng", () => {
   const options = getRewardOptions({ ownedUpgrades: [], rng: () => 0.1 });
@@ -261,6 +295,20 @@ test("four separate safe reveals grant one energy without exceeding the cap", ()
     activeToolUses: { scoutPulse: 1, defusalKit: 1, reactionShield: 1 },
     shieldActive: false,
   };
+  state.contractOptions = [];
+  state.selectedContract = "noDamage";
+  state.contractProgress = 0;
+  state.contractTarget = 1;
+  state.contractCompleted = false;
+  state.contractRewardGranted = false;
+  state.levelStats = {
+    damageTaken: 0,
+    safeReveals: 0,
+    toolsUsed: {},
+    trueMinesDefused: 0,
+    shieldedHits: 0,
+    specialCellsCollected: 0,
+  };
 
   for (const col of [0, 2, 3, 4]) assert.equal(game.reveal(0, col), "continue");
   assert.equal(state.energy, state.maxEnergy);
@@ -304,6 +352,52 @@ test("clearing a level opens rewards and choosing one starts the next floor", ()
   assert.equal(state.status, "ready");
   assert.equal(state.rewardOptions.length, 0);
   assert.equal(state.upgrades.includes(selected), true);
+  assert.equal(state.contractOptions.length, 2);
+  assert.equal(new Set(state.contractOptions.map(({ id }) => id)).size, 2);
+  assert.equal(state.selectedContract, null);
+  assert.equal(state.contractProgress, 0);
+  assert.equal(state.contractCompleted, false);
+  assert.equal(state.contractRewardGranted, false);
+  assert.deepEqual(state.levelStats, {
+    damageTaken: 0,
+    safeReveals: 0,
+    toolsUsed: {},
+    trueMinesDefused: 0,
+    shieldedHits: 0,
+    specialCellsCollected: 0,
+  });
+});
+
+test("a completed no-damage contract grants its energy reward once", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const state = makeKnownLevel(game);
+  state.energy = 1;
+  state.level.safeCellsRemaining = 1;
+  state.level.board[0][2].count = 1;
+  const scoreBefore = state.score;
+  assert.equal(game.reveal(0, 2), "reward");
+  assert.equal(state.contractCompleted, true);
+  assert.equal(state.contractRewardGranted, true);
+  assert.equal(state.contractProgress, 1);
+  assert.equal(state.energy, 2);
+  assert.equal(state.score, scoreBefore + 11);
+  assert.match(state.notice, /零误触/);
+});
+
+test("a completed reserve-power contract grants score and streak reward", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const state = makeKnownLevel(game);
+  state.selectedContract = "reservePower";
+  state.energy = 1;
+  state.level.safeCellsRemaining = 1;
+  state.level.board[0][2].count = 1;
+  const scoreBefore = state.score;
+  assert.equal(game.reveal(0, 2), "reward");
+  assert.equal(state.contractCompleted, true);
+  assert.equal(state.contractRewardGranted, true);
+  assert.equal(state.contractProgress, 1);
+  assert.equal(state.score, scoreBefore + 21);
+  assert.equal(state.safeRevealStreak, 2);
 });
 
 test("clearing the fifth level wins the run", () => {
