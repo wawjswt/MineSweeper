@@ -59,6 +59,10 @@ test("guide render model covers every catalog section and its dynamic card data"
   assert.equal(sections.find(({ id }) => id === "contracts").cards.length, catalog.contracts.length);
   assert.equal(sections.find(({ id }) => id === "upgrades").cards.length, catalog.upgrades.length);
   assert.ok(sections.find(({ id }) => id === "floors").notes.some((note) => note.includes("A、B、C")));
+  assert.equal(sections.find(({ id }) => id === "floors").sectorMap.sectors.length, 3);
+  assert.ok(sections.find(({ id }) => id === "special-cells").cards.every(({ illustration }) => (
+    illustration?.entityType === "special" && illustration.path.endsWith(".svg")
+  )));
   assert.ok(sections.find(({ id }) => id === "contracts").cards.every(({ meta }) => meta.includes("未完成扣 1 点能量")));
   assert.equal(sections.find(({ id }) => id === "illustrations").illustrations.length, catalog.illustrations.length);
   assert.deepEqual(

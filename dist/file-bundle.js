@@ -2775,6 +2775,15 @@
             "路线情报：每层棋盘按列划分为 A、B、C 三个连续战区，边界在开局公开，宽度可能变化。",
             "战区只影响契约和路线统计，不锁格、不改数字；按战区进度决定下一步推进方向。",
           ],
+          sectorMap: {
+            title: "棋盘上的 A/B/C 区怎么认？",
+            sectors: [
+              { id: "a", label: "A区", detail: "左侧区域" },
+              { id: "b", label: "B区", detail: "中间区域" },
+              { id: "c", label: "C区", detail: "右侧区域" },
+            ],
+            caption: "每个小格都属于其中一个区域；彩色边界只是分区提示，不会改变这个格子的数字或普通扫雷操作。",
+          },
           cards: makeCards(catalog.floors, ({ floor, label, rows, cols, mines }) => ({
             title: `第 ${floor} 层 · ${label}`,
             body: `${rows} × ${cols} 棋盘，部署 ${mines} 枚雷。`,
@@ -2791,10 +2800,13 @@
         },
         specialCells: {
           intro: "特殊格会在开局安全区外生成；直接揭开或作为侦察扫描的目标格时触发，每个点只收集一次。处于扫描覆盖范围内不等于被收集。",
-          cards: makeCards(catalog.specialCells, ({ label, description, effect }) => ({
+          cards: makeCards(catalog.specialCells, ({ id, label, description, effect }) => ({
             title: label,
             body: description,
             meta: effect,
+            illustration: catalog.illustrations.find((illustration) => (
+              illustration.entityType === "special" && illustration.entityId === id
+            )),
           })),
         },
         contracts: {
@@ -2871,12 +2883,45 @@
           section.appendChild(list);
         }
 
+        if (sectionData.sectorMap) {
+          const figure = document.createElement("figure");
+          figure.className = "rogue-guide__sector-figure";
+          const map = document.createElement("div");
+          map.className = "rogue-guide__sector-map";
+          map.setAttribute("aria-label", "A区、B区、C区连续分布示意图");
+          for (const sector of sectionData.sectorMap.sectors) {
+            const column = document.createElement("div");
+            column.className = `rogue-guide__sector-column rogue-guide__sector-column--${sector.id}`;
+            column.setAttribute("aria-label", `${sector.label}，${sector.detail}`);
+            for (let row = 0; row < 4; row += 1) {
+              const cell = document.createElement("span");
+              cell.className = "rogue-guide__sector-cell";
+              cell.setAttribute("aria-hidden", "true");
+              column.appendChild(cell);
+            }
+            const label = appendGuideText(column, "strong", sector.label, "rogue-guide__sector-label");
+            label.setAttribute("aria-hidden", "true");
+            map.appendChild(column);
+          }
+          figure.appendChild(map);
+          appendGuideText(figure, "figcaption", sectionData.sectorMap.caption);
+          section.appendChild(figure);
+        }
+
         if (sectionData.cards) {
           const cards = document.createElement("div");
           cards.className = "rogue-guide__cards";
           for (const card of sectionData.cards) {
             const article = document.createElement("article");
             article.className = "rogue-guide__card";
+            if (card.illustration) {
+              const image = document.createElement("img");
+              image.className = "rogue-guide__card-illustration";
+              image.src = card.illustration.path;
+              image.alt = card.illustration.alt;
+              image.loading = "lazy";
+              article.appendChild(image);
+            }
             appendGuideText(article, "h4", card.title);
             appendGuideText(article, "p", card.body);
             if (card.meta) appendGuideText(article, "p", card.meta, "rogue-guide__meta");
