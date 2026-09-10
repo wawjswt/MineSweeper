@@ -13,7 +13,7 @@ const SPECIAL_CELL_DEFINITIONS = Object.freeze([
     id: "supply",
     label: "补给点",
     description: "收集后恢复能量并补充工具。",
-    effect: "触发或扫描该格时，能量 +1，并为当前使用次数最少的工具补充 1 次使用。",
+    effect: "触发或扫描该格时，能量最多 +1（不超过能量上限），并为当前使用次数最少的工具补充 1 次使用。",
   }),
 ]);
 
