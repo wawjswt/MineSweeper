@@ -2,9 +2,25 @@ import { BOARD_METRICS } from "./config.js";
 import { getRewardOptions, getToolDefinition, getUpgradeDefinition } from "./rogue-items.js";
 import { getContractDefinition } from "./rogue-contracts.js";
 
-export function buildRogueCellAriaLabel(cell, row, col) {
+function getSectorForCell(cell, col, sectors) {
+  if (!Array.isArray(sectors)) return null;
+  if (!Number.isInteger(cell?.sectorId)) return null;
+  return sectors.find((sector) => sector?.id === cell.sectorId) || null;
+}
+
+function resolveSector(cell, col, sectorInfo) {
+  if (typeof sectorInfo === "string") return { label: sectorInfo };
+  if (sectorInfo && !Array.isArray(sectorInfo) && typeof sectorInfo === "object") {
+    return sectorInfo;
+  }
+  return getSectorForCell(cell, col, sectorInfo);
+}
+
+export function buildRogueCellAriaLabel(cell, row, col, sectors = null) {
   const position = `第 ${row + 1} 行第 ${col + 1} 列`;
   const labels = [position];
+  const sector = resolveSector(cell, col, sectors);
+  if (sector?.label) labels.push(sector.label);
   if (cell.flagged) labels.push("旗帜");
   else if (cell.questioned) labels.push("问号");
   if (cell.special === "intel") labels.push(cell.specialCollected ? "情报点，已收集" : "情报点");
@@ -58,6 +74,17 @@ export function getRogueSpecialCellClasses(cell) {
   return classes;
 }
 
+export function getRogueSectorClassNames(cell, col, sectors = []) {
+  const sector = resolveSector(cell, col, sectors);
+  const sectorId = Number.isInteger(cell?.sectorId) ? cell.sectorId : sector?.id;
+  if (!Number.isInteger(sectorId)) return [];
+  const classes = [`rogue-cell--sector-${sectorId}`];
+  if (sector && Number.isInteger(col) && col === sector.startCol && col > 0) {
+    classes.push("rogue-cell--sector-boundary");
+  }
+  return classes;
+}
+
 function cellText(cell) {
   if (cell.flagged) return "🚩";
   if (cell.questioned) return "❓";
@@ -86,6 +113,88 @@ function contractRewardText(reward) {
     return `分数 +${reward.amount}${streak}`;
   }
   return "额外奖励";
+}
+
+export function getRogueSectorProgressText(sector, started = true) {
+  const label = sector?.label || "战区";
+  if (started === false) return `${label} 待部署`;
+  const safeCells = Number.isFinite(sector?.safeCells) ? Math.max(0, sector.safeCells) : 0;
+  const revealedSafeCells = Number.isFinite(sector?.revealedSafeCells)
+    ? Math.max(0, Math.min(safeCells, sector.revealedSafeCells))
+    : 0;
+  if (sector?.secured || (safeCells > 0 && revealedSafeCells >= safeCells)) {
+    return `${label} 已完成`;
+  }
+  if (revealedSafeCells === 0) return `${label} 待推进`;
+  return `${label} ${revealedSafeCells} / ${safeCells}`;
+}
+
+export function getRogueContractCardCopy(option) {
+  const definition = option?.description && option?.reward
+    ? option
+    : getContractDefinition(option?.id);
+  if (!definition) {
+    return {
+      description: "",
+      progress: "进度：0 / 0",
+      reward: "奖励：额外奖励",
+      penalty: "未完成扣 1 点能量",
+    };
+  }
+  return {
+    description: definition.description,
+    progress: `${definition.progressLabel}：0 / ${definition.target}`,
+    reward: `奖励：${contractRewardText(definition.reward)}`,
+    penalty: "未完成扣 1 点能量",
+  };
+}
+
+function routeContractStatus(definition, progress, target, context) {
+  const safeProgress = Number.isFinite(progress) ? Math.max(0, Math.min(target, progress)) : 0;
+  if (definition.id === "intelRelay") {
+    return context?.intelSectorId !== null && context?.intelSectorId !== undefined
+      ? `${definition.label}：已收集情报点，等待跨区工具操作`
+      : `${definition.label}：等待收集情报点`;
+  }
+  if (definition.id === "supplyRelay") {
+    return context?.supplySectorId !== null && context?.supplySectorId !== undefined
+      ? `${definition.label}：已收集补给点，等待跨区安全揭开`
+      : `${definition.label}：等待收集补给点`;
+  }
+  if (definition.id === "crossFire") return `${definition.label}：${safeProgress} / ${target}`;
+  if (definition.id === "safeInsertion") return `${definition.label}：${safeProgress} / ${target}`;
+  return `${definition.label}：${definition.progressLabel} ${safeProgress} / ${target}`;
+}
+
+export function getRogueContractProgressText({
+  contractId,
+  definition: providedDefinition,
+  progress = 0,
+  target: providedTarget,
+  completed = false,
+  failed = false,
+  failureReason = "",
+  context = {},
+} = {}) {
+  const definition = providedDefinition || getContractDefinition(contractId);
+  if (!definition) return "";
+  const target = Number.isFinite(providedTarget) ? Math.max(0, providedTarget) : definition.target;
+  let status;
+  if (completed) {
+    status = `${definition.label}：契约完成`;
+  } else if (failed) {
+    const reason = failureReason ? `（${failureReason}）` : "";
+    status = `${definition.label}：契约失败${reason}`;
+  } else {
+    status = routeContractStatus(definition, progress, target, context);
+  }
+  const details = [
+    status,
+    `任务：${definition.description}`,
+    `奖励：${contractRewardText(definition.reward)}`,
+  ];
+  if (!completed) details.push("未完成扣 1 点能量");
+  return details.join(" · ");
 }
 
 export function createRogueUI(elements) {
@@ -129,6 +238,39 @@ export function createRogueUI(elements) {
     if (elements.rogueFeedback) elements.rogueFeedback.textContent = state.notice || "";
   }
 
+  function renderSectorSummary(state) {
+    if (!elements.rogueSectorSummary) return;
+    const sectors = state.level?.sectors;
+    if (!Array.isArray(sectors) || sectors.length === 0) {
+      elements.rogueSectorSummary.hidden = true;
+      elements.rogueSectorSummary.replaceChildren();
+      return;
+    }
+    elements.rogueSectorSummary.hidden = false;
+    elements.rogueSectorSummary.replaceChildren();
+    const title = document.createElement("h2");
+    title.className = "rogue-sector-summary__title";
+    title.textContent = "战区路线";
+    const list = document.createElement("div");
+    list.className = "rogue-sector-summary__list";
+    list.setAttribute("role", "list");
+    for (const sector of sectors) {
+      const progressText = getRogueSectorProgressText(sector, state.level.started);
+      const item = document.createElement("div");
+      item.className = `rogue-sector-summary__item rogue-sector-summary__item--sector-${sector.id}`;
+      item.dataset.sectorId = String(sector.id);
+      item.setAttribute("role", "listitem");
+      item.setAttribute("aria-label", progressText);
+      const label = document.createElement("strong");
+      label.textContent = sector.label;
+      const progress = document.createElement("span");
+      progress.textContent = progressText.replace(`${sector.label} `, "");
+      item.append(label, progress);
+      list.appendChild(item);
+    }
+    elements.rogueSectorSummary.append(title, list);
+  }
+
   function renderContracts(state) {
     if (!elements.rogueContractPanel) return;
     const pending = state.status === "ready" && !state.selectedContract;
@@ -138,6 +280,7 @@ export function createRogueUI(elements) {
     }
     if (elements.rogueContractOptions) elements.rogueContractOptions.replaceChildren();
     if (elements.rogueContractProgress) elements.rogueContractProgress.replaceChildren();
+    elements.rogueContractProgress?.classList?.remove("is-completed", "is-failed");
     if (pending) {
       if (elements.rogueContractOptions) {
         elements.rogueContractOptions.hidden = false;
@@ -150,15 +293,19 @@ export function createRogueUI(elements) {
           const buttonState = getRogueContractButtonState({ selected: false, disabled: false });
           button.setAttribute("aria-pressed", String(buttonState.pressed));
           button.setAttribute("aria-disabled", String(buttonState.ariaDisabled));
+          const copy = getRogueContractCardCopy(option);
           const title = document.createElement("strong");
           title.textContent = option.label;
           const description = document.createElement("span");
-          description.textContent = option.description;
+          description.textContent = copy.description;
           const progress = document.createElement("small");
-          progress.textContent = `${option.progressLabel}：0 / ${option.target}`;
+          progress.textContent = copy.progress;
           const reward = document.createElement("small");
-          reward.textContent = `奖励：${contractRewardText(option.reward)}`;
-          button.append(title, description, progress, reward);
+          reward.textContent = copy.reward;
+          const penalty = document.createElement("small");
+          penalty.className = "rogue-contract-penalty";
+          penalty.textContent = copy.penalty;
+          button.append(title, description, progress, reward, penalty);
           button.addEventListener("click", () => {
             selectedTool = null;
             restoreBoardFocus = true;
@@ -177,10 +324,17 @@ export function createRogueUI(elements) {
     if (!state.selectedContract) return;
     const definition = getContractDefinition(state.selectedContract);
     if (!definition) return;
-    const status = state.contractCompleted
-      ? "契约完成"
-      : `${definition.progressLabel}：${state.contractProgress} / ${state.contractTarget}`;
-    elements.rogueContractProgress.textContent = `${definition.label} · ${status} · 奖励：${contractRewardText(definition.reward)}`;
+    elements.rogueContractProgress.textContent = getRogueContractProgressText({
+      definition,
+      progress: state.contractProgress,
+      target: state.contractTarget,
+      completed: state.contractCompleted,
+      failed: state.contractFailed,
+      failureReason: state.contractFailureReason,
+      context: state.contractContext,
+    });
+    elements.rogueContractProgress.classList?.toggle("is-completed", Boolean(state.contractCompleted));
+    elements.rogueContractProgress.classList?.toggle("is-failed", Boolean(state.contractFailed));
   }
 
   function renderTools(state) {
@@ -264,6 +418,7 @@ export function createRogueUI(elements) {
   function render(state, handlers = boundHandlers || {}) {
     boundHandlers = handlers;
     renderHud(state);
+    renderSectorSummary(state);
     renderContracts(state);
     renderTools(state);
     renderRewards(state);
@@ -285,7 +440,10 @@ export function createRogueUI(elements) {
         button.dataset.row = String(row);
         button.dataset.col = String(col);
         button.setAttribute("role", "gridcell");
-        button.setAttribute("aria-label", buildRogueCellAriaLabel(cell, row, col));
+        button.setAttribute("aria-label", buildRogueCellAriaLabel(cell, row, col, state.level.sectors));
+        const sector = getSectorForCell(cell, col, state.level.sectors);
+        const sectorId = Number.isInteger(cell?.sectorId) ? cell.sectorId : sector?.id;
+        if (Number.isInteger(sectorId)) button.dataset.sectorId = String(sectorId);
         button.tabIndex = focusedCell[0] === row && focusedCell[1] === col ? 0 : -1;
         const label = document.createElement("span");
         label.className = "cell-label";
@@ -298,6 +456,7 @@ export function createRogueUI(elements) {
         if (cell.neutralized) button.classList.add("neutralized");
         if (cell.exploded) button.classList.add("exploded");
         if (cell.revealed && cell.count > 0) button.classList.add(`num-${cell.count}`);
+        for (const className of getRogueSectorClassNames(cell, col, state.level.sectors)) button.classList.add(className);
         for (const className of getRogueSpecialCellClasses(cell)) button.classList.add(className);
         const boardDisabled = state.selectedContract === null
           || state.level.ended

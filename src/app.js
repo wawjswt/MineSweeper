@@ -36,6 +36,7 @@ const elements = {
   rogueEnergy: document.getElementById("rogueEnergy"),
   rogueScore: document.getElementById("rogueScore"),
   rogueUpgradeSummary: document.getElementById("rogueUpgradeSummary"),
+  rogueSectorSummary: document.getElementById("rogueSectorSummary"),
   rogueContractPanel: document.getElementById("rogueContractPanel"),
   rogueContractTitle: document.getElementById("rogueContractTitle"),
   rogueContractOptions: document.getElementById("rogueContractOptions"),

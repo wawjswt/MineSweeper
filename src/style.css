@@ -432,6 +432,49 @@ kbd { padding: 2px 7px; border: 1px solid var(--panel-border); border-bottom-wid
   font-size: 13px;
   line-height: 1.5;
 }
+.rogue-sector-summary {
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--panel-border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.rogue-sector-summary__title {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 15px;
+}
+.rogue-sector-summary__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.rogue-sector-summary__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--rogue-sector-color) 44%, var(--panel-border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--rogue-sector-color) 9%, var(--control-bg));
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.rogue-sector-summary__item strong {
+  color: var(--rogue-sector-color);
+  font-size: 14px;
+}
+.rogue-sector-summary__item span {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rogue-sector-summary__item--sector-0 { --rogue-sector-color: #64d8cb; }
+.rogue-sector-summary__item--sector-1 { --rogue-sector-color: #82b8ff; }
+.rogue-sector-summary__item--sector-2 { --rogue-sector-color: #d6a0ff; }
 .rogue-tools {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -573,11 +616,36 @@ kbd { padding: 2px 7px; border: 1px solid var(--panel-border); border-bottom-wid
 #rogueView .rogue-contract-card span,
 #rogueView .rogue-contract-card small { color: var(--muted); line-height: 1.45; }
 #rogueView .rogue-contract-card small:last-child { color: var(--accent2); }
+#rogueView .rogue-contract-card .rogue-contract-penalty { color: var(--danger); }
 #rogueView .rogue-contract-progress {
   min-height: 24px;
   color: var(--accent2);
   font-size: 14px;
   line-height: 1.5;
+}
+#rogueView .rogue-contract-progress.is-completed { color: var(--win); }
+#rogueView .rogue-contract-progress.is-failed { color: var(--danger); }
+#rogueView .rogue-board .rogue-cell[class*="rogue-cell--sector-"] {
+  position: relative;
+}
+#rogueView .rogue-board .rogue-cell[class*="rogue-cell--sector-"]::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--rogue-sector-color) 10%, transparent);
+  content: "";
+  pointer-events: none;
+}
+#rogueView .rogue-board .rogue-cell[class*="rogue-cell--sector-"] .cell-label {
+  position: relative;
+  z-index: 1;
+}
+#rogueView .rogue-board .rogue-cell--sector-0 { --rogue-sector-color: #64d8cb; }
+#rogueView .rogue-board .rogue-cell--sector-1 { --rogue-sector-color: #82b8ff; }
+#rogueView .rogue-board .rogue-cell--sector-2 { --rogue-sector-color: #d6a0ff; }
+#rogueView .rogue-board .rogue-cell--sector-boundary {
+  border-left: 3px solid color-mix(in srgb, var(--rogue-sector-color) 78%, var(--text));
 }
 #rogueView .rogue-board .rogue-cell.rogue-cell--intel {
   color: #c8f4ff;
@@ -610,6 +678,7 @@ html[data-theme="light"] #rogueView .rogue-contract-card {
   .rogue-hud,
   .rogue-tools,
   .rogue-reward-options,
+  .rogue-sector-summary__list,
   #rogueView .rogue-contract-options { grid-template-columns: 1fr; }
   .rogue-tool { min-height: 0; }
   .rogue-result button { width: 100%; }
