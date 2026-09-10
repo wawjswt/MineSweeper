@@ -337,6 +337,71 @@ test("invalid tool targets do not consume energy or uses", () => {
   assert.equal(JSON.stringify(state.level.board), before);
 });
 
+test("revealing an intel cell reports its clipped scan and completes reconnaissance", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const state = makeKnownLevel(game);
+  state.selectedContract = "reconnaissance";
+  state.level.board[1][2].special = "intel";
+  assert.equal(game.reveal(1, 2), "continue");
+  assert.equal(state.level.board[1][2].specialCollected, true);
+  assert.equal(state.levelStats.specialCellsCollected, 1);
+  assert.equal(state.contractProgress, 1);
+  assert.equal(state.contractCompleted, true);
+  assert.equal(state.nextLevelToolBonus.scoutPulse, 1);
+  assert.match(state.notice, /情报点/);
+  assert.match(state.notice, /1 个雷/);
+});
+
+test("revealing a supply cell restores energy and recharges the least-used tool", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const state = makeKnownLevel(game);
+  state.energy = 0;
+  state.level.activeToolUses = { scoutPulse: 0, defusalKit: 1, reactionShield: 1 };
+  state.level.board[1][2].special = "supply";
+  assert.equal(game.reveal(1, 2), "continue");
+  assert.equal(state.energy, 1);
+  assert.deepEqual(state.level.activeToolUses, {
+    scoutPulse: 1,
+    defusalKit: 1,
+    reactionShield: 1,
+  });
+  assert.equal(state.level.board[1][2].specialCollected, true);
+  assert.equal(state.levelStats.specialCellsCollected, 1);
+  assert.match(state.notice, /补给点/);
+});
+
+test("scouting an intel cell consumes resources and collects it without revealing it", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const state = makeKnownLevel(game);
+  state.selectedContract = "reconnaissance";
+  state.level.board[1][2].special = "intel";
+  assert.equal(game.selectTool("scoutPulse"), true);
+  assert.equal(game.useSelectedTool(1, 2), "continue");
+  assert.equal(state.level.board[1][2].revealed, false);
+  assert.equal(state.level.board[1][2].specialCollected, true);
+  assert.equal(state.energy, 1);
+  assert.equal(state.level.activeToolUses.scoutPulse, 0);
+  assert.equal(state.levelStats.toolsUsed.scoutPulse, 1);
+  assert.equal(state.levelStats.specialCellsCollected, 1);
+  assert.equal(state.contractCompleted, true);
+  assert.match(state.notice, /情报点/);
+});
+
+test("defusing a true mine completes the controlled-demolition contract", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const state = makeKnownLevel(game);
+  state.selectedContract = "controlledDemolition";
+  assert.equal(game.selectTool("defusalKit"), true);
+  assert.equal(game.useSelectedTool(0, 1), "continue");
+  assert.equal(state.level.board[0][1].neutralized, true);
+  assert.equal(state.levelStats.toolsUsed.defusalKit, 1);
+  assert.equal(state.levelStats.trueMinesDefused, 1);
+  assert.equal(state.contractProgress, 1);
+  assert.equal(state.contractCompleted, true);
+  assert.equal(state.nextLevelToolBonus.defusalKit, 1);
+  assert.match(state.notice, /精准爆破/);
+});
+
 test("clearing a level opens rewards and choosing one starts the next floor", () => {
   const game = createRogueGame({ rng: () => 0.25 });
   const state = makeKnownLevel(game);

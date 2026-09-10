@@ -139,6 +139,43 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     toolsUsed[toolKey] = (toolsUsed[toolKey] || 0) + 1;
   }
 
+  function collectSpecialCell(cell, row, col) {
+    if (!cell?.special || cell.specialCollected) return "";
+    cell.specialCollected = true;
+    currentState.levelStats.specialCellsCollected += 1;
+    const notices = [];
+    if (cell.special === "intel") {
+      const level = currentState.level;
+      const startRow = Math.max(0, row - 1);
+      const endRow = Math.min(level.rows - 1, row + 1);
+      const startCol = Math.max(0, col - 1);
+      const endCol = Math.min(level.cols - 1, col + 1);
+      let mines = 0;
+      for (let currentRow = startRow; currentRow <= endRow; currentRow += 1) {
+        for (let currentCol = startCol; currentCol <= endCol; currentCol += 1) {
+          if (level.board[currentRow][currentCol].mine) mines += 1;
+        }
+      }
+      notices.push(`情报点：该区域包含 ${mines} 个雷（行 ${startRow + 1}–${endRow + 1}，列 ${startCol + 1}–${endCol + 1}）。`);
+      if (currentState.selectedContract === "reconnaissance") {
+        const contractNotice = completeCurrentContract();
+        if (contractNotice) notices.push(contractNotice);
+      }
+    } else if (cell.special === "supply") {
+      currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + 1);
+      const rechargeKey = TOOL_KEYS.reduce((leastKey, toolKey) => (
+        currentState.level.activeToolUses[toolKey] < currentState.level.activeToolUses[leastKey]
+          ? toolKey
+          : leastKey
+      ), TOOL_KEYS[0]);
+      currentState.level.activeToolUses[rechargeKey] += 1;
+      const tool = getToolDefinition(rechargeKey);
+      notices.push(`补给点：能量 +1，${tool?.label || rechargeKey}使用次数 +1。`);
+    }
+    currentState.notice = notices.join(" ");
+    return currentState.notice;
+  }
+
   function selectContract(contractId) {
     if (currentState.status !== "ready") return "invalid";
     if (!currentState.contractOptions.some(({ id }) => id === contractId)) return "invalid";
@@ -174,16 +211,39 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
   }
 
   function awardSafeReveal(count) {
-    if (count <= 0) return;
+    if (count <= 0) return "";
     currentState.levelStats.safeReveals += count;
     currentState.level.safeCellsRemaining = Math.max(0, currentState.level.safeCellsRemaining - count);
     currentState.score += count;
     currentState.safeRevealStreak += 1;
+    let notice = "";
     if (currentState.safeRevealStreak >= energyThreshold()) {
       currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + 1);
       currentState.safeRevealStreak = 0;
-      currentState.notice = "连续安全揭开，获得 1 点能量。";
+      notice = "连续安全揭开，获得 1 点能量。";
+      currentState.notice = notice;
     }
+    return notice;
+  }
+
+  function revealSafeArea(row, col) {
+    const specialNotices = [];
+    const revealed = revealRogueFlood(
+      currentState.level.board,
+      row,
+      col,
+      currentState.level.rows,
+      currentState.level.cols,
+      (cell, currentRow, currentCol) => {
+        const notice = collectSpecialCell(cell, currentRow, currentCol);
+        if (notice) specialNotices.push(notice);
+      },
+    );
+    const safeNotice = awardSafeReveal(revealed);
+    if (specialNotices.length || safeNotice) {
+      currentState.notice = [...specialNotices, safeNotice].filter(Boolean).join(" ");
+    }
+    return revealed;
   }
 
   function completeLevelIfReady() {
@@ -250,14 +310,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     if (cell.revealed) return chord(row, col);
     clearNotice();
     if (cell.mine) return hitMine(cell);
-    const count = revealRogueFlood(
-      currentState.level.board,
-      row,
-      col,
-      currentState.level.rows,
-      currentState.level.cols,
-    );
-    awardSafeReveal(count);
+    revealSafeArea(row, col);
     return completeLevelIfReady();
   }
 
@@ -277,8 +330,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
       const neighbor = level.board[neighborRow][neighborCol];
       if (neighbor.revealed || neighbor.flagged) continue;
       if (neighbor.mine) return hitMine(neighbor);
-      const count = revealRogueFlood(level.board, neighborRow, neighborCol, level.rows, level.cols);
-      awardSafeReveal(count);
+      revealSafeArea(neighborRow, neighborCol);
     }
     return completeLevelIfReady();
   }
@@ -353,8 +405,12 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
           if (level.board[currentRow][currentCol].mine) mines += 1;
         }
       }
+      const specialNotice = cell.special === "intel"
+        ? collectSpecialCell(cell, row, col)
+        : "";
       selectedTool = null;
-      currentState.notice = `侦察脉冲：该区域包含 ${mines} 个雷（行 ${startRow + 1}–${endRow + 1}，列 ${startCol + 1}–${endCol + 1}）。`;
+      const scanNotice = `侦察脉冲：该区域包含 ${mines} 个雷（行 ${startRow + 1}–${endRow + 1}，列 ${startCol + 1}–${endCol + 1}）。`;
+      currentState.notice = [scanNotice, specialNotice].filter(Boolean).join(" ");
       return "continue";
     }
     if (!cell.flagged) return "invalid";
@@ -365,14 +421,17 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
       cell.neutralized = true;
       cell.exploded = false;
       currentState.score += 3;
-      currentState.notice = "拆雷装置已解除这颗地雷。";
+      currentState.levelStats.trueMinesDefused += 1;
+      const contractNotice = currentState.selectedContract === "controlledDemolition"
+        ? completeCurrentContract()
+        : "";
+      currentState.notice = ["拆雷装置已解除这颗地雷。", contractNotice].filter(Boolean).join(" ");
       return completeLevelIfReady();
     }
     cell.flagged = false;
     cell.questioned = false;
-    const revealed = revealRogueFlood(level.board, row, col, level.rows, level.cols);
-    awardSafeReveal(revealed);
-    currentState.notice = "拆雷装置拆穿了假旗，并揭开了安全区域。";
+    const safeNotice = revealSafeArea(row, col);
+    currentState.notice = ["拆雷装置拆穿了假旗，并揭开了安全区域。", safeNotice].filter(Boolean).join(" ");
     return completeLevelIfReady();
   }
 
