@@ -15,7 +15,7 @@ const expectedUpgradeIds = [
 test("rogue guide exposes eight sections in stable order with unique ids", () => {
   const catalog = getRogueGuideCatalog();
   assert.deepEqual(catalog.sections.map(({ id }) => id), [
-    "overview", "floors", "tools", "special-cells", "contracts", "upgrades", "illustrations", "tips",
+    "overview", "floors", "contracts", "special-cells", "tools", "upgrades", "illustrations", "tips",
   ]);
   assert.equal(new Set(catalog.sections.map(({ id }) => id)).size, 8);
   assert.equal(catalog.sections.length, 8);

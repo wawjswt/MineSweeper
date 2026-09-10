@@ -9,8 +9,13 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 
 test("every rogue guide illustration is a self-contained SVG asset", () => {
   const illustrations = getRogueGuideCatalog().illustrations;
+  const assetDirectory = path.join(repoRoot, "assets", "rogue-guide");
 
   assert.equal(illustrations.length, 12);
+  assert.deepEqual(
+    fs.readdirSync(assetDirectory).filter((name) => name.endsWith(".svg")).sort(),
+    illustrations.map(({ path: assetPath }) => assetPath.split("/").at(-1)).sort(),
+  );
 
   for (const illustration of illustrations) {
     const assetPath = path.resolve(repoRoot, illustration.path.replace(/^\.\//, ""));

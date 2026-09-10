@@ -11,6 +11,10 @@ import { makeState } from "./state.js";
 import { createGameLogic } from "./game.js";
 import { createUI } from "./ui.js";
 import { createRogueGame } from "./rogue-game.js";
+import {
+  createRogueGuideDialogController,
+  renderRogueGuideCatalog,
+} from "./rogue-guide.js";
 import { createRogueUI } from "./rogue-ui.js";
 import { compressImageDataUrl, loadImageSource } from "./image.js";
 import {
@@ -50,6 +54,11 @@ const elements = {
   rogueResultTitle: document.getElementById("rogueResultTitle"),
   rogueResultText: document.getElementById("rogueResultText"),
   rogueResetButton: document.getElementById("rogueResetButton"),
+  rogueGuideButton: document.getElementById("rogueGuideButton"),
+  rogueGuideDialog: document.getElementById("rogueGuideDialog"),
+  rogueGuideClose: document.getElementById("rogueGuideClose"),
+  rogueGuideChapters: document.getElementById("rogueGuideChapters"),
+  rogueGuideContent: document.getElementById("rogueGuideContent"),
   resetButton: document.getElementById("resetButton"),
   hintButton: document.getElementById("hintButton"),
   markModeButton: document.getElementById("markModeButton"),
@@ -326,6 +335,7 @@ function handleHint() {
 }
 
 function setRogueVisibility(visible) {
+  if (!visible && rogueGuideController.close({ restoreFocus: false })) elements.modeSelect?.focus();
   if (elements.classicHud) elements.classicHud.hidden = visible;
   if (elements.classicHintCard) elements.classicHintCard.hidden = visible;
   if (elements.classicBoardWrap) elements.classicBoardWrap.hidden = visible;
@@ -428,6 +438,23 @@ const game = createGameLogic({
 });
 const rogueUI = createRogueUI(elements);
 const rogueGame = createRogueGame({ rng: Math.random });
+renderRogueGuideCatalog({
+  chapterNav: elements.rogueGuideChapters,
+  contentRoot: elements.rogueGuideContent,
+});
+const rogueGuideController = createRogueGuideDialogController({
+  dialog: elements.rogueGuideDialog,
+  trigger: elements.rogueGuideButton,
+  closeButton: elements.rogueGuideClose,
+});
+window.addEventListener("keydown", (event) => rogueGuideController.handleGlobalKeydown(event), true);
+window.__GAME_TABS__?.register("sweep", {
+  onDeactivate: () => {
+    if (rogueGuideController.close({ restoreFocus: false })) {
+      queueMicrotask(() => document.querySelector('.game-tab[aria-selected="true"]')?.focus());
+    }
+  },
+});
 const rogueHandlers = {
   onReset: () => {
     rogueGame.reset();
