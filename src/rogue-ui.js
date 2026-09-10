@@ -1,15 +1,24 @@
 import { BOARD_METRICS } from "./config.js";
 import { getRewardOptions, getToolDefinition, getUpgradeDefinition } from "./rogue-items.js";
+import { getContractDefinition } from "./rogue-contracts.js";
 
 export function buildRogueCellAriaLabel(cell, row, col) {
   const position = `第 ${row + 1} 行第 ${col + 1} 列`;
-  if (cell.flagged) return `${position}，旗帜`;
-  if (cell.questioned) return `${position}，问号`;
-  if (!cell.revealed) return `${position}，未揭开`;
-  if (cell.mine && cell.neutralized) return `${position}，已拆除的地雷`;
-  if (cell.mine) return `${position}，地雷`;
-  if (!cell.count) return `${position}，已揭开，空白`;
-  return `${position}，已揭开，数字 ${cell.count}`;
+  const labels = [position];
+  if (cell.flagged) labels.push("旗帜");
+  else if (cell.questioned) labels.push("问号");
+  if (cell.special === "intel") labels.push(cell.specialCollected ? "情报点，已收集" : "情报点");
+  if (cell.special === "supply") labels.push(cell.specialCollected ? "补给点，已收集" : "补给点");
+  if (!cell.revealed) {
+    labels.push("未揭开");
+    return labels.join("，");
+  }
+  labels.push("已揭开");
+  if (cell.mine && cell.neutralized) labels.push("已拆除的地雷");
+  else if (cell.mine) labels.push("地雷");
+  else if (!cell.count) labels.push("空白");
+  else labels.push(`数字 ${cell.count}`);
+  return labels.join("，");
 }
 
 export function getRogueToolButtonState({ selected, disabled, uses, cost }) {
@@ -34,9 +43,18 @@ export function getRogueToolButtonAction(selectedTool, toolKey) {
   return selectedTool === toolKey ? "cancel" : "select";
 }
 
+export function getRogueContractButtonState({ selected, disabled }) {
+  return {
+    pressed: Boolean(selected),
+    ariaDisabled: Boolean(disabled),
+  };
+}
+
 function cellText(cell) {
   if (cell.flagged) return "🚩";
   if (cell.questioned) return "❓";
+  if (!cell.revealed && cell.special === "intel") return "🔎";
+  if (!cell.revealed && cell.special === "supply") return "📦";
   if (!cell.revealed) return "";
   if (cell.mine && cell.neutralized) return "🛠️";
   if (cell.mine) return "💣";
@@ -48,6 +66,20 @@ function upgradeText(id) {
   return getUpgradeDefinition(id)?.label || id;
 }
 
+function contractRewardText(reward) {
+  if (!reward) return "额外奖励";
+  if (reward.type === "energy") return `能量 +${reward.amount}`;
+  if (reward.type === "toolBonus") {
+    const tool = getToolDefinition(reward.toolKey);
+    return `${tool?.label || reward.toolKey}下层使用次数 +${reward.amount}`;
+  }
+  if (reward.type === "score") {
+    const streak = reward.streakAmount ? `，安全连击 +${reward.streakAmount}` : "";
+    return `分数 +${reward.amount}${streak}`;
+  }
+  return "额外奖励";
+}
+
 export function createRogueUI(elements) {
   let focusedCell = [0, 0];
   let markMode = "reveal";
@@ -56,6 +88,7 @@ export function createRogueUI(elements) {
   let activePointerId = null;
   let longPressTriggered = false;
   let boundHandlers = null;
+  let restoreBoardFocus = false;
 
   function setFocus(row, col) {
     focusedCell = [row, col];
@@ -88,13 +121,68 @@ export function createRogueUI(elements) {
     if (elements.rogueFeedback) elements.rogueFeedback.textContent = state.notice || "";
   }
 
+  function renderContracts(state) {
+    if (!elements.rogueContractPanel) return;
+    const pending = state.status === "ready" && !state.selectedContract;
+    elements.rogueContractPanel.hidden = false;
+    if (elements.rogueContractTitle) {
+      elements.rogueContractTitle.textContent = pending ? "选择本层任务契约" : "当前任务契约";
+    }
+    if (elements.rogueContractOptions) elements.rogueContractOptions.replaceChildren();
+    if (elements.rogueContractProgress) elements.rogueContractProgress.replaceChildren();
+    if (pending) {
+      if (elements.rogueContractOptions) {
+        elements.rogueContractOptions.hidden = false;
+        for (const option of state.contractOptions) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "rogue-contract-card";
+          button.dataset.contractId = option.id;
+          button.title = option.description;
+          const buttonState = getRogueContractButtonState({ selected: false, disabled: false });
+          button.setAttribute("aria-pressed", String(buttonState.pressed));
+          button.setAttribute("aria-disabled", String(buttonState.ariaDisabled));
+          const title = document.createElement("strong");
+          title.textContent = option.label;
+          const description = document.createElement("span");
+          description.textContent = option.description;
+          const progress = document.createElement("small");
+          progress.textContent = `${option.progressLabel}：0 / ${option.target}`;
+          const reward = document.createElement("small");
+          reward.textContent = `奖励：${contractRewardText(option.reward)}`;
+          button.append(title, description, progress, reward);
+          button.addEventListener("click", () => {
+            selectedTool = null;
+            restoreBoardFocus = true;
+            finishAction(boundHandlers?.onSelectContract?.(option.id));
+          });
+          elements.rogueContractOptions.appendChild(button);
+        }
+      }
+      if (elements.rogueContractProgress) elements.rogueContractProgress.hidden = true;
+      return;
+    }
+
+    if (elements.rogueContractOptions) elements.rogueContractOptions.hidden = true;
+    if (!elements.rogueContractProgress) return;
+    elements.rogueContractProgress.hidden = !state.selectedContract;
+    if (!state.selectedContract) return;
+    const definition = getContractDefinition(state.selectedContract);
+    if (!definition) return;
+    const status = state.contractCompleted
+      ? "契约完成"
+      : `${definition.progressLabel}：${state.contractProgress} / ${state.contractTarget}`;
+    elements.rogueContractProgress.textContent = `${definition.label} · ${status} · 奖励：${contractRewardText(definition.reward)}`;
+  }
+
   function renderTools(state) {
     if (!elements.rogueTools) return;
     elements.rogueTools.replaceChildren();
     for (const toolKey of ["scoutPulse", "defusalKit", "reactionShield"]) {
       const definition = getToolDefinition(toolKey);
       const uses = state.level.activeToolUses[toolKey] || 0;
-      const disabled = state.status !== "playing"
+      const disabled = state.selectedContract === null
+        || state.status !== "playing"
         || uses <= 0
         || state.energy < definition.cost
         || (toolKey === "reactionShield" && state.level.shieldActive);
@@ -168,6 +256,7 @@ export function createRogueUI(elements) {
   function render(state, handlers = boundHandlers || {}) {
     boundHandlers = handlers;
     renderHud(state);
+    renderContracts(state);
     renderTools(state);
     renderRewards(state);
     renderResult(state);
@@ -201,6 +290,14 @@ export function createRogueUI(elements) {
         if (cell.neutralized) button.classList.add("neutralized");
         if (cell.exploded) button.classList.add("exploded");
         if (cell.revealed && cell.count > 0) button.classList.add(`num-${cell.count}`);
+        if (cell.special === "intel") button.classList.add("rogue-cell--intel");
+        if (cell.special === "supply") button.classList.add("rogue-cell--supply");
+        if (cell.specialCollected) button.classList.add("rogue-cell--collected");
+        const boardDisabled = state.selectedContract === null
+          || state.level.ended
+          || ["reward", "won", "lost"].includes(state.status);
+        button.disabled = boardDisabled;
+        button.setAttribute("aria-disabled", String(boardDisabled));
 
         button.addEventListener("click", () => {
           if (longPressTriggered) {
@@ -247,7 +344,7 @@ export function createRogueUI(elements) {
           }
         });
         button.addEventListener("pointerdown", (event) => {
-          if (state.status !== "playing" || event.pointerType === "mouse") return;
+          if (boardDisabled || event.pointerType === "mouse") return;
           activePointerId = event.pointerId;
           longPressTriggered = false;
           longPressTimer = setTimeout(() => {
@@ -273,10 +370,11 @@ export function createRogueUI(elements) {
         elements.rogueBoard.appendChild(button);
       }
     }
-    if (hadBoardFocus) {
+    if (hadBoardFocus || restoreBoardFocus) {
       const focusButton = elements.rogueBoard.querySelector(`[data-row="${focusedCell[0]}"][data-col="${focusedCell[1]}"]`);
       if (focusButton) focusButton.focus({ preventScroll: true });
     }
+    restoreBoardFocus = false;
   }
 
   function bindHandlers(handlers) {

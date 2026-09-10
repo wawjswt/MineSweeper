@@ -20,6 +20,7 @@ import {
   getRoguePrimaryAction,
   getRogueToolSelectionAfterAction,
   getRogueToolButtonAction,
+  getRogueContractButtonState,
 } from "../src/rogue-ui.js";
 
 test("rogue run starts with the designed resources", () => {
@@ -482,6 +483,24 @@ test("rogue labels include coordinates and neutralized state", () => {
     buildRogueCellAriaLabel({ revealed: true, mine: true, neutralized: true, count: 0 }, 1, 2),
     /第 2 行第 3 列.*已拆除/,
   );
+});
+
+test("rogue special-cell labels describe type and collection state", () => {
+  assert.match(
+    buildRogueCellAriaLabel({ revealed: false, flagged: false, questioned: false, special: "intel", specialCollected: false }, 1, 2),
+    /第 2 行第 3 列.*情报点.*未揭开/,
+  );
+  assert.match(
+    buildRogueCellAriaLabel({ revealed: false, flagged: false, questioned: false, special: "supply", specialCollected: true }, 0, 0),
+    /补给点.*已收集/,
+  );
+});
+
+test("rogue contract buttons expose selection and disabled state", () => {
+  assert.deepEqual(getRogueContractButtonState({ selected: true, disabled: false }), {
+    pressed: true,
+    ariaDisabled: false,
+  });
 });
 
 test("rogue tool state exposes accessible selection and resource text", () => {
