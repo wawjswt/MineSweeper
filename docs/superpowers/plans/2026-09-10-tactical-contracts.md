@@ -35,7 +35,7 @@
 **Interfaces:**
 - `getContractDefinition(contractId)` returns a cloned definition or `null`.
 - `getContractOptions({ floor, rng })` returns two cloned definitions with `id`, `label`, `description`, `target`, `progressLabel`, and `reward`.
-- `getContractReward(contractId)` returns a cloned `{ type, amount, toolKey? }` reward.
+- `getContractReward(contractId)` returns a cloned `{ type, amount, toolKey?, streakAmount? }` reward.
 - `createRogueRunState()` adds the contract fields and zeroed `levelStats` described in the approved spec.
 
 - [ ] **Step 1: Write the failing tests**
@@ -48,7 +48,7 @@ Run `node --test tests/rogue-minesweeper.test.js`. It must fail because `src/rog
 
 - [ ] **Step 3: Implement the pure definitions**
 
-Create immutable definitions with `target: 1` and these exact progress labels and meanings: `noDamage` uses `保持无伤`, means clear the level without losing life, and rewards one energy; `reconnaissance` uses `回收情报点`, means trigger or scan an intel cell, and rewards one next-level scout use; `controlledDemolition` uses `拆除真雷`, means successfully defuse one true mine, and rewards one next-level defusal use; `reservePower` uses `保留能量`, means clear the level with at least one energy, and rewards 10 score. Use copied arrays and Fisher–Yates with the injected RNG.
+Create immutable definitions with `target: 1` and these exact progress labels and meanings: `noDamage` uses `保持无伤`, means clear the level without losing life, and rewards one energy; `reconnaissance` uses `回收情报点`, means trigger or scan an intel cell, and rewards one next-level scout use; `controlledDemolition` uses `拆除真雷`, means successfully defuse one true mine, and rewards one next-level defusal use; `reservePower` uses `保留能量`, means clear the level with at least one energy, and rewards 10 score plus one safe-reveal streak. Represent the latter as `{ type: "score", amount: 10, streakAmount: 1 }` so the controller can apply both effects while keeping the reward shape declarative. Use copied arrays and Fisher–Yates with the injected RNG.
 
 - [ ] **Step 4: Add state defaults**
 
@@ -160,7 +160,7 @@ At the start of `reveal`, `cycleMark`, and `chord`, return `"invalid"` while `se
 
 - [ ] **Step 5: Add event accounting and completion checks**
 
-Record safe reveals, life-losing damage, shielded hits, successful tool uses, true-mine defusals, and special collections in `levelStats`. Complete `controlledDemolition` after true-mine defusal and `reconnaissance` after intel collection. At level clear, complete `noDamage` when `damageTaken === 0` and `reservePower` when energy is at least 1. Apply each reward once before entering the ordinary `reward` or `won` state.
+Record safe reveals, life-losing damage, shielded hits, successful tool uses, true-mine defusals, and special collections in `levelStats`. Complete `controlledDemolition` after true-mine defusal and `reconnaissance` after intel collection. At level clear, complete `noDamage` when `damageTaken === 0` and `reservePower` when energy is at least 1. Apply each reward once before entering the ordinary `reward` or `won` state, including `streakAmount` on the reserve-power reward.
 
 - [ ] **Step 6: Verify and commit**
 
