@@ -110,6 +110,10 @@ export function getContractDefinition(contractId) {
   );
 }
 
+export function getContractCatalog() {
+  return CONTRACT_DEFINITIONS.map(cloneDefinition);
+}
+
 export function getContractOptions({ floor: _floor, rng = Math.random } = {}) {
   const pool = [...CONTRACT_DEFINITIONS];
   for (let index = pool.length - 1; index > 0; index -= 1) {

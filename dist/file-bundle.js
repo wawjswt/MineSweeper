@@ -1978,6 +1978,10 @@
       );
     }
 
+    function getContractCatalog() {
+      return CONTRACT_DEFINITIONS.map(cloneDefinition);
+    }
+
     function getContractOptions({ floor: _floor, rng = Math.random } = {}) {
       const pool = [...CONTRACT_DEFINITIONS];
       for (let index = pool.length - 1; index > 0; index -= 1) {
@@ -1991,6 +1995,7 @@
       return getContractDefinition(contractId)?.reward ?? null;
     }
     exports.getContractDefinition = getContractDefinition;
+    exports.getContractCatalog = getContractCatalog;
     exports.getContractOptions = getContractOptions;
     exports.getContractReward = getContractReward;
   };
