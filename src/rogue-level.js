@@ -1,5 +1,10 @@
 import { generateClassicBoard } from "./minesweeper-generator.js";
 import { createRogueEmptyCell } from "./rogue-state.js";
+import {
+  assignRogueSectorIds,
+  calculateRogueSectorStats,
+  createRogueSectors,
+} from "./rogue-sectors.js";
 
 export const ROGUE_LEVELS = Object.freeze([
   { floor: 1, rows: 7, cols: 7, mines: 8, label: "教学层" },
@@ -33,6 +38,42 @@ function createEmptyBoard(rows, cols) {
   return Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => createRogueEmptyCell()),
   );
+}
+
+function normalizeRogueSectors(sectors, cols) {
+  if (!Array.isArray(sectors) || sectors.length !== 3) {
+    throw new TypeError("sectors 必须包含三个连续战区。");
+  }
+
+  let expectedStartCol = 0;
+  const normalized = sectors.map((sector, index) => {
+    const startCol = sector?.startCol;
+    const endColExclusive = sector?.endColExclusive;
+    if (
+      !Number.isInteger(startCol)
+      || !Number.isInteger(endColExclusive)
+      || startCol !== expectedStartCol
+      || endColExclusive - startCol < 2
+    ) {
+      throw new RangeError("sectors 必须是每区至少两列、连续覆盖棋盘的战区。");
+    }
+    expectedStartCol = endColExclusive;
+    return {
+      ...sector,
+      id: sector.id ?? index,
+      safeCells: 0,
+      revealedSafeCells: 0,
+      secured: false,
+    };
+  });
+  return normalized;
+}
+
+function validateRogueSectorCoverage(sectors, cols) {
+  if (sectors.at(-1)?.endColExclusive !== cols) {
+    throw new RangeError("sectors 必须完整覆盖棋盘列。");
+  }
+  return sectors;
 }
 
 function normalizeGeneratedBoard(board) {
@@ -79,13 +120,32 @@ export function placeRogueSpecialCells({
   shuffle(candidates, rng);
 
   const result = { intel: null, supply: null };
-  for (const special of ["intel", "supply"]) {
-    const coordinates = candidates.shift();
-    if (!coordinates) break;
-    const [row, col] = coordinates;
-    board[row][col].special = special;
+  const intelCoordinates = candidates.shift();
+  if (intelCoordinates) {
+    const [row, col] = intelCoordinates;
+    board[row][col].special = "intel";
     board[row][col].specialCollected = false;
-    result[special] = [row, col];
+    result.intel = [row, col];
+  }
+
+  let supplyIndex = -1;
+  if (intelCoordinates) {
+    const intelSectorId = board[intelCoordinates[0]][intelCoordinates[1]].sectorId;
+    if (intelSectorId !== null && intelSectorId !== undefined) {
+      supplyIndex = candidates.findIndex(([row, col]) => {
+        const sectorId = board[row][col].sectorId;
+        return sectorId !== null && sectorId !== undefined && sectorId !== intelSectorId;
+      });
+    }
+  }
+  const supplyCoordinates = supplyIndex >= 0
+    ? candidates.splice(supplyIndex, 1)[0]
+    : candidates.shift();
+  if (supplyCoordinates) {
+    const [row, col] = supplyCoordinates;
+    board[row][col].special = "supply";
+    board[row][col].specialCollected = false;
+    result.supply = [row, col];
   }
   return result;
 }
@@ -96,9 +156,17 @@ export function createRogueLevel({
   safeRow = null,
   safeCol = null,
   toolBonus = {},
+  sectors = null,
 }) {
   const spec = getRogueLevelSpec(floor);
   const started = safeRow !== null && safeCol !== null;
+  const levelSectors = validateRogueSectorCoverage(
+    normalizeRogueSectors(
+      sectors || createRogueSectors({ cols: spec.cols, rng }),
+      spec.cols,
+    ),
+    spec.cols,
+  );
   const generation = started
     ? generateClassicBoard({
       rows: spec.rows,
@@ -110,7 +178,7 @@ export function createRogueLevel({
       generationMode: "standard",
     })
     : { board: createEmptyBoard(spec.rows, spec.cols), generationMode: "standard", fallback: false };
-  const board = normalizeGeneratedBoard(generation.board);
+  const board = assignRogueSectorIds(normalizeGeneratedBoard(generation.board), levelSectors);
   if (started) {
     placeRogueSpecialCells({
       board,
@@ -122,6 +190,10 @@ export function createRogueLevel({
     });
   }
 
+  const currentSectors = started
+    ? calculateRogueSectorStats({ board, sectors: levelSectors })
+    : levelSectors;
+
   return {
     ...spec,
     board,
@@ -129,6 +201,7 @@ export function createRogueLevel({
     ended: false,
     generationMode: generation.generationMode,
     generationFallback: generation.fallback,
+    sectors: currentSectors,
     safeCellsRemaining: board.flat().filter((cell) => !cell.mine && !cell.revealed).length,
     activeToolUses: {
       scoutPulse: 1 + Math.max(0, toolBonus.scoutPulse || 0),
@@ -137,6 +210,17 @@ export function createRogueLevel({
     },
     shieldActive: false,
   };
+}
+
+export function refreshRogueSectorStats(level) {
+  if (!level || !Array.isArray(level.board) || !Array.isArray(level.sectors)) {
+    throw new TypeError("level 必须包含 board 和 sectors。");
+  }
+  level.sectors = calculateRogueSectorStats({
+    board: level.board,
+    sectors: level.sectors,
+  });
+  return level.sectors;
 }
 
 export function revealRogueFlood(board, row, col, rows, cols, onReveal) {

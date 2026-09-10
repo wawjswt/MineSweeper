@@ -9,6 +9,7 @@ export function createRogueEmptyCell() {
     exploded: false,
     neutralized: false,
     count: 0,
+    sectorId: null,
     special: null,
     specialCollected: false,
   };

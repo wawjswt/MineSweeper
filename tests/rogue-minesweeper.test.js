@@ -4,9 +4,11 @@ import { createRogueRunState } from "../src/rogue-state.js";
 import {
   ROGUE_LEVELS,
   createRogueLevel,
+  refreshRogueSectorStats,
   revealRogueFlood,
   placeRogueSpecialCells,
 } from "../src/rogue-level.js";
+import { getRogueSectorId } from "../src/rogue-sectors.js";
 import { getRewardOptions } from "../src/rogue-items.js";
 import { createRogueGame } from "../src/rogue-game.js";
 import {
@@ -106,6 +108,85 @@ test("starting a rogue level places one intel and one supply outside the first-c
     assert.equal(Math.abs(row - 3) <= 1 && Math.abs(col - 3) <= 1, false);
     assert.equal(cell.specialCollected, false);
   }
+});
+
+test("rogue levels expose three sectors and assign sector ids before the first click", () => {
+  const level = createRogueLevel({ floor: 1, rng: () => 0.25 });
+
+  assert.equal(level.started, false);
+  assert.equal(level.sectors.length, 3);
+  assert.deepEqual(level.sectors.map(({ startCol, endColExclusive }) => ({ startCol, endColExclusive })), [
+    { startCol: 0, endColExclusive: 3 },
+    { startCol: 3, endColExclusive: 5 },
+    { startCol: 5, endColExclusive: 7 },
+  ]);
+  for (const row of level.board) {
+    for (let col = 0; col < level.cols; col += 1) {
+      assert.equal(row[col].sectorId, getRogueSectorId(level.sectors, col));
+    }
+  }
+  assert.deepEqual(
+    level.sectors.map(({ safeCells, revealedSafeCells, secured }) => ({ safeCells, revealedSafeCells, secured })),
+    [
+      { safeCells: 0, revealedSafeCells: 0, secured: false },
+      { safeCells: 0, revealedSafeCells: 0, secured: false },
+      { safeCells: 0, revealedSafeCells: 0, secured: false },
+    ],
+  );
+});
+
+test("first-click board generation reuses supplied sector boundaries", () => {
+  const empty = createRogueLevel({ floor: 1, rng: () => 0.25 });
+  const started = createRogueLevel({
+    floor: 1,
+    safeRow: 3,
+    safeCol: 3,
+    sectors: empty.sectors,
+    rng: () => 0.999999,
+  });
+
+  assert.deepEqual(
+    started.sectors.map(({ startCol, endColExclusive }) => ({ startCol, endColExclusive })),
+    empty.sectors.map(({ startCol, endColExclusive }) => ({ startCol, endColExclusive })),
+  );
+  for (const row of started.board) {
+    for (let col = 0; col < started.cols; col += 1) {
+      assert.equal(row[col].sectorId, getRogueSectorId(empty.sectors, col));
+    }
+  }
+});
+
+test("rogue level sector stats can be recalculated after reveals and reset", () => {
+  const level = createRogueLevel({ floor: 1, safeRow: 3, safeCol: 3, rng: () => 0.25 });
+  const initialSafeCells = level.board.flat().filter((cell) => !cell.mine).length;
+  assert.equal(level.sectors.reduce((total, sector) => total + sector.safeCells, 0), initialSafeCells);
+  assert.equal(level.sectors.reduce((total, sector) => total + sector.revealedSafeCells, 0), 0);
+
+  const target = level.board.flat().find((cell) => !cell.mine && !cell.revealed);
+  assert.ok(target);
+  target.revealed = true;
+  const afterOneReveal = refreshRogueSectorStats(level);
+  assert.equal(afterOneReveal.reduce((total, sector) => total + sector.revealedSafeCells, 0), 1);
+  assert.equal(level.sectors, afterOneReveal);
+
+  const reset = createRogueLevel({ floor: 1, sectors: level.sectors, rng: () => 0.999999 });
+  assert.equal(reset.started, false);
+  assert.deepEqual(
+    reset.sectors.map(({ safeCells, revealedSafeCells, secured }) => ({ safeCells, revealedSafeCells, secured })),
+    [
+      { safeCells: 0, revealedSafeCells: 0, secured: false },
+      { safeCells: 0, revealedSafeCells: 0, secured: false },
+      { safeCells: 0, revealedSafeCells: 0, secured: false },
+    ],
+  );
+});
+
+test("rogue special cells prefer different sectors when both sectors have legal candidates", () => {
+  const level = createRogueLevel({ floor: 1, safeRow: 3, safeCol: 3, rng: () => 0.25 });
+  const specials = level.board.flatMap((row) => row.filter((cell) => cell.special));
+
+  assert.equal(specials.length, 2);
+  assert.notEqual(specials[0].sectorId, specials[1].sectorId);
 });
 
 test("rogue flood reveal visits each safe cell once", () => {
