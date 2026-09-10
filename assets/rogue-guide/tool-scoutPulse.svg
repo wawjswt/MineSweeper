@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <linearGradient id="bg" x2="0" y2="1"><stop stop-color="#122238"/><stop offset="1" stop-color="#071426"/></linearGradient>
+    <linearGradient id="scan" x2="1" y2="1"><stop stop-color="#73e2ff" stop-opacity=".32"/><stop offset="1" stop-color="#5cc8ff" stop-opacity=".06"/></linearGradient>
+  </defs>
+  <rect width="320" height="200" rx="18" fill="url(#bg)"/>
+  <g fill="#102943" stroke="#294563" stroke-width="2">
+    <rect x="27" y="31" width="42" height="42" rx="7"/><rect x="75" y="31" width="42" height="42" rx="7"/><rect x="123" y="31" width="42" height="42" rx="7"/><rect x="171" y="31" width="42" height="42" rx="7"/><rect x="219" y="31" width="42" height="42" rx="7"/>
+    <rect x="27" y="79" width="42" height="42" rx="7"/><rect x="75" y="79" width="42" height="42" rx="7"/><rect x="123" y="79" width="42" height="42" rx="7"/><rect x="171" y="79" width="42" height="42" rx="7"/><rect x="219" y="79" width="42" height="42" rx="7"/>
+    <rect x="27" y="127" width="42" height="42" rx="7"/><rect x="75" y="127" width="42" height="42" rx="7"/><rect x="123" y="127" width="42" height="42" rx="7"/><rect x="171" y="127" width="42" height="42" rx="7"/><rect x="219" y="127" width="42" height="42" rx="7"/>
+  </g>
+  <g fill="#17384e" stroke="#64d8cb" stroke-width="2">
+    <rect x="75" y="31" width="42" height="42" rx="7"/><rect x="123" y="31" width="42" height="42" rx="7"/><rect x="171" y="31" width="42" height="42" rx="7"/>
+    <rect x="75" y="79" width="42" height="42" rx="7"/><rect x="123" y="79" width="42" height="42" rx="7"/><rect x="171" y="79" width="42" height="42" rx="7"/>
+    <rect x="75" y="127" width="42" height="42" rx="7"/><rect x="123" y="127" width="42" height="42" rx="7"/><rect x="171" y="127" width="42" height="42" rx="7"/>
+  </g>
+  <rect x="71" y="27" width="150" height="150" rx="12" fill="url(#scan)" stroke="#73e2ff" stroke-width="3" stroke-dasharray="7 5"/>
+  <path d="M250 52a22 22 0 1 0 0 44 22 22 0 0 0 0-44Zm15 37 21 21" fill="none" stroke="#73e2ff" stroke-width="8" stroke-linecap="round"/>
+  <path d="M285 108 302 125" stroke="#64d8cb" stroke-width="3" stroke-linecap="round"/>
+</svg>
