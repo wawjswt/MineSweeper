@@ -56,6 +56,7 @@ function collectModule(moduleId) {
     throw new Error(`Unsupported ESM syntax in ${moduleId}`);
   }
 
+  source = source.replace(/[ \t]+(?=\r?$)/gm, "");
   source = `${source.trimEnd()}\n${exportedNames.map((name) => `exports.${name} = ${name};`).join("\n")}`;
   modules.get(moduleId).source = source;
   moduleOrder.push(moduleId);
@@ -65,7 +66,7 @@ function indent(source, spaces) {
   const prefix = " ".repeat(spaces);
   return source
     .split("\n")
-    .map((line) => `${prefix}${line}`)
+    .map((line) => line ? `${prefix}${line}` : "")
     .join("\n");
 }
 
