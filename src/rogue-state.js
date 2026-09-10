@@ -21,6 +21,15 @@ function createEmptyBoard(rows, cols) {
   );
 }
 
+function createContractContext() {
+  return {
+    intelSectorId: null,
+    supplySectorId: null,
+    firstCrossFireEvent: null,
+    insertionQualifiedSectors: [],
+  };
+}
+
 export function createRogueRunState() {
   return {
     modeKey: "rogue",
@@ -57,6 +66,10 @@ export function createRogueRunState() {
     contractTarget: 1,
     contractCompleted: false,
     contractRewardGranted: false,
+    contractFailed: false,
+    contractFailureReason: "",
+    contractPenaltyApplied: false,
+    contractContext: createContractContext(),
     levelStats: {
       damageTaken: 0,
       safeReveals: 0,
