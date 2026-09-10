@@ -13,6 +13,7 @@ function createElementStub() {
   const classes = new Set();
   const listeners = new Map();
   const styleValues = new Map();
+  let innerHTML = "";
   const element = {
     textContent: "",
     hidden: false,
@@ -46,6 +47,13 @@ function createElementStub() {
     setAttribute() {},
     removeAttribute() {},
   };
+  Object.defineProperty(element, "innerHTML", {
+    get() { return innerHTML; },
+    set(value) {
+      innerHTML = String(value);
+      if (innerHTML === "") element.children.length = 0;
+    },
+  });
   return element;
 }
 

@@ -26,6 +26,14 @@ export function getRoguePrimaryAction({ markMode, selectedTool, revealed }) {
   return revealed ? "chord" : "reveal";
 }
 
+export function getRogueToolSelectionAfterAction(selectedTool, result) {
+  return result === "invalid" ? selectedTool : null;
+}
+
+export function getRogueToolButtonAction(selectedTool, toolKey) {
+  return selectedTool === toolKey ? "cancel" : "select";
+}
+
 function cellText(cell) {
   if (cell.flagged) return "🚩";
   if (cell.questioned) return "❓";
@@ -112,8 +120,12 @@ export function createRogueUI(elements) {
       }).text;
       button.append(title, description, resources);
       button.addEventListener("click", () => {
-        const result = boundHandlers?.onSelectTool?.(toolKey);
-        if (result) selectedTool = toolKey;
+        const action = getRogueToolButtonAction(selectedTool, toolKey);
+        const result = action === "cancel"
+          ? boundHandlers?.onCancelTool?.()
+          : boundHandlers?.onSelectTool?.(toolKey);
+        if (action === "cancel") selectedTool = null;
+        else if (result) selectedTool = toolKey;
         finishAction(result, null, null);
       });
       elements.rogueTools.appendChild(button);
@@ -203,6 +215,7 @@ export function createRogueUI(elements) {
               : action === "chord"
                 ? boundHandlers?.onChord?.(row, col)
                 : boundHandlers?.onReveal?.(row, col);
+          if (action === "tool") selectedTool = getRogueToolSelectionAfterAction(selectedTool, result);
           finishAction(result, row, col);
         });
         button.addEventListener("contextmenu", (event) => {
@@ -229,6 +242,7 @@ export function createRogueUI(elements) {
                 : action === "chord"
                   ? boundHandlers?.onChord?.(row, col)
                   : boundHandlers?.onReveal?.(row, col);
+            if (action === "tool") selectedTool = getRogueToolSelectionAfterAction(selectedTool, result);
             finishAction(result, row, col);
           }
         });

@@ -12,6 +12,8 @@ import {
   buildRogueCellAriaLabel,
   getRogueToolButtonState,
   getRoguePrimaryAction,
+  getRogueToolSelectionAfterAction,
+  getRogueToolButtonAction,
 } from "../src/rogue-ui.js";
 
 test("rogue run starts with the designed resources", () => {
@@ -257,4 +259,15 @@ test("rogue mark mode routes primary clicks to the mark action", () => {
   assert.equal(getRoguePrimaryAction({ markMode: "reveal", selectedTool: null, revealed: false }), "reveal");
   assert.equal(getRoguePrimaryAction({ markMode: "reveal", selectedTool: null, revealed: true }), "chord");
   assert.equal(getRoguePrimaryAction({ markMode: "reveal", selectedTool: "scoutPulse", revealed: false }), "tool");
+});
+
+test("successful tool use clears the UI tool selection", () => {
+  assert.equal(getRogueToolSelectionAfterAction("scoutPulse", "continue"), null);
+  assert.equal(getRogueToolSelectionAfterAction("scoutPulse", "invalid"), "scoutPulse");
+});
+
+test("clicking the selected rogue tool toggles it off", () => {
+  assert.equal(getRogueToolButtonAction("scoutPulse", "scoutPulse"), "cancel");
+  assert.equal(getRogueToolButtonAction("scoutPulse", "defusalKit"), "select");
+  assert.equal(getRogueToolButtonAction(null, "scoutPulse"), "select");
 });
