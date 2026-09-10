@@ -2672,18 +2672,18 @@
     ]);
 
     const ILLUSTRATION_ENTRIES = [
-      ["tool", "scoutPulse", "侦察脉冲", "主动道具", "显示附近 3×3 范围雷数的侦察脉冲效果图。"],
-      ["tool", "defusalKit", "拆雷装置", "主动道具", "拆除真雷或清除错误旗子的拆雷装置效果图。"],
-      ["tool", "reactionShield", "反应护盾", "主动道具", "挡住下一次踩雷伤害的反应护盾效果图。"],
-      ["special", "intel", "情报点", "特殊格", "找到后显示附近雷数的情报点效果图。"],
-      ["special", "supply", "补给点", "特殊格", "恢复能量并补充工具次数的补给点效果图。"],
-      ["upgrade", "storage", "储能核心", "强化道具", "增加能量上限并立即恢复能量的储能核心效果图。"],
-      ["upgrade", "chain", "连锁能源", "强化道具", "连续翻开安全区域后恢复能量的连锁能源效果图。"],
-      ["upgrade", "medical", "医疗组件", "强化道具", "增加生命上限并立即回血的医疗组件效果图。"],
-      ["upgrade", "toolBoost:scoutPulse", "工具增幅·侦察脉冲", "强化道具", "让下一层侦察脉冲多用一次的效果图。"],
-      ["upgrade", "toolBoost:defusalKit", "工具增幅·拆雷装置", "强化道具", "让下一层拆雷装置多用一次的效果图。"],
-      ["upgrade", "toolBoost:reactionShield", "工具增幅·反应护盾", "强化道具", "让下一层反应护盾多用一次的效果图。"],
-      ["upgrade", "supply", "补给箱", "强化道具", "让下一层三种工具各多用一次的效果图。"],
+      ["tool", "scoutPulse", "侦察脉冲", "主动道具", "游戏内画面：选中道具后，棋盘上会圈出被扫描的 3×3 格子。"],
+      ["tool", "defusalKit", "拆雷装置", "主动道具", "游戏内画面：先插旗，再对着旗子使用；真雷会被拆掉，假旗会变成安全区域。"],
+      ["tool", "reactionShield", "反应护盾", "主动道具", "游戏内画面：雷格被护盾挡住时，生命不减少，但护盾会消失。"],
+      ["special", "intel", "情报点", "特殊格", "游戏内画面：棋盘中带放大镜标记的特殊格，翻开或扫描它才能收集情报。"],
+      ["special", "supply", "补给点", "特殊格", "游戏内画面：棋盘中带箱子标记的特殊格，触发后恢复能量并补工具次数。"],
+      ["upgrade", "storage", "储能核心", "强化道具", "游戏内画面：能量条上限增加，并立即多出 1 点能量。"],
+      ["upgrade", "chain", "连锁能源", "强化道具", "游戏内画面：连续翻开安全区域后，连击会把能量送回能量条。"],
+      ["upgrade", "medical", "医疗组件", "强化道具", "游戏内画面：生命上限增加，并立即恢复 1 点生命。"],
+      ["upgrade", "toolBoost:scoutPulse", "工具增幅·侦察脉冲", "强化道具", "游戏内画面：下一层侦察脉冲的可用次数增加 1 次。"],
+      ["upgrade", "toolBoost:defusalKit", "工具增幅·拆雷装置", "强化道具", "游戏内画面：下一层拆雷装置的可用次数增加 1 次。"],
+      ["upgrade", "toolBoost:reactionShield", "工具增幅·反应护盾", "强化道具", "游戏内画面：下一层反应护盾的可用次数增加 1 次。"],
+      ["upgrade", "supply", "补给箱", "强化道具", "游戏内画面：下一层侦察、拆雷、护盾三种工具各增加 1 次。"],
     ];
 
     function clone(value) {
@@ -2823,7 +2823,7 @@
           cards: makeCards(catalog.upgrades, ({ label, description, guidance }) => ({ title: label, body: description, guidance })),
         },
         illustrations: {
-          intro: "下面的图片只是帮助你快速看懂每个道具和特殊格的作用，具体规则以旁边的文字为准。",
+          intro: "下面看到的是游戏里实际会遇到的格子和效果：棋盘格、数字、旗子、特殊点和道具作用都画在场景里，旁边文字说明对应图片中的变化。",
           illustrations: catalog.illustrations.map(({ path, title, category, alt, caption }) => ({
             path,
             title,

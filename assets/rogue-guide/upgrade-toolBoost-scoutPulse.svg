@@ -1,3 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
-  <rect width="320" height="200" rx="12" fill="#07152d"/><circle cx="132" cy="100" r="50" fill="#0c2b50" stroke="#35d8ff" stroke-width="4"/><circle cx="132" cy="100" r="15" fill="#35d8ff"/><path d="M132 42v116M74 100h116" stroke="#7c5cff" stroke-width="3"/><path d="M210 100h70M256 76l24 24-24 24" fill="none" stroke="#f1a33b" stroke-width="6"/><circle cx="235" cy="42" r="10" fill="#35d8ff"/><circle cx="265" cy="42" r="10" fill="#35d8ff"/>
+  <defs><linearGradient id="bg" x2="0" y2="1"><stop stop-color="#14273e"/><stop offset="1" stop-color="#071426"/></linearGradient></defs>
+  <rect width="320" height="200" rx="18" fill="url(#bg)"/>
+  <g fill="#102943" stroke="#294563" stroke-width="2"><rect x="31" y="55" width="42" height="42" rx="8"/><rect x="79" y="55" width="42" height="42" rx="8"/><rect x="127" y="55" width="42" height="42" rx="8"/><rect x="175" y="55" width="42" height="42" rx="8"/><rect x="223" y="55" width="42" height="42" rx="8"/></g>
+  <rect x="79" y="55" width="42" height="42" rx="8" fill="#17384e" stroke="#73e2ff" stroke-width="3"/><rect x="127" y="55" width="42" height="42" rx="8" fill="#17384e" stroke="#73e2ff" stroke-width="3"/><rect x="175" y="55" width="42" height="42" rx="8" fill="#17384e" stroke="#73e2ff" stroke-width="3"/>
+  <path d="M52 132h32M104 132h32M156 132h32" stroke="#64d8cb" stroke-width="7" stroke-linecap="round"/><circle cx="72" cy="132" r="9" fill="#ffd477"/><circle cx="124" cy="132" r="9" fill="#ffd477"/><circle cx="176" cy="132" r="9" fill="#ffd477"/>
+  <path d="M241 129h39M271 117l12 12-12 12" fill="none" stroke="#73e2ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

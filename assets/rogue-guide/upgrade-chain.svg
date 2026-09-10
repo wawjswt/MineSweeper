@@ -1,3 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
-  <rect width="320" height="200" rx="12" fill="#07152d"/><path d="M50 150L105 95l50 40 55-75 55 40" fill="none" stroke="#35d8ff" stroke-width="5"/><g fill="#0c2b50" stroke="#7c5cff" stroke-width="3"><circle cx="50" cy="150" r="16"/><circle cx="105" cy="95" r="16"/><circle cx="155" cy="135" r="16"/><circle cx="210" cy="60" r="16"/><circle cx="265" cy="100" r="16"/></g><path d="M105 95l50 40M155 135l55-75" stroke="#f1a33b" stroke-width="3"/><path d="M82 52h42M103 31v42" stroke="#35d8ff" stroke-width="3"/>
+  <defs><linearGradient id="bg" x2="0" y2="1"><stop stop-color="#15263d"/><stop offset="1" stop-color="#071426"/></linearGradient></defs>
+  <rect width="320" height="200" rx="18" fill="url(#bg)"/>
+  <g stroke="#294563" stroke-width="2">
+    <rect x="34" y="78" width="51" height="51" rx="9" fill="#17384e"/><rect x="93" y="78" width="51" height="51" rx="9" fill="#17384e"/><rect x="152" y="78" width="51" height="51" rx="9" fill="#17384e"/><rect x="211" y="78" width="51" height="51" rx="9" fill="#102943"/>
+  </g>
+  <path d="M52 105h15M111 105h15M170 105h15" stroke="#64d8cb" stroke-width="5" stroke-linecap="round"/><path d="m70 96 8 9-8 9M129 96l8 9-8 9M188 96l8 9-8 9" fill="none" stroke="#73e2ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M236 96v18M227 105h18" stroke="#ffd477" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="59" cy="59" r="12" fill="#193b4c" stroke="#64d8cb" stroke-width="3"/><circle cx="118" cy="59" r="12" fill="#193b4c" stroke="#64d8cb" stroke-width="3"/><circle cx="177" cy="59" r="12" fill="#193b4c" stroke="#64d8cb" stroke-width="3"/>
 </svg>
