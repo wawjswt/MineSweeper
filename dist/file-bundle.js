@@ -1720,6 +1720,53 @@
           streakAmount: 1,
         }),
       }),
+      Object.freeze({
+        id: "intelRelay",
+        label: "情报接力",
+        description: "先收集情报点，再在不同战区使用一次工具。",
+        target: 2,
+        progressLabel: "完成接力步骤",
+        reward: Object.freeze({
+          type: "toolBonus",
+          amount: 1,
+          toolKey: "scoutPulse",
+        }),
+      }),
+      Object.freeze({
+        id: "supplyRelay",
+        label: "补给转运",
+        description: "先收集补给点，再在不同战区揭开一个安全格。",
+        target: 2,
+        progressLabel: "完成转运步骤",
+        reward: Object.freeze({
+          type: "toolBonus",
+          amount: 1,
+          toolKey: "reactionShield",
+        }),
+      }),
+      Object.freeze({
+        id: "crossFire",
+        label: "交叉火力",
+        description: "使用两种不同工具，且分别作用于两个不同战区。",
+        target: 2,
+        progressLabel: "完成工具协同",
+        reward: Object.freeze({
+          type: "toolBonus",
+          amount: 1,
+          toolKey: "defusalKit",
+        }),
+      }),
+      Object.freeze({
+        id: "safeInsertion",
+        label: "分段突入",
+        description: "第一次受伤前，在两个不同战区各揭开至少 3 个安全格。",
+        target: 2,
+        progressLabel: "达标战区数",
+        reward: Object.freeze({
+          type: "score",
+          amount: 15,
+        }),
+      }),
     ]);
     
     function cloneDefinition(definition) {
