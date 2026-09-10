@@ -12,8 +12,7 @@ import { createGameLogic } from "./game.js";
 import { createUI } from "./ui.js";
 import { createRogueGame } from "./rogue-game.js";
 import {
-  createRogueGuideDialogController,
-  renderRogueGuideCatalog,
+  createRogueGuide,
 } from "./rogue-guide.js";
 import { createRogueUI } from "./rogue-ui.js";
 import { compressImageDataUrl, loadImageSource } from "./image.js";
@@ -438,15 +437,7 @@ const game = createGameLogic({
 });
 const rogueUI = createRogueUI(elements);
 const rogueGame = createRogueGame({ rng: Math.random });
-renderRogueGuideCatalog({
-  chapterNav: elements.rogueGuideChapters,
-  contentRoot: elements.rogueGuideContent,
-});
-const rogueGuideController = createRogueGuideDialogController({
-  dialog: elements.rogueGuideDialog,
-  trigger: elements.rogueGuideButton,
-  closeButton: elements.rogueGuideClose,
-});
+const rogueGuideController = createRogueGuide(elements);
 window.addEventListener("keydown", (event) => rogueGuideController.handleGlobalKeydown(event), true);
 window.__GAME_TABS__?.register("sweep", {
   onDeactivate: () => {

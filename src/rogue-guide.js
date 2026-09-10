@@ -348,3 +348,15 @@ export function createRogueGuideDialogController({ dialog, trigger, closeButton 
 
   return Object.freeze({ open, close, isOpen: () => Boolean(dialog?.open), handleGlobalKeydown });
 }
+
+export function createRogueGuide(elements = {}) {
+  renderRogueGuideCatalog({
+    chapterNav: elements.rogueGuideChapters,
+    contentRoot: elements.rogueGuideContent,
+  });
+  return createRogueGuideDialogController({
+    dialog: elements.rogueGuideDialog,
+    trigger: elements.rogueGuideButton,
+    closeButton: elements.rogueGuideClose,
+  });
+}

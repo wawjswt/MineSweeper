@@ -2963,10 +2963,23 @@
 
       return Object.freeze({ open, close, isOpen: () => Boolean(dialog?.open), handleGlobalKeydown });
     }
+
+    function createRogueGuide(elements = {}) {
+      renderRogueGuideCatalog({
+        chapterNav: elements.rogueGuideChapters,
+        contentRoot: elements.rogueGuideContent,
+      });
+      return createRogueGuideDialogController({
+        dialog: elements.rogueGuideDialog,
+        trigger: elements.rogueGuideButton,
+        closeButton: elements.rogueGuideClose,
+      });
+    }
     exports.getRogueGuideCatalog = getRogueGuideCatalog;
     exports.getRogueGuideRenderSections = getRogueGuideRenderSections;
     exports.renderRogueGuideCatalog = renderRogueGuideCatalog;
     exports.createRogueGuideDialogController = createRogueGuideDialogController;
+    exports.createRogueGuide = createRogueGuide;
   };
   moduleFactories["src/rogue-ui.js"] = function (exports, __require) {
     const { BOARD_METRICS: BOARD_METRICS } = __require("src/config.js");
@@ -3655,7 +3668,7 @@
     const { createGameLogic: createGameLogic } = __require("src/game.js");
     const { createUI: createUI } = __require("src/ui.js");
     const { createRogueGame: createRogueGame } = __require("src/rogue-game.js");
-    const { createRogueGuideDialogController: createRogueGuideDialogController, renderRogueGuideCatalog: renderRogueGuideCatalog } = __require("src/rogue-guide.js");
+    const { createRogueGuide: createRogueGuide } = __require("src/rogue-guide.js");
     const { createRogueUI: createRogueUI } = __require("src/rogue-ui.js");
     const { compressImageDataUrl: compressImageDataUrl, loadImageSource: loadImageSource } = __require("src/image.js");
     const { loadSettings: loadSettings, saveBackgroundOpacity: saveBackgroundOpacity, saveBackgroundUrl: saveBackgroundUrl, saveGenerationMode: saveGenerationMode, saveModeKey: saveModeKey, saveThemeKey: saveThemeKey } = __require("src/storage.js");
@@ -4072,15 +4085,7 @@
     });
     const rogueUI = createRogueUI(elements);
     const rogueGame = createRogueGame({ rng: Math.random });
-    renderRogueGuideCatalog({
-      chapterNav: elements.rogueGuideChapters,
-      contentRoot: elements.rogueGuideContent,
-    });
-    const rogueGuideController = createRogueGuideDialogController({
-      dialog: elements.rogueGuideDialog,
-      trigger: elements.rogueGuideButton,
-      closeButton: elements.rogueGuideClose,
-    });
+    const rogueGuideController = createRogueGuide(elements);
     window.addEventListener("keydown", (event) => rogueGuideController.handleGlobalKeydown(event), true);
     window.__GAME_TABS__?.register("sweep", {
       onDeactivate: () => {

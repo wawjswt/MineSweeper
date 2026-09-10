@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  createRogueGuide,
   createRogueGuideDialogController,
   getRogueGuideRenderSections,
   getRogueGuideCatalog,
@@ -39,6 +40,10 @@ test("tactical guide markup provides a labelled native dialog with stable naviga
   assert.match(indexHtml, /id=["']rogueGuideClose["']/);
   assert.match(indexHtml, /id=["']rogueGuideChapters["'][^>]*aria-label=/);
   assert.match(indexHtml, /id=["']rogueGuideContent["']/);
+});
+
+test("guide module exposes the application-level factory required by the page", () => {
+  assert.equal(typeof createRogueGuide, "function");
 });
 
 test("guide render model covers every catalog section and its dynamic card data", () => {
