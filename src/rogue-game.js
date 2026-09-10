@@ -517,7 +517,7 @@ export function createRogueGame({ rng = Math.random, levelFactory = createRogueL
     const level = currentState.level;
     if (toolKey === "reactionShield") {
       consumeTool(toolKey);
-      const contractNotice = recordToolUse(toolKey, row, col);
+      const contractNotice = recordToolUse(toolKey);
       level.shieldActive = true;
       selectedTool = null;
       currentState.notice = [

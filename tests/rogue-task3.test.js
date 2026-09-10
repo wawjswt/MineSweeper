@@ -167,6 +167,16 @@ test("cross fire requires two tools acting in two distinct sectors", () => {
   assert.equal(state.nextLevelToolBonus.defusalKit, 1);
 });
 
+test("global reaction shield does not pretend to act in the clicked sector", () => {
+  const game = createRogueGame({ rng: () => 0.25 });
+  const state = installRouteLevel(game, "crossFire", { rows: 2 });
+
+  assert.equal(game.selectTool("reactionShield"), true);
+  assert.equal(game.useSelectedTool(0, 5), "continue");
+  assert.equal(state.contractProgress, 0);
+  assert.equal(state.contractContext.firstCrossFireEvent, null);
+});
+
 test("safe insertion qualifies two sectors before actual damage and grants score", () => {
   const game = createRogueGame({ rng: () => 0.25 });
   const state = installRouteLevel(game, "safeInsertion");
