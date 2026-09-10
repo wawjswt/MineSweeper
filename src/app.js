@@ -10,6 +10,8 @@ import {
 import { makeState } from "./state.js";
 import { createGameLogic } from "./game.js";
 import { createUI } from "./ui.js";
+import { createRogueGame } from "./rogue-game.js";
+import { createRogueUI } from "./rogue-ui.js";
 import { compressImageDataUrl, loadImageSource } from "./image.js";
 import {
   loadSettings,
@@ -22,6 +24,27 @@ import {
 
 const elements = {
   boardEl: document.getElementById("board"),
+  classicHud: document.getElementById("classicHud"),
+  classicControls: document.getElementById("classicControls"),
+  classicHintCard: document.getElementById("classicHintCard"),
+  classicBoardWrap: document.getElementById("classicBoardWrap"),
+  sweepTitleEl: document.getElementById("sweepTitle"),
+  sweepTaglineEl: document.getElementById("sweepTagline"),
+  rogueView: document.getElementById("rogueView"),
+  rogueFloor: document.getElementById("rogueFloor"),
+  rogueLives: document.getElementById("rogueLives"),
+  rogueEnergy: document.getElementById("rogueEnergy"),
+  rogueScore: document.getElementById("rogueScore"),
+  rogueUpgradeSummary: document.getElementById("rogueUpgradeSummary"),
+  rogueTools: document.getElementById("rogueTools"),
+  rogueFeedback: document.getElementById("rogueFeedback"),
+  rogueBoard: document.getElementById("rogueBoard"),
+  rogueReward: document.getElementById("rogueReward"),
+  rogueRewardOptions: document.getElementById("rogueRewardOptions"),
+  rogueResult: document.getElementById("rogueResult"),
+  rogueResultTitle: document.getElementById("rogueResultTitle"),
+  rogueResultText: document.getElementById("rogueResultText"),
+  rogueResetButton: document.getElementById("rogueResetButton"),
   resetButton: document.getElementById("resetButton"),
   hintButton: document.getElementById("hintButton"),
   markModeButton: document.getElementById("markModeButton"),
@@ -67,6 +90,10 @@ function isHexMode() {
 
 function isRingMode() {
   return modeKey === "ring";
+}
+
+function isRogueMode() {
+  return modeKey === "rogue";
 }
 
 function getCatalog() {
@@ -280,6 +307,7 @@ function handleCycleMark(row, col) {
 }
 
 function handleHint() {
+  if (isRogueMode()) return;
   const hint = game.getHint();
   state.hint = hint.kind === "safe" || hint.kind === "mine" ? hint : null;
   noticeText = hint.message;
@@ -292,7 +320,40 @@ function handleHint() {
   });
 }
 
+function setRogueVisibility(visible) {
+  if (elements.classicHud) elements.classicHud.hidden = visible;
+  if (elements.classicHintCard) elements.classicHintCard.hidden = visible;
+  if (elements.classicBoardWrap) elements.classicBoardWrap.hidden = visible;
+  if (elements.rogueView) elements.rogueView.hidden = !visible;
+  if (elements.sweepTitleEl) elements.sweepTitleEl.textContent = visible ? "战术扫雷" : "扫雷";
+  if (elements.sweepTaglineEl) {
+    elements.sweepTaglineEl.textContent = visible
+      ? "管理生命与能量，使用工具穿越五层雷区。"
+      : "首点安全，理性推理，严谨通关。";
+  }
+}
+
+function renderRogue() {
+  rogueUI.render(rogueGame.getState(), rogueHandlers);
+}
+
+function resetRogueGame() {
+  game.resetTimer();
+  ui.resetTransientInputState();
+  rogueUI.resetTransientInputState();
+  rogueGame.reset();
+  clearVictoryFireworks();
+  setRogueVisibility(true);
+  ui.setMarkMode("reveal");
+  rogueUI.setMarkMode("reveal");
+  renderRogue();
+}
+
 function resetGame() {
+  if (isRogueMode()) {
+    resetRogueGame();
+    return;
+  }
   game.resetTimer();
   ui.resetTransientInputState();
   noticeText = "";
@@ -360,6 +421,24 @@ const game = createGameLogic({
   getDifficultySpec,
   getGenerationMode: () => generationMode,
 });
+const rogueUI = createRogueUI(elements);
+const rogueGame = createRogueGame({ rng: Math.random });
+const rogueHandlers = {
+  onReset: () => {
+    rogueGame.reset();
+    rogueUI.resetTransientInputState();
+    renderRogue();
+    return "continue";
+  },
+  onReveal: (row, col) => rogueGame.reveal(row, col),
+  onChord: (row, col) => rogueGame.chord(row, col),
+  onCycleMark: (row, col) => rogueGame.cycleMark(row, col),
+  onSelectTool: (toolKey) => rogueGame.selectTool(toolKey),
+  onUseTool: (row, col) => rogueGame.useSelectedTool(row, col),
+  onCancelTool: () => rogueGame.cancelTool(),
+  onChooseReward: (upgradeId) => rogueGame.chooseReward(upgradeId),
+  onAction: () => renderRogue(),
+};
 
 ui.bindHandlers({
   onReset: resetGame,
@@ -375,6 +454,7 @@ ui.bindHandlers({
     refreshDifficultyOptions();
     syncCustomDifficultyForm();
     updateGenerationModeVisibility();
+    setRogueVisibility(isRogueMode());
     resetGame();
   },
   onGenerationModeChange: (value) => {
@@ -383,6 +463,7 @@ ui.bindHandlers({
     ui.setGenerationMode(generationMode);
     resetGame();
   },
+  onMarkModeChange: (value) => rogueUI.setMarkMode(value),
   onApplyCustomDifficulty: () => {
     if (modeKey === "sudoku") return;
     const { rows, cols, mines } = getCustomFormValues();
@@ -419,6 +500,8 @@ ui.bindHandlers({
   },
 });
 
+rogueUI.bindHandlers(rogueHandlers);
+
 function applyTheme(themeKey) {
   const theme = THEMES[themeKey] || THEMES.dark;
   ui.setTheme(themeKey in THEMES ? themeKey : "dark");
@@ -435,7 +518,9 @@ function init() {
   refreshDifficultyOptions();
   syncCustomDifficultyForm();
   updateGenerationModeVisibility();
+  setRogueVisibility(isRogueMode());
   ui.setMarkMode("reveal");
+  rogueUI.setMarkMode("reveal");
   resetGame();
 }
 

@@ -309,7 +309,11 @@ export function createUI(elements) {
   function bindHandlers(handlers) {
     elements.resetButton?.addEventListener("click", handlers.onReset);
     elements.hintButton?.addEventListener("click", handlers.onHint);
-    elements.markModeButton?.addEventListener("click", () => setMarkMode(nextMarkMode(markMode)));
+    elements.markModeButton?.addEventListener("click", () => {
+      const nextMode = nextMarkMode(markMode);
+      setMarkMode(nextMode);
+      handlers.onMarkModeChange?.(nextMode);
+    });
     elements.difficultySelect?.addEventListener("change", (event) => handlers.onDifficultyChange(event.target.value));
     elements.modeSelect?.addEventListener("change", (event) => handlers.onModeChange(event.target.value));
     elements.generationModeSelect?.addEventListener("change", (event) => handlers.onGenerationModeChange(event.target.value));
