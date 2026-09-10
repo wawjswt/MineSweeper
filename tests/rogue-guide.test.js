@@ -38,8 +38,8 @@ test("rogue guide contains the complete canonical floor, contract, tool, special
     { id: "reactionShield", cost: 1, description: "抵挡本层下一次踩雷" },
   ]);
   assert.deepEqual(catalog.specialCells.map(({ id, effect }) => ({ id, effect })), [
-    { id: "intel", effect: "触发或扫描该格时，扫描一个 3×3 区域并报告其中的雷数。" },
-    { id: "supply", effect: "触发或扫描该格时，能量最多 +1（不超过能量上限），并为当前使用次数最少的工具补充 1 次使用。" },
+    { id: "intel", effect: "怎么用：直接翻开它，或用侦察脉冲点中它。结果：显示它周围 3×3 范围的雷数。" },
+    { id: "supply", effect: "怎么用：直接翻开它，或被拆雷装置触发。结果：能量最多恢复 1 点，并给当前剩余次数最少的工具补充 1 次。" },
   ]);
 });
 
@@ -66,4 +66,13 @@ test("contract catalog returns independent clones", () => {
   assert.equal(second[0].label, "零误触");
   assert.equal(second[0].reward.amount, 1);
   assert.deepEqual(second.map(({ id }) => id), expectedContractIds);
+});
+
+test("rogue guide explains tools in plain language without blueprint jargon", () => {
+  const catalog = getRogueGuideCatalog();
+  const illustrationSection = catalog.sections.find(({ id }) => id === "illustrations");
+
+  assert.equal(illustrationSection.title, "道具效果图");
+  assert.ok(catalog.tools.every(({ guidance }) => guidance.includes("怎么用") && guidance.includes("效果")));
+  assert.doesNotMatch(JSON.stringify(catalog), /蓝图|作战手册/);
 });

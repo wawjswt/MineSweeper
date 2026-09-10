@@ -2619,9 +2619,9 @@
     const { createRogueRunState: createRogueRunState } = __require("src/rogue-state.js");
 
     const TOOL_GUIDANCE = {
-      scoutPulse: "先选择工具，再点击未揭开的目标格。报告以目标为中心、边缘处裁切的 3×3 区域雷数；不会揭开这些格子或指出每颗雷的位置。只有目标格上的特殊点会被收集，扫描范围内其他特殊点不会连带触发。",
-      defusalKit: "必须先给目标插旗，再选择工具并点击该旗格。真雷会被拆除；假旗会被移除并揭开安全区域。点击未插旗的格子无效，不扣能量或次数，工具仍保持选中。",
-      reactionShield: "选择后还需点击棋盘一次才会启动，无需指定战区。只抵挡本层下一次踩雷，不会自动过层；已生效时不能重复开启。护盾没有战区落点，因此不计入跨战区工具契约。",
+      scoutPulse: "怎么用：先选中它，再点一个没有翻开的格子。效果：告诉你这个格子周围 3×3 范围里有几颗雷，但不会替你翻开格子，也不会告诉你每颗雷的具体位置。只有你点中的情报点会被收集。",
+      defusalKit: "怎么用：先给一个格子插旗，再选中它并点击这面旗。效果：如果旗子插对了，雷会被拆掉；如果插错了，旗子会被清除，并翻开这片安全区域。没有插旗的格子不能使用它。",
+      reactionShield: "怎么用：选中它后，再点一下棋盘就会开启。效果：本层下一次踩到雷时不会掉生命，但护盾会随即消失。同一时间只能开一个护盾，它不需要指定某个战区。",
     };
 
     const CONTRACT_GUIDANCE = {
@@ -2636,54 +2636,54 @@
     };
 
     const UPGRADE_GUIDANCE = {
-      storage: "适合经常能量见底的路线；提高上限后也更容易保留后续补给。",
-      chain: "按成功揭开安全区域的操作次数积累，一次空白连开多个格子仍只增加一次连击；踩雷会清空连击。",
-      medical: "适合生命不足时选择，提升生命上限并立即回血；生命并不会在过层时自动补满。",
-      "toolBoost:scoutPulse": "适合下一层先获取区域情报、规划跨区路线。",
-      "toolBoost:defusalKit": "适合处理已插旗的目标；同时要预留工具所需能量。",
-      "toolBoost:reactionShield": "提供更多可启动次数，但同一时刻只能有一个护盾生效。",
-      supply: "同时扩充三种工具的次数储备；额外次数不等于免费使用，仍需支付能量。",
+      storage: "效果：能量上限加 1，并马上获得 1 点能量。",
+      chain: "效果：连续成功翻开 3 次安全区域后获得 1 点能量；踩到雷会清空连击。",
+      medical: "效果：生命上限加 1，并马上恢复 1 点生命。",
+      "toolBoost:scoutPulse": "效果：下一层的侦察脉冲多 1 次使用机会。",
+      "toolBoost:defusalKit": "效果：下一层的拆雷装置多 1 次使用机会。",
+      "toolBoost:reactionShield": "效果：下一层的反应护盾多 1 次使用机会。",
+      supply: "效果：下一层的三种工具各多 1 次使用机会。",
     };
 
     const SPECIAL_CELL_DEFINITIONS = Object.freeze([
       Object.freeze({
         id: "intel",
         label: "情报点",
-        description: "收集后揭示附近区域的雷情报。",
-        effect: "触发或扫描该格时，扫描一个 3×3 区域并报告其中的雷数。",
+        description: "找到它后，可以查看附近一小片区域有多少雷。",
+        effect: "怎么用：直接翻开它，或用侦察脉冲点中它。结果：显示它周围 3×3 范围的雷数。",
       }),
       Object.freeze({
         id: "supply",
         label: "补给点",
-        description: "收集后恢复能量并补充工具。",
-        effect: "触发或扫描该格时，能量最多 +1（不超过能量上限），并为当前使用次数最少的工具补充 1 次使用。",
+        description: "找到它后，可以恢复能量并补充一种工具。",
+        effect: "怎么用：直接翻开它，或被拆雷装置触发。结果：能量最多恢复 1 点，并给当前剩余次数最少的工具补充 1 次。",
       }),
     ]);
 
     const SECTION_DEFINITIONS = Object.freeze([
-      { id: "overview", title: "行动概览", dataKey: "overview" },
-      { id: "floors", title: "楼层情报", dataKey: "floors" },
-      { id: "contracts", title: "战术契约", dataKey: "contracts" },
+      { id: "overview", title: "快速开始", dataKey: "overview" },
+      { id: "floors", title: "五层流程", dataKey: "floors" },
+      { id: "contracts", title: "任务契约", dataKey: "contracts" },
       { id: "special-cells", title: "特殊格", dataKey: "specialCells" },
       { id: "tools", title: "主动工具", dataKey: "tools" },
       { id: "upgrades", title: "战后强化", dataKey: "upgrades" },
-      { id: "illustrations", title: "战术图鉴", dataKey: "illustrations" },
-      { id: "tips", title: "行动提示", dataKey: "tips" },
+      { id: "illustrations", title: "道具效果图", dataKey: "illustrations" },
+      { id: "tips", title: "操作方法", dataKey: "tips" },
     ]);
 
     const ILLUSTRATION_ENTRIES = [
-      ["tool", "scoutPulse", "侦察脉冲", "主动工具", "显示 3×3 区域雷情报的侦察脉冲工具蓝图。"],
-      ["tool", "defusalKit", "拆雷装置", "主动工具", "拆除真雷或拆穿假旗的拆雷装置蓝图。"],
-      ["tool", "reactionShield", "反应护盾", "主动工具", "抵挡本层下一次踩雷的反应护盾蓝图。"],
-      ["special", "intel", "情报点", "特殊格", "标记附近雷情报的情报点蓝图。"],
-      ["special", "supply", "补给点", "特殊格", "恢复能量并补充工具使用次数的补给点蓝图。"],
-      ["upgrade", "storage", "储能核心", "战后强化", "提升最大能量并立即补充能量的储能核心蓝图。"],
-      ["upgrade", "chain", "连锁能源", "战后强化", "连续安全揭开后提供能量的连锁能源蓝图。"],
-      ["upgrade", "medical", "医疗组件", "战后强化", "提升最大生命并立即恢复生命的医疗组件蓝图。"],
-      ["upgrade", "toolBoost:scoutPulse", "工具增幅·侦察脉冲", "战后强化", "让下一层侦察脉冲增加一次使用次数的强化蓝图。"],
-      ["upgrade", "toolBoost:defusalKit", "工具增幅·拆雷装置", "战后强化", "让下一层拆雷装置增加一次使用次数的强化蓝图。"],
-      ["upgrade", "toolBoost:reactionShield", "工具增幅·反应护盾", "战后强化", "让下一层反应护盾增加一次使用次数的强化蓝图。"],
-      ["upgrade", "supply", "补给箱", "战后强化", "让下一层三种工具各增加一次使用次数的补给箱蓝图。"],
+      ["tool", "scoutPulse", "侦察脉冲", "主动道具", "显示附近 3×3 范围雷数的侦察脉冲效果图。"],
+      ["tool", "defusalKit", "拆雷装置", "主动道具", "拆除真雷或清除错误旗子的拆雷装置效果图。"],
+      ["tool", "reactionShield", "反应护盾", "主动道具", "挡住下一次踩雷伤害的反应护盾效果图。"],
+      ["special", "intel", "情报点", "特殊格", "找到后显示附近雷数的情报点效果图。"],
+      ["special", "supply", "补给点", "特殊格", "恢复能量并补充工具次数的补给点效果图。"],
+      ["upgrade", "storage", "储能核心", "强化道具", "增加能量上限并立即恢复能量的储能核心效果图。"],
+      ["upgrade", "chain", "连锁能源", "强化道具", "连续翻开安全区域后恢复能量的连锁能源效果图。"],
+      ["upgrade", "medical", "医疗组件", "强化道具", "增加生命上限并立即回血的医疗组件效果图。"],
+      ["upgrade", "toolBoost:scoutPulse", "工具增幅·侦察脉冲", "强化道具", "让下一层侦察脉冲多用一次的效果图。"],
+      ["upgrade", "toolBoost:defusalKit", "工具增幅·拆雷装置", "强化道具", "让下一层拆雷装置多用一次的效果图。"],
+      ["upgrade", "toolBoost:reactionShield", "工具增幅·反应护盾", "强化道具", "让下一层反应护盾多用一次的效果图。"],
+      ["upgrade", "supply", "补给箱", "强化道具", "让下一层三种工具各多用一次的效果图。"],
     ];
 
     function clone(value) {
@@ -2811,7 +2811,7 @@
           cards: makeCards(catalog.upgrades, ({ label, description, guidance }) => ({ title: label, body: description, guidance })),
         },
         illustrations: {
-          intro: "所有图示均为本地战术蓝图，对应当前工具、特殊格和强化。",
+          intro: "下面的图片只是帮助你快速看懂每个道具和特殊格的作用，具体规则以旁边的文字为准。",
           illustrations: catalog.illustrations.map(({ path, title, category, alt, caption }) => ({
             path,
             title,
