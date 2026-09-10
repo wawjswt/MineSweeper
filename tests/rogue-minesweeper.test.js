@@ -21,6 +21,7 @@ import {
   getRogueToolSelectionAfterAction,
   getRogueToolButtonAction,
   getRogueContractButtonState,
+  getRogueSpecialCellClasses,
 } from "../src/rogue-ui.js";
 
 test("rogue run starts with the designed resources", () => {
@@ -501,6 +502,18 @@ test("rogue contract buttons expose selection and disabled state", () => {
     pressed: true,
     ariaDisabled: false,
   });
+});
+
+test("rogue special-cell presentation classes reflect collection state", () => {
+  assert.deepEqual(
+    getRogueSpecialCellClasses({ special: "intel", specialCollected: false }),
+    ["rogue-cell--intel"],
+  );
+  assert.deepEqual(
+    getRogueSpecialCellClasses({ special: "supply", specialCollected: true }),
+    ["rogue-cell--supply", "rogue-cell--collected"],
+  );
+  assert.deepEqual(getRogueSpecialCellClasses({ special: null }), []);
 });
 
 test("rogue tool state exposes accessible selection and resource text", () => {

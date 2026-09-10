@@ -50,6 +50,14 @@ export function getRogueContractButtonState({ selected, disabled }) {
   };
 }
 
+export function getRogueSpecialCellClasses(cell) {
+  const classes = [];
+  if (cell?.special === "intel") classes.push("rogue-cell--intel");
+  if (cell?.special === "supply") classes.push("rogue-cell--supply");
+  if (classes.length && cell.specialCollected) classes.push("rogue-cell--collected");
+  return classes;
+}
+
 function cellText(cell) {
   if (cell.flagged) return "🚩";
   if (cell.questioned) return "❓";
@@ -290,9 +298,7 @@ export function createRogueUI(elements) {
         if (cell.neutralized) button.classList.add("neutralized");
         if (cell.exploded) button.classList.add("exploded");
         if (cell.revealed && cell.count > 0) button.classList.add(`num-${cell.count}`);
-        if (cell.special === "intel") button.classList.add("rogue-cell--intel");
-        if (cell.special === "supply") button.classList.add("rogue-cell--supply");
-        if (cell.specialCollected) button.classList.add("rogue-cell--collected");
+        for (const className of getRogueSpecialCellClasses(cell)) button.classList.add(className);
         const boardDisabled = state.selectedContract === null
           || state.level.ended
           || ["reward", "won", "lost"].includes(state.status);
