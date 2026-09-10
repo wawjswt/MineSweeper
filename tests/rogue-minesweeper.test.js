@@ -9,6 +9,11 @@ import {
 import { getRewardOptions } from "../src/rogue-items.js";
 import { createRogueGame } from "../src/rogue-game.js";
 import {
+  getContractDefinition,
+  getContractOptions,
+  getContractReward,
+} from "../src/rogue-contracts.js";
+import {
   buildRogueCellAriaLabel,
   getRogueToolButtonState,
   getRoguePrimaryAction,
@@ -28,6 +33,42 @@ test("rogue run starts with the designed resources", () => {
     scoutPulse: 1,
     defusalKit: 1,
     reactionShield: 1,
+  });
+  assert.deepEqual(state.contractOptions, []);
+  assert.equal(state.selectedContract, null);
+  assert.equal(state.contractProgress, 0);
+  assert.equal(state.contractTarget, 1);
+  assert.equal(state.contractCompleted, false);
+  assert.equal(state.contractRewardGranted, false);
+  assert.deepEqual(state.levelStats, {
+    damageTaken: 0,
+    safeReveals: 0,
+    toolsUsed: {},
+    trueMinesDefused: 0,
+    shieldedHits: 0,
+    specialCellsCollected: 0,
+  });
+});
+
+test("tactical contract definitions provide stable distinct options and rewards", () => {
+  const options = getContractOptions({ floor: 1, rng: () => 0.25 });
+  assert.equal(options.length, 2);
+  assert.equal(new Set(options.map(({ id }) => id)).size, 2);
+  assert.deepEqual(
+    ["noDamage", "reconnaissance", "controlledDemolition", "reservePower"].map(
+      (id) => getContractDefinition(id)?.id,
+    ),
+    ["noDamage", "reconnaissance", "controlledDemolition", "reservePower"],
+  );
+  assert.deepEqual(getContractReward("controlledDemolition"), {
+    type: "toolBonus",
+    amount: 1,
+    toolKey: "defusalKit",
+  });
+  assert.deepEqual(getContractReward("reservePower"), {
+    type: "score",
+    amount: 10,
+    streakAmount: 1,
   });
 });
 
