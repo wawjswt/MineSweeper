@@ -5,6 +5,7 @@ import {
   ROGUE_LEVELS,
   createRogueLevel,
   revealRogueFlood,
+  placeRogueSpecialCells,
 } from "../src/rogue-level.js";
 import { getRewardOptions } from "../src/rogue-items.js";
 import { createRogueGame } from "../src/rogue-game.js";
@@ -90,6 +91,21 @@ test("starting a rogue level keeps the first click neighborhood safe", () => {
   assert.equal(level.board.flat().filter((cell) => cell.mine).length, 8);
 });
 
+test("starting a rogue level places one intel and one supply outside the first-click neighborhood", () => {
+  const level = createRogueLevel({ floor: 1, safeRow: 3, safeCol: 3, rng: () => 0.25 });
+  const specials = level.board.flatMap((row, rowIndex) => row.map((cell, colIndex) => ({
+    row: rowIndex,
+    col: colIndex,
+    cell,
+  }))).filter(({ cell }) => cell.special);
+  assert.deepEqual(specials.map(({ cell }) => cell.special).sort(), ["intel", "supply"]);
+  for (const { row, col, cell } of specials) {
+    assert.equal(cell.mine, false);
+    assert.equal(Math.abs(row - 3) <= 1 && Math.abs(col - 3) <= 1, false);
+    assert.equal(cell.specialCollected, false);
+  }
+});
+
 test("rogue flood reveal visits each safe cell once", () => {
   const board = [
     [
@@ -105,6 +121,28 @@ test("rogue flood reveal visits each safe cell once", () => {
   ];
   assert.equal(revealRogueFlood(board, 0, 0, 2, 3), 5);
   assert.equal(board.flat().filter((cell) => cell.revealed).length, 5);
+});
+
+test("rogue flood reveal reports each newly revealed special cell once", () => {
+  const board = [
+    [
+      { mine: false, revealed: false, flagged: false, count: 0, special: "intel" },
+      { mine: false, revealed: false, flagged: false, count: 0 },
+      { mine: true, revealed: false, flagged: false, count: 0 },
+    ],
+    [
+      { mine: false, revealed: false, flagged: false, count: 0 },
+      { mine: false, revealed: false, flagged: false, count: 0, special: "supply" },
+      { mine: false, revealed: false, flagged: false, count: 1 },
+    ],
+  ];
+  const revealed = [];
+  assert.equal(revealRogueFlood(board, 0, 0, 2, 3, (cell, row, col) => {
+    revealed.push({ special: cell.special ?? null, row, col });
+  }), 5);
+  assert.equal(revealed.length, 5);
+  assert.deepEqual(revealed.filter(({ special }) => special).map(({ special }) => special).sort(), ["intel", "supply"]);
+  assert.equal(new Set(revealed.map(({ row, col }) => `${row},${col}`)).size, revealed.length);
 });
 
 function makeKnownLevel(game) {
