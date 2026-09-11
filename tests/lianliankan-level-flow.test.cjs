@@ -65,7 +65,7 @@ const elements = new Map();
 for (const id of [
   "lianliankanShell", "llkBoard", "llkTimer", "llkStatus", "llkLeft", "llkDifficulty",
   "llkNew", "llkShuffle", "llkHint", "llkPathLayer", "llkMode", "llkLevelPicker",
-  "llk3dStage", "llk3dToast", "llkTagline",
+  "llk3dStage", "llk3dToast", "llkTagline", "llkHintBtn", "llkChallengeResourceCard", "llkChallengeResources",
 ]) elements.set(id, element());
 const document = {
   getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
@@ -75,9 +75,11 @@ const document = {
 };
 elements.get("llkBoard").parentElement = { clientWidth: 720, getBoundingClientRect() { return { left: 0, top: 0, width: 720, height: 720 }; } };
 elements.get("llkPathLayer").parentElement = elements.get("llkBoard").parentElement;
+const intervalCallbacks = [];
+let virtualNow = 0;
 const sandbox = {
   document, console, Math, Date, Number, String, Array, Set, Map, Infinity,
-  location: { hash: "" }, performance: { now: () => Date.now() },
+  location: { hash: "" }, performance: { now: () => virtualNow },
   requestAnimationFrame(callback) { animationFrames.push(callback); }, addEventListener() {},
   setTimeout(callback, delay) {
     const timer = { callback, delay };
@@ -88,7 +90,15 @@ const sandbox = {
     const index = animationTimers.indexOf(timer);
     if (index >= 0) animationTimers.splice(index, 1);
   },
-  setInterval() { return null; }, clearInterval() {},
+  setInterval(callback, delay) {
+    const timer = { callback, delay };
+    intervalCallbacks.push(timer);
+    return timer;
+  },
+  clearInterval(timer) {
+    const index = intervalCallbacks.indexOf(timer);
+    if (index >= 0) intervalCallbacks.splice(index, 1);
+  },
 };
 const animationFrames = [];
 const animationTimers = [];
@@ -127,6 +137,40 @@ assert.deepStrictEqual(
   ],
   "drop plan should omit stationary cells and preserve source/target positions",
 );
+
+// 挑战模式配置与有限资源必须是纯逻辑、不可变地更新。
+assert.strictEqual(typeof flow.challengeConfig, "function", "challenge config helper should be exposed");
+assert.deepStrictEqual(plain(flow.challengeConfig()), {
+  timeLimitSeconds: 90,
+  hintLimit: 1,
+  shuffleLimit: 1,
+});
+assert.strictEqual(typeof flow.createChallengeState, "function", "challenge state helper should be exposed");
+let challengeState = flow.createChallengeState(flow.challengeConfig());
+assert.deepStrictEqual(plain(challengeState), {
+  timeLimitSeconds: 90,
+  hintsRemaining: 1,
+  shufflesRemaining: 1,
+});
+let challengeUse = flow.consumeChallengeResource(challengeState, "hint");
+assert.deepStrictEqual(plain(challengeUse), {
+  ok: true,
+  state: { timeLimitSeconds: 90, hintsRemaining: 0, shufflesRemaining: 1 },
+});
+assert.deepStrictEqual(plain(challengeState), {
+  timeLimitSeconds: 90,
+  hintsRemaining: 1,
+  shufflesRemaining: 1,
+}, "resource consumption must not mutate the previous challenge state");
+challengeUse = flow.consumeChallengeResource(challengeUse.state, "hint");
+assert.deepStrictEqual(plain(challengeUse), {
+  ok: false,
+  state: { timeLimitSeconds: 90, hintsRemaining: 0, shufflesRemaining: 1 },
+});
+assert.strictEqual(flow.remainingChallengeSeconds(90, 0), 90);
+assert.strictEqual(flow.remainingChallengeSeconds(90, 89_999), 1);
+assert.strictEqual(flow.remainingChallengeSeconds(90, 90_000), 0);
+assert.strictEqual(flow.remainingChallengeSeconds(90, 120_000), 0);
 
 // 真实关卡流程：连线完成后先锁定并淡出，再进入 FLIP 下落，完成后才解除锁定。
 {
@@ -175,6 +219,46 @@ assert.deepStrictEqual(
   assert.strictEqual(elements.get("llkStatus").textContent, "第 1 关，待开始", "old animation must not update new-game status");
   assert.strictEqual(board.children.filter((cell) => cell.classList.contains("is-dropping")).length, 0,
     "old animation must not leave drop classes on the new board");
+}
+
+// 挑战模式限制提示/重排次数，并以 90 秒倒计时结束本局。
+{
+  const mode = elements.get("llkMode");
+  const board = elements.get("llkBoard");
+  const newButton = elements.get("llkNew");
+  const shuffleButton = elements.get("llkShuffle");
+  const hintButton = elements.get("llkHintBtn");
+  const resourceCard = elements.get("llkChallengeResourceCard");
+  const resources = elements.get("llkChallengeResources");
+  const timer = elements.get("llkTimer");
+  mode.value = "challenge";
+  mode.fire("change");
+  assert.strictEqual(resourceCard.hidden, false, "challenge resources should be visible in challenge mode");
+  assert.strictEqual(resources.textContent, "提示 1 · 重排 1");
+  assert.strictEqual(timer.textContent, "1:30", "challenge mode should show its time limit before starting");
+
+  hintButton.fire("click");
+  assert.strictEqual(resources.textContent, "提示 0 · 重排 1", "challenge hint should be consumable once");
+  hintButton.fire("click");
+  assert.strictEqual(resources.textContent, "提示 0 · 重排 1", "an exhausted hint must not be consumed again");
+
+  shuffleButton.fire("click");
+  assert.strictEqual(resources.textContent, "提示 0 · 重排 0", "challenge shuffle should be consumable once");
+  shuffleButton.fire("click");
+  assert.strictEqual(resources.textContent, "提示 0 · 重排 0", "an exhausted shuffle must not be consumed again");
+
+  newButton.fire("click");
+  board.children[7].fire("click");
+  assert.strictEqual(intervalCallbacks.length, 1, "starting a challenge should start one countdown timer");
+  virtualNow = 89_999;
+  intervalCallbacks[0].callback();
+  assert.strictEqual(timer.textContent, "0:01");
+  virtualNow = 90_000;
+  intervalCallbacks[0].callback();
+  assert.strictEqual(timer.textContent, "0:00");
+  assert.strictEqual(elements.get("llkStatus").textContent, "时间到，挑战失败");
+  assert.strictEqual(intervalCallbacks.length, 0, "expired challenge should stop its timer");
+  assert.strictEqual(resources.textContent, "提示 1 · 重排 1", "new challenge should reset limited resources");
 }
 
 // 评分错误（基础分、层数或 3 秒窗口）应使本组断言失败。

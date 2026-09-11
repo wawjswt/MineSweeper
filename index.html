@@ -311,6 +311,7 @@
               <select id="llkMode" aria-label="选择连连看玩法">
                 <option value="classic" selected>经典 2D</option>
                 <option value="levels">关卡模式</option>
+                <option value="challenge">限时挑战</option>
                 <option value="3d">3D 立体</option>
               </select>
             </label>
@@ -350,6 +351,10 @@
           <div class="hud-card">
             <span class="hud-label">Combo</span>
             <strong id="llkCombo">×0</strong>
+          </div>
+          <div class="hud-card llk-challenge-resources" id="llkChallengeResourceCard" hidden>
+            <span class="hud-label">挑战资源</span>
+            <strong id="llkChallengeResources" aria-live="polite">提示 1 · 重排 1</strong>
           </div>
         </section>
 

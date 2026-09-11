@@ -1760,6 +1760,11 @@ main.app-shell[hidden],
   margin-bottom: 14px;
 }
 
+.llk-challenge-resources strong,
+.llk-mode-challenge #llkTimer {
+  color: var(--accent);
+}
+
 .llk-level-picker {
   display: flex;
   flex-wrap: wrap;
