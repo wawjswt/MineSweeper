@@ -83,6 +83,13 @@ const expected = [
   [8, 10, 16, 4, 15],
   [10, 10, 20, 4, 19],
 ];
+const expectedChallenges = [
+  { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 1 },
+  { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 1 },
+  { timeLimitSeconds: 70, hintLimit: 1, shuffleLimit: 0 },
+  { timeLimitSeconds: 60, hintLimit: 0, shuffleLimit: 1 },
+  { timeLimitSeconds: 50, hintLimit: 0, shuffleLimit: 0 },
+];
 assert.strictEqual(levels.length, 5);
 for (let i = 0; i < levels.length; i++) {
   const level = levels[i];
@@ -91,6 +98,7 @@ for (let i = 0; i < levels.length; i++) {
   assert.strictEqual(level.rows, rows);
   assert.strictEqual(level.cols, cols);
   assert.strictEqual(level.kinds, kinds);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(level.challenge)), expectedChallenges[i]);
   assert.strictEqual(level.layout.length, rows * cols);
   assert.strictEqual(level.layout.filter((v) => v === -1).length, obstacles);
   assert.strictEqual(level.layout.filter((v) => v === 0).length, empty);

@@ -65,6 +65,7 @@
       rows: 6,
       cols: 6,
       kinds: 7,
+      challenge: { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 1 },
       layout: makeLayout(6, 6, [0, 5, 30, 35], [8, 15, 20, 27], 7, [7, 14]),
     },
     {
@@ -73,6 +74,7 @@
       rows: 6,
       cols: 8,
       kinds: 9,
+      challenge: { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 1 },
       layout: makeLayout(6, 8, [0, 1, 6, 7, 40, 41, 46, 47], [10, 17, 30, 37], 9, [9, 18]),
     },
     {
@@ -81,6 +83,7 @@
       rows: 8,
       cols: 8,
       kinds: 12,
+      challenge: { timeLimitSeconds: 70, hintLimit: 1, shuffleLimit: 0 },
       layout: makeLayout(8, 8, [0, 1, 6, 7, 8, 15, 48, 55, 56, 57, 62, 63], [10, 17, 42, 49], 12, [9, 18]),
     },
     {
@@ -89,6 +92,7 @@
       rows: 8,
       cols: 10,
       kinds: 15,
+      challenge: { timeLimitSeconds: 60, hintLimit: 0, shuffleLimit: 1 },
       layout: makeLayout(8, 10, [1, 2, 7, 8, 11, 12, 17, 18, 61, 62, 67, 68, 71, 72, 77, 78], [23, 34, 45, 56], 15, [22, 33]),
     },
     {
@@ -97,6 +101,7 @@
       rows: 10,
       cols: 10,
       kinds: 19,
+      challenge: { timeLimitSeconds: 50, hintLimit: 0, shuffleLimit: 0 },
       layout: makeLayout(10, 10, [0, 1, 8, 9, 10, 11, 18, 19, 44, 45, 54, 55, 80, 81, 88, 89, 90, 91, 98, 99], [23, 34, 65, 76], 19, [22, 33]),
     },
   ];

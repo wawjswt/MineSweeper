@@ -1765,6 +1765,22 @@ main.app-shell[hidden],
   color: var(--accent);
 }
 
+.llk-challenge-result {
+  grid-column: span 2;
+}
+
+.llk-challenge-result strong {
+  color: var(--accent);
+  letter-spacing: 0.14em;
+}
+
+.llk-challenge-result-text {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .llk-level-picker {
   display: flex;
   flex-wrap: wrap;
@@ -1933,6 +1949,12 @@ main.app-shell[hidden],
 @media (max-width: 480px) {
   .llk-hud .hud-card {
     padding: 8px 10px;
+  }
+}
+
+@media (max-width: 560px) {
+  .llk-challenge-result {
+    grid-column: auto;
   }
 }
 

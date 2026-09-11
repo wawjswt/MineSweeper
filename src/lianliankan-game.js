@@ -136,6 +136,22 @@
     return Math.max(0, safeLimit - Math.floor(safeElapsed / 1000));
   }
 
+  function challengeRating(input) {
+    const source = input && typeof input === "object" ? input : {};
+    const limit = Number(source.timeLimitSeconds);
+    const elapsed = Number(source.elapsedSeconds);
+    const combo = Number(source.maxCombo);
+    const safeLimit = Number.isFinite(limit) ? Math.max(0, limit) : CHALLENGE_CONFIG.timeLimitSeconds;
+    const safeElapsed = Number.isFinite(elapsed) ? Math.max(0, elapsed) : safeLimit;
+    const safeCombo = Number.isFinite(combo) ? Math.max(0, combo) : 0;
+    if (safeElapsed > safeLimit) return { stars: 0, label: "未完成" };
+
+    let stars = 1;
+    if (safeLimit > 0 && safeElapsed <= safeLimit * 0.75) stars = 2;
+    if (safeLimit > 0 && safeElapsed <= safeLimit * 0.5 && safeCombo >= 3) stars = 3;
+    return { stars, label: ["未完成", "一星", "二星", "三星"][stars] };
+  }
+
   /* 坐标是否为棋盘外虚拟通道(恒视为空) */
   function isOutside(rows, cols, r, c) {
     return r < 0 || r >= rows || c < 0 || c >= cols;
@@ -391,14 +407,20 @@
       if (!result || typeof result !== "object" || Array.isArray(result) ||
           !Number.isFinite(result.score) || result.score < 0 ||
           !Number.isFinite(result.time) || result.time < 0 ||
-          !Number.isFinite(result.combo) || result.combo < 0) {
+          !Number.isFinite(result.combo) || result.combo < 0 ||
+          (Object.prototype.hasOwnProperty.call(result, "stars") &&
+            (!Number.isFinite(result.stars) || result.stars < 1 || result.stars > 3))) {
         return defaultLevelProgress();
       }
-      completed[key] = {
+      const normalizedResult = {
         score: Math.floor(result.score),
         time: Math.floor(result.time),
         combo: Math.floor(result.combo),
       };
+      if (Object.prototype.hasOwnProperty.call(result, "stars")) {
+        normalizedResult.stars = Math.floor(result.stars);
+      }
+      completed[key] = normalizedResult;
       highestCompleted = Math.max(highestCompleted, Number(key));
     }
     for (let id = 1; id <= highestCompleted; id += 1) {
@@ -439,11 +461,20 @@
     const score = Number.isFinite(source.score) && source.score >= 0 ? Math.floor(source.score) : 0;
     const time = Number.isFinite(source.time) && source.time >= 0 ? Math.floor(source.time) : 0;
     const combo = Number.isFinite(source.combo) && source.combo >= 0 ? Math.floor(source.combo) : 0;
-    current.completed[key] = {
+    const stars = Number.isFinite(source.stars) && source.stars >= 1 && source.stars <= 3
+      ? Math.floor(source.stars)
+      : null;
+    const completion = {
       score: previous ? Math.max(previous.score, score) : score,
       time: previous ? Math.min(previous.time, time) : time,
       combo: previous ? Math.max(previous.combo, combo) : combo,
     };
+    if (stars !== null || (previous && Number.isInteger(previous.stars))) {
+      completion.stars = previous && Number.isInteger(previous.stars)
+        ? Math.max(previous.stars, stars || 0)
+        : stars;
+    }
+    current.completed[key] = completion;
     current.unlockedLevel = Math.max(current.unlockedLevel, numericLevelId + 1);
     return current;
   }
@@ -525,6 +556,9 @@
   const comboEl = document.getElementById("llkCombo");
   const challengeResourcesEl = document.getElementById("llkChallengeResources");
   const challengeResourceCardEl = document.getElementById("llkChallengeResourceCard");
+  const challengeResultEl = document.getElementById("llkChallengeResult");
+  const challengeStarsEl = document.getElementById("llkChallengeStars");
+  const challengeResultTextEl = document.getElementById("llkChallengeResultText");
   const levelPickerEl = document.getElementById("llkLevelPicker");
   let statusRevision = 0;
   let transientStatus = null;
@@ -635,6 +669,22 @@
     }
   }
 
+  function clearChallengeResult() {
+    if (challengeResultEl) challengeResultEl.hidden = true;
+    if (challengeStarsEl) challengeStarsEl.textContent = "☆☆☆";
+    if (challengeResultTextEl) challengeResultTextEl.textContent = "";
+  }
+
+  function renderChallengeResult(rating, detail) {
+    if (!challengeResultEl) return;
+    const stars = rating && Number.isInteger(rating.stars)
+      ? Math.max(0, Math.min(3, rating.stars))
+      : 0;
+    challengeResultEl.hidden = false;
+    if (challengeStarsEl) challengeStarsEl.textContent = "★".repeat(stars) + "☆".repeat(3 - stars);
+    if (challengeResultTextEl) challengeResultTextEl.textContent = detail || (rating ? rating.label : "未完成");
+  }
+
   function awardPair() {
     const next = scorePairForMode({
       score: game.score,
@@ -737,6 +787,7 @@
       game.startAt = null;
     }
     renderTimer();
+    renderChallengeResult({ stars: 0, label: "未完成" }, "未完成 · 时间到");
     clearSelection();
     setLeft();
     shell.classList.remove("llk-won");
@@ -1100,6 +1151,7 @@
 
   function win() {
     if (game.ended) return;
+    const challengeRun = isChallengeMode();
     game.ended = true;
     game.paused = false;
     stopTimer();
@@ -1111,14 +1163,24 @@
     if (isLevelMode()) {
       game.score = applyLevelClearBonus(game.score, true);
       renderScore();
-      game.progress = recordLevelCompletion(game.progress, game.levelId, {
+      const result = {
         score: game.score,
         time: elapsedSeconds(),
         combo: game.maxCombo,
-      });
+      };
+      const rating = challengeRun ? challengeRating({
+        timeLimitSeconds: game.challenge.timeLimitSeconds,
+        elapsedSeconds: result.time,
+        maxCombo: result.combo,
+      }) : null;
+      if (rating) {
+        result.stars = rating.stars;
+        renderChallengeResult(rating, rating.label + " · 用时 " + result.time + " 秒");
+      }
+      game.progress = recordLevelCompletion(game.progress, game.levelId, result);
       writeLevelProgress(game.progress, getLocalStorage());
       renderLevelPicker();
-      setStatus(isChallengeMode()
+      setStatus(challengeRun
         ? "第 " + game.levelId + " 关挑战成功 🎉"
         : "第 " + game.levelId + " 关通关 🎉");
     } else {
@@ -1209,6 +1271,7 @@
     game.challenge = null;
     stopTimer();
     resetRunStats();
+    clearChallengeResult();
     shell.classList.remove("llk-won");
     if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
     setStatus("待开始");
@@ -1235,12 +1298,18 @@
     for (let i = 0; i < entries.length; i++) {
       const level = entries[i];
       const locked = level.id > game.progress.unlockedLevel;
+      const challengeProfile = llkModeKey === "challenge" ? level.challenge : null;
+      const challengeText = challengeProfile ? " · " + formatTime(challengeProfile.timeLimitSeconds) : "";
+      const challengeLabel = challengeProfile
+        ? "，限时 " + formatTime(challengeProfile.timeLimitSeconds) +
+          "，提示 " + challengeProfile.hintLimit + " 次，重排 " + challengeProfile.shuffleLimit + " 次"
+        : "";
       const button = document.createElement("button");
       button.type = "button";
       button.className = "llk-level-btn";
       button.disabled = locked;
-      button.textContent = "第 " + level.id + " 关 · " + level.name + (locked ? "（未解锁）" : "");
-      button.setAttribute("aria-label", "第 " + level.id + " 关 " + level.name + (locked ? "，未解锁" : "，可开始"));
+      button.textContent = "第 " + level.id + " 关 · " + level.name + challengeText + (locked ? "（未解锁）" : "");
+      button.setAttribute("aria-label", "第 " + level.id + " 关 " + level.name + challengeLabel + (locked ? "，未解锁" : "，可开始"));
       button.classList.toggle("is-current", game.levelId === level.id);
       button.addEventListener("click", () => {
         if (!locked) startLevel(level.id);
@@ -1270,9 +1339,10 @@
     game.startAt = null;
     game.busy = false;
     game.levelId = level.id;
-    game.challenge = challengeRun ? createChallengeState(CHALLENGE_CONFIG) : null;
+    game.challenge = challengeRun ? createChallengeState(level.challenge || CHALLENGE_CONFIG) : null;
     stopTimer();
     resetRunStats();
+    clearChallengeResult();
     shell.classList.remove("llk-won");
     if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
     setStatus(challengeRun ? "第 " + level.id + " 关挑战，待开始" : "第 " + level.id + " 关，待开始");
@@ -2553,6 +2623,7 @@
     game.challenge = null;
     stopTimer();
     resetRunStats();
+    clearChallengeResult();
     shell.classList.remove("llk-won");
     if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
     setStatus("待开始");
@@ -2737,6 +2808,7 @@
         createChallengeState,
         consumeChallengeResource,
         remainingChallengeSeconds,
+        challengeRating,
         isSelectable: isSelectableTile,
         findHintPair,
         defaultProgress: defaultLevelProgress,

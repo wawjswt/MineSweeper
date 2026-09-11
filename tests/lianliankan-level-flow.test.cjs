@@ -66,6 +66,7 @@ for (const id of [
   "lianliankanShell", "llkBoard", "llkTimer", "llkStatus", "llkLeft", "llkDifficulty",
   "llkNew", "llkShuffle", "llkHint", "llkPathLayer", "llkMode", "llkLevelPicker",
   "llk3dStage", "llk3dToast", "llkTagline", "llkHintBtn", "llkChallengeResourceCard", "llkChallengeResources",
+  "llkChallengeResult", "llkChallengeStars", "llkChallengeResultText",
 ]) elements.set(id, element());
 const document = {
   getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
@@ -171,6 +172,34 @@ assert.strictEqual(flow.remainingChallengeSeconds(90, 0), 90);
 assert.strictEqual(flow.remainingChallengeSeconds(90, 89_999), 1);
 assert.strictEqual(flow.remainingChallengeSeconds(90, 90_000), 0);
 assert.strictEqual(flow.remainingChallengeSeconds(90, 120_000), 0);
+assert.strictEqual(typeof flow.challengeRating, "function", "challenge rating helper should be exposed");
+assert.deepStrictEqual(plain(flow.challengeRating({ timeLimitSeconds: 90, elapsedSeconds: 40, maxCombo: 3 })), {
+  stars: 3,
+  label: "三星",
+});
+assert.deepStrictEqual(plain(flow.challengeRating({ timeLimitSeconds: 90, elapsedSeconds: 60, maxCombo: 0 })), {
+  stars: 2,
+  label: "二星",
+});
+assert.deepStrictEqual(plain(flow.challengeRating({ timeLimitSeconds: 90, elapsedSeconds: 90, maxCombo: 0 })), {
+  stars: 1,
+  label: "一星",
+});
+assert.deepStrictEqual(plain(flow.challengeRating({ timeLimitSeconds: 90, elapsedSeconds: 91, maxCombo: 8 })), {
+  stars: 0,
+  label: "未完成",
+});
+assert.deepStrictEqual(
+  plain(sandbox.__LLK_LEVELS__.levels.map((level) => level.challenge)),
+  [
+    { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 1 },
+    { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 1 },
+    { timeLimitSeconds: 70, hintLimit: 1, shuffleLimit: 0 },
+    { timeLimitSeconds: 60, hintLimit: 0, shuffleLimit: 1 },
+    { timeLimitSeconds: 50, hintLimit: 0, shuffleLimit: 0 },
+  ],
+  "challenge profiles should tighten across levels",
+);
 
 // 真实关卡流程：连线完成后先锁定并淡出，再进入 FLIP 下落，完成后才解除锁定。
 {
@@ -230,10 +259,17 @@ assert.strictEqual(flow.remainingChallengeSeconds(90, 120_000), 0);
   const hintButton = elements.get("llkHintBtn");
   const resourceCard = elements.get("llkChallengeResourceCard");
   const resources = elements.get("llkChallengeResources");
+  const resultCard = elements.get("llkChallengeResult");
+  const stars = elements.get("llkChallengeStars");
+  const resultText = elements.get("llkChallengeResultText");
   const timer = elements.get("llkTimer");
+  const picker = elements.get("llkLevelPicker");
   mode.value = "challenge";
   mode.fire("change");
   assert.strictEqual(resourceCard.hidden, false, "challenge resources should be visible in challenge mode");
+  assert.strictEqual(resultCard.hidden, true, "challenge result should be hidden before the run ends");
+  assert(picker.children[0].textContent.includes("1:30"), "level picker should show level 1 challenge time");
+  assert(picker.children[1].textContent.includes("1:20"), "level picker should show level 2 challenge time");
   assert.strictEqual(resources.textContent, "提示 1 · 重排 1");
   assert.strictEqual(timer.textContent, "1:30", "challenge mode should show its time limit before starting");
 
@@ -259,6 +295,9 @@ assert.strictEqual(flow.remainingChallengeSeconds(90, 120_000), 0);
   assert.strictEqual(elements.get("llkStatus").textContent, "时间到，挑战失败");
   assert.strictEqual(intervalCallbacks.length, 0, "expired challenge should stop its timer");
   assert.strictEqual(resources.textContent, "提示 1 · 重排 1", "new challenge should reset limited resources");
+  assert.strictEqual(resultCard.hidden, false, "challenge result should be visible after timeout");
+  assert.strictEqual(stars.textContent, "☆☆☆");
+  assert.strictEqual(resultText.textContent, "未完成 · 时间到");
 }
 
 // 评分错误（基础分、层数或 3 秒窗口）应使本组断言失败。
@@ -322,6 +361,10 @@ assert.deepStrictEqual(plain(progress.completed["1"]), { score: 620, time: 31, c
 assert.strictEqual(flow.writeProgress(progress, storage), true);
 assert.strictEqual(storage.key, "lianliankan-level-progress-v1");
 assert.deepStrictEqual(plain(flow.readProgress(storage)), plain(progress));
+let ratedProgress = flow.recordCompletion(flow.defaultProgress(), 1, { score: 620, time: 38, combo: 4, stars: 2 });
+assert.strictEqual(ratedProgress.completed["1"].stars, 2);
+ratedProgress = flow.recordCompletion(ratedProgress, 1, { score: 500, time: 31, combo: 2, stars: 1 });
+assert.strictEqual(ratedProgress.completed["1"].stars, 2, "best challenge rating should be retained");
 
 // 无解时自动洗牌：障碍、图案多重集合与分数不应改变，且结果必须有可用配对。
 const deadGrid = [
