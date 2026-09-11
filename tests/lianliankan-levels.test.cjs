@@ -84,10 +84,10 @@ const expected = [
   [10, 10, 20, 4, 19],
 ];
 const expectedChallenges = [
-  { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 1 },
-  { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 1 },
+  { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 0 },
+  { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 0 },
   { timeLimitSeconds: 70, hintLimit: 1, shuffleLimit: 0 },
-  { timeLimitSeconds: 60, hintLimit: 0, shuffleLimit: 1 },
+  { timeLimitSeconds: 60, hintLimit: 0, shuffleLimit: 0 },
   { timeLimitSeconds: 50, hintLimit: 0, shuffleLimit: 0 },
 ];
 assert.strictEqual(levels.length, 5);

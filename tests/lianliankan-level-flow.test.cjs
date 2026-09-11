@@ -144,29 +144,29 @@ assert.strictEqual(typeof flow.challengeConfig, "function", "challenge config he
 assert.deepStrictEqual(plain(flow.challengeConfig()), {
   timeLimitSeconds: 90,
   hintLimit: 1,
-  shuffleLimit: 1,
+  shuffleLimit: 0,
 });
 assert.strictEqual(typeof flow.createChallengeState, "function", "challenge state helper should be exposed");
 let challengeState = flow.createChallengeState(flow.challengeConfig());
 assert.deepStrictEqual(plain(challengeState), {
   timeLimitSeconds: 90,
   hintsRemaining: 1,
-  shufflesRemaining: 1,
+  shufflesRemaining: 0,
 });
 let challengeUse = flow.consumeChallengeResource(challengeState, "hint");
 assert.deepStrictEqual(plain(challengeUse), {
   ok: true,
-  state: { timeLimitSeconds: 90, hintsRemaining: 0, shufflesRemaining: 1 },
+  state: { timeLimitSeconds: 90, hintsRemaining: 0, shufflesRemaining: 0 },
 });
 assert.deepStrictEqual(plain(challengeState), {
   timeLimitSeconds: 90,
   hintsRemaining: 1,
-  shufflesRemaining: 1,
+  shufflesRemaining: 0,
 }, "resource consumption must not mutate the previous challenge state");
 challengeUse = flow.consumeChallengeResource(challengeUse.state, "hint");
 assert.deepStrictEqual(plain(challengeUse), {
   ok: false,
-  state: { timeLimitSeconds: 90, hintsRemaining: 0, shufflesRemaining: 1 },
+  state: { timeLimitSeconds: 90, hintsRemaining: 0, shufflesRemaining: 0 },
 });
 assert.strictEqual(flow.remainingChallengeSeconds(90, 0), 90);
 assert.strictEqual(flow.remainingChallengeSeconds(90, 89_999), 1);
@@ -192,13 +192,13 @@ assert.deepStrictEqual(plain(flow.challengeRating({ timeLimitSeconds: 90, elapse
 assert.deepStrictEqual(
   plain(sandbox.__LLK_LEVELS__.levels.map((level) => level.challenge)),
   [
-    { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 1 },
-    { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 1 },
+    { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 0 },
+    { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 0 },
     { timeLimitSeconds: 70, hintLimit: 1, shuffleLimit: 0 },
-    { timeLimitSeconds: 60, hintLimit: 0, shuffleLimit: 1 },
+    { timeLimitSeconds: 60, hintLimit: 0, shuffleLimit: 0 },
     { timeLimitSeconds: 50, hintLimit: 0, shuffleLimit: 0 },
   ],
-  "challenge profiles should tighten across levels",
+  "challenge profiles should use automatic reshuffling on every level",
 );
 
 // 真实关卡流程：连线完成后先锁定并淡出，再进入 FLIP 下落，完成后才解除锁定。
@@ -250,7 +250,7 @@ assert.deepStrictEqual(
     "old animation must not leave drop classes on the new board");
 }
 
-// 挑战模式限制提示/重排次数，并以 90 秒倒计时结束本局。
+// 挑战模式限制提示次数、禁止手动重排，并以 90 秒倒计时结束本局。
 {
   const mode = elements.get("llkMode");
   const board = elements.get("llkBoard");
@@ -270,18 +270,21 @@ assert.deepStrictEqual(
   assert.strictEqual(resultCard.hidden, true, "challenge result should be hidden before the run ends");
   assert(picker.children[0].textContent.includes("1:30"), "level picker should show level 1 challenge time");
   assert(picker.children[1].textContent.includes("1:20"), "level picker should show level 2 challenge time");
-  assert.strictEqual(resources.textContent, "提示 1 · 重排 1");
+  assert.strictEqual(shuffleButton.disabled, true, "challenge mode should disable manual shuffle");
+  assert.strictEqual(resources.textContent, "提示 1 · 自动重排");
   assert.strictEqual(timer.textContent, "1:30", "challenge mode should show its time limit before starting");
 
   hintButton.fire("click");
-  assert.strictEqual(resources.textContent, "提示 0 · 重排 1", "challenge hint should be consumable once");
+  assert.strictEqual(resources.textContent, "提示 0 · 自动重排", "challenge hint should be consumable once");
   hintButton.fire("click");
-  assert.strictEqual(resources.textContent, "提示 0 · 重排 1", "an exhausted hint must not be consumed again");
+  assert.strictEqual(resources.textContent, "提示 0 · 自动重排", "an exhausted hint must not be consumed again");
 
+  const beforeChallengeShuffle = board.children.map((cell) => cell.textContent);
   shuffleButton.fire("click");
-  assert.strictEqual(resources.textContent, "提示 0 · 重排 0", "challenge shuffle should be consumable once");
-  shuffleButton.fire("click");
-  assert.strictEqual(resources.textContent, "提示 0 · 重排 0", "an exhausted shuffle must not be consumed again");
+  assert.deepStrictEqual(board.children.map((cell) => cell.textContent), beforeChallengeShuffle,
+    "challenge shuffle should not change the board");
+  assert.strictEqual(resources.textContent, "提示 0 · 自动重排");
+  assert.strictEqual(elements.get("llkStatus").textContent, "挑战模式不支持手动重排，无解时会自动重排");
 
   newButton.fire("click");
   board.children[7].fire("click");
@@ -294,10 +297,13 @@ assert.deepStrictEqual(
   assert.strictEqual(timer.textContent, "0:00");
   assert.strictEqual(elements.get("llkStatus").textContent, "时间到，挑战失败");
   assert.strictEqual(intervalCallbacks.length, 0, "expired challenge should stop its timer");
-  assert.strictEqual(resources.textContent, "提示 1 · 重排 1", "new challenge should reset limited resources");
+  assert.strictEqual(resources.textContent, "提示 1 · 自动重排", "new challenge should reset limited resources");
   assert.strictEqual(resultCard.hidden, false, "challenge result should be visible after timeout");
   assert.strictEqual(stars.textContent, "☆☆☆");
   assert.strictEqual(resultText.textContent, "未完成 · 时间到");
+  mode.value = "levels";
+  mode.fire("change");
+  assert.strictEqual(shuffleButton.disabled, false, "manual shuffle should return outside challenge mode");
 }
 
 // 评分错误（基础分、层数或 3 秒窗口）应使本组断言失败。

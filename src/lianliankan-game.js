@@ -46,7 +46,7 @@
   const CHALLENGE_CONFIG = Object.freeze({
     timeLimitSeconds: 90,
     hintLimit: 1,
-    shuffleLimit: 1,
+    shuffleLimit: 0,
   });
 
   /* ----------------------------- 纯逻辑 -----------------------------
@@ -663,7 +663,10 @@
     const state = isChallengeMode() ? game.challenge : null;
     if (challengeResourceCardEl) challengeResourceCardEl.hidden = !state;
     if (state) {
-      challengeResourcesEl.textContent = "提示 " + state.hintsRemaining + " · 重排 " + state.shufflesRemaining;
+      const shuffleText = state.shufflesRemaining > 0
+        ? "重排 " + state.shufflesRemaining
+        : "自动重排";
+      challengeResourcesEl.textContent = "提示 " + state.hintsRemaining + " · " + shuffleText;
     } else {
       challengeResourcesEl.textContent = "";
     }
@@ -1302,7 +1305,7 @@
       const challengeText = challengeProfile ? " · " + formatTime(challengeProfile.timeLimitSeconds) : "";
       const challengeLabel = challengeProfile
         ? "，限时 " + formatTime(challengeProfile.timeLimitSeconds) +
-          "，提示 " + challengeProfile.hintLimit + " 次，重排 " + challengeProfile.shuffleLimit + " 次"
+          "，提示 " + challengeProfile.hintLimit + " 次，无解时自动重排"
         : "";
       const button = document.createElement("button");
       button.type = "button";
@@ -1359,13 +1362,8 @@
     if (!game.grid) return;
     if (countRemaining(game.grid) === 0) return;
     if (isChallengeMode()) {
-      const consumed = consumeChallengeResource(game.challenge, "shuffle");
-      if (!consumed.ok) {
-        showTransientStatus("本局重排已用完");
-        return;
-      }
-      game.challenge = consumed.state;
-      renderChallengeResources();
+      showTransientStatus("挑战模式不支持手动重排，无解时会自动重排");
+      return;
     }
     resetCurrentCombo();
     const levels = getLevelApi();
@@ -1573,8 +1571,8 @@
     tag: "逐关挑战固定布局，连续消除可累积 Combo 和得分。",
   };
   const CHALLENGE_TEXT = {
-    hint: "90 秒内完成当前关卡；每局只有 1 次提示和 1 次重排，障碍分段下落，连续消除可累积 Combo。",
-    tag: "限时完成固定关卡，谨慎使用提示和重排。",
+    hint: "90 秒内完成当前关卡；每局只有 1 次提示，无解时自动重排，障碍分段下落，连续消除可累积 Combo。",
+    tag: "限时完成固定关卡，谨慎使用提示，无解时自动重排。",
   };
 
   /* 渲染/交互可调参数 */
@@ -2742,6 +2740,7 @@
         : (isChallenge ? CHALLENGE_TEXT.tag : (isLevels ? LEVEL_TEXT.tag : LLK3D_TEXT.classicTag));
     }
     if (hintBtn) hintBtn.hidden = is3d;
+    if (shuffleBtn) shuffleBtn.disabled = isChallenge;
     if (difficultyEl && difficultyEl.parentElement) difficultyEl.parentElement.hidden = isLevels || isChallenge;
     renderChallengeResources();
     renderLevelPicker();
