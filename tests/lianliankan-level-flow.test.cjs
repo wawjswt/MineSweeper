@@ -250,7 +250,7 @@ assert.deepStrictEqual(
     "old animation must not leave drop classes on the new board");
 }
 
-// 挑战模式限制提示次数、禁止手动重排，并以 90 秒倒计时结束本局。
+// 挑战模式限制提示次数、禁止手动重排；错误配对扣时并重置 Combo。
 {
   const mode = elements.get("llkMode");
   const board = elements.get("llkBoard");
@@ -268,6 +268,8 @@ assert.deepStrictEqual(
   mode.fire("change");
   assert.strictEqual(resourceCard.hidden, false, "challenge resources should be visible in challenge mode");
   assert.strictEqual(resultCard.hidden, true, "challenge result should be hidden before the run ends");
+  assert(elements.get("llkHint").textContent.includes("扣 3 秒"),
+    "challenge hint should explain the wrong-pair time penalty");
   assert(picker.children[0].textContent.includes("1:30"), "level picker should show level 1 challenge time");
   assert(picker.children[1].textContent.includes("1:20"), "level picker should show level 2 challenge time");
   assert.strictEqual(shuffleButton.disabled, true, "challenge mode should disable manual shuffle");
@@ -288,11 +290,29 @@ assert.deepStrictEqual(
 
   newButton.fire("click");
   board.children[7].fire("click");
+  board.children[14].fire("click");
+  flushAnimationFrames();
+  runTimer(260);
+  runTimer(160);
+  flushAnimationFrames();
+  runTimer(320);
+  assert.strictEqual(elements.get("llkCombo").textContent, "×1", "successful challenge pair should start Combo");
+  const firstChallengeCell = board.children.find((cell) =>
+    cell.textContent && !cell.classList.contains("is-obstacle"));
+  const mismatchChallengeCell = board.children.find((cell) =>
+    cell.textContent && !cell.classList.contains("is-obstacle") && cell.textContent !== firstChallengeCell.textContent);
+  assert(firstChallengeCell && mismatchChallengeCell, "challenge board should contain a mismatched pair");
+  firstChallengeCell.fire("click");
+  mismatchChallengeCell.fire("click");
+  assert.strictEqual(timer.textContent, "1:27", "wrong challenge pair should cost three seconds");
+  assert.strictEqual(elements.get("llkCombo").textContent, "×0", "wrong challenge pair should reset Combo");
+  assert(elements.get("llkStatus").textContent.includes("扣 3 秒"),
+    "wrong challenge pair should explain the time penalty");
   assert.strictEqual(intervalCallbacks.length, 1, "starting a challenge should start one countdown timer");
-  virtualNow = 89_999;
+  virtualNow = 86_999;
   intervalCallbacks[0].callback();
   assert.strictEqual(timer.textContent, "0:01");
-  virtualNow = 90_000;
+  virtualNow = 87_000;
   intervalCallbacks[0].callback();
   assert.strictEqual(timer.textContent, "0:00");
   assert.strictEqual(elements.get("llkStatus").textContent, "时间到，挑战失败");

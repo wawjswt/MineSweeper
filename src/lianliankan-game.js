@@ -48,6 +48,8 @@
     hintLimit: 1,
     shuffleLimit: 0,
   });
+  const CHALLENGE_MISTAKE_PENALTY_MS = 3000;
+  const CHALLENGE_MISTAKE_PENALTY_SECONDS = CHALLENGE_MISTAKE_PENALTY_MS / 1000;
 
   /* ----------------------------- 纯逻辑 -----------------------------
    * 棋盘以二维索引 grid[r * cols + c] 存储,-1 = 障碍,0 = 空位,>0 = 图案 id(1..kinds)。
@@ -730,6 +732,18 @@
     renderScore();
   }
 
+  function applyChallengeMistakePenalty() {
+    if (!isChallengeMode()) return false;
+    game.baseMs += CHALLENGE_MISTAKE_PENALTY_MS;
+    resetCurrentCombo();
+    renderTimer();
+    if (challengeSecondsRemaining() <= 0) {
+      failChallenge();
+      return true;
+    }
+    return false;
+  }
+
   function challengeSecondsRemaining() {
     if (!isChallengeMode()) return null;
     return remainingChallengeSeconds(game.challenge.timeLimitSeconds, elapsedActiveMs());
@@ -1248,8 +1262,12 @@
       }, LINE_MS, animationToken);
     } else {
       // 配对失败:新点击的格成为选中格
-      resetCurrentCombo();
-      showTransientStatus(reason);
+      const challengeMistake = isChallengeMode();
+      if (applyChallengeMistakePenalty()) return;
+      if (!challengeMistake) resetCurrentCombo();
+      showTransientStatus(challengeMistake
+        ? reason + " · 扣 " + CHALLENGE_MISTAKE_PENALTY_SECONDS + " 秒，Combo 已重置"
+        : reason);
       clearSelection();
       game.sel = b;
       updateCell(b.r * game.cols + b.c);
@@ -1305,7 +1323,8 @@
       const challengeText = challengeProfile ? " · " + formatTime(challengeProfile.timeLimitSeconds) : "";
       const challengeLabel = challengeProfile
         ? "，限时 " + formatTime(challengeProfile.timeLimitSeconds) +
-          "，提示 " + challengeProfile.hintLimit + " 次，无解时自动重排"
+          "，提示 " + challengeProfile.hintLimit + " 次，错误配对扣 " +
+          CHALLENGE_MISTAKE_PENALTY_SECONDS + " 秒并重置 Combo，无解时自动重排"
         : "";
       const button = document.createElement("button");
       button.type = "button";
@@ -1571,8 +1590,8 @@
     tag: "逐关挑战固定布局，连续消除可累积 Combo 和得分。",
   };
   const CHALLENGE_TEXT = {
-    hint: "90 秒内完成当前关卡；每局只有 1 次提示，无解时自动重排，障碍分段下落，连续消除可累积 Combo。",
-    tag: "限时完成固定关卡，谨慎使用提示，无解时自动重排。",
+    hint: "90 秒内完成当前关卡；每局只有 1 次提示，错误配对扣 3 秒并重置 Combo，无解时自动重排，障碍分段下落，连续消除可累积 Combo。",
+    tag: "限时完成固定关卡，错误配对会扣时并中断 Combo；无解时自动重排。",
   };
 
   /* 渲染/交互可调参数 */
