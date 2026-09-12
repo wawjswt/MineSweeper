@@ -1,6 +1,6 @@
-/* 游戏 Tab 协调器(扫雷 / 数独 / 连连看)
+/* 游戏 Tab 协调器(扫雷 / 数独 / 连连看 / 2048)
  *
- * 背景:三款游戏同页共用一个顶部 Tab 栏。Tab 高亮与各游戏面板(壳)的显隐
+ * 背景:四款游戏同页共用一个顶部 Tab 栏。Tab 高亮与各游戏面板(壳)的显隐
  * 必须由唯一权威统一管理,否则新增游戏时各脚本各自维护会导致状态冲突。
  *
  * 职责:
@@ -8,9 +8,9 @@
  *  2. 切换时:更新全部 Tab 高亮 + 切换对应 .*-shell 的 hidden;
  *  3. 通过 register(game, { onActivate, onDeactivate }) 让各游戏脚本注册
  *     生命周期回调(如"切走自动暂停、切回恢复"),本文件不感知游戏内部;
- *  4. 支持 #sweep / #sudoku / #lianliankan 锚点直达(默认 sweep)。
+ *  4. 支持 #sweep / #sudoku / #lianliankan / #2048 锚点直达(默认 sweep)。
  *
- * 加载顺序:与 sudoku-game.js / lianliankan-game.js 同页加载。
+ * 加载顺序:与 sudoku-game.js / lianliankan-game.js / app.js 同页加载。
  * 协调器不触碰扫雷模块的全局词法(无顶层声明外泄)。
  */
 (function () {
@@ -21,6 +21,7 @@
     sweep: "sweepShell",
     sudoku: "sudokuShell",
     lianliankan: "lianliankanShell",
+    "2048": "game2048Shell",
   };
 
   var handlers = {}; // game -> { onActivate, onDeactivate }
@@ -100,7 +101,7 @@
     return currentGame;
   }
 
-  /* 锚点直达:URL 末尾 #sudoku / #lianliankan / #sweep */
+  /* 锚点直达:URL 末尾 #sudoku / #lianliankan / #2048 / #sweep */
   function resolveInitialGame() {
     var hash = "";
     try {
@@ -109,6 +110,7 @@
       hash = "";
     }
     if (hash.indexOf("lianliankan") !== -1) return "lianliankan";
+    if (hash.indexOf("2048") !== -1) return "2048";
     if (hash.indexOf("sudoku") !== -1) return "sudoku";
     if (hash.indexOf("sweep") !== -1) return "sweep";
     return "sweep"; // 默认与改造前一致:打开即扫雷

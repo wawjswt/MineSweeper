@@ -48,6 +48,17 @@
       >
         连连看
       </button>
+      <button
+        type="button"
+        role="tab"
+        class="game-tab"
+        id="gameTab2048"
+        aria-selected="false"
+        tabindex="-1"
+        data-game="2048"
+      >
+        2048
+      </button>
     </nav>
 
     <main class="app-shell" id="sweepShell">
@@ -376,6 +387,65 @@
         <p class="hint llk-hint" id="llkHint">
           依次点选两个相同图案,若可用不超过两次转弯的路径连通即消除;无可用配对时点「重排」
         </p>
+      </section>
+    </section>
+
+    <section class="game2048-shell" id="game2048Shell" hidden>
+      <section class="panel game2048-panel">
+        <header class="game2048-head">
+          <div class="brand">
+            <div class="brand-kicker">2048 PUZZLE</div>
+            <h1>2048</h1>
+            <p>滑动数字方块，合并出 2048。</p>
+          </div>
+          <div class="game2048-actions">
+            <button class="game2048-btn game2048-btn--primary" id="game2048New" type="button">新局</button>
+          </div>
+        </header>
+
+        <section class="hud game2048-hud" aria-label="2048 信息">
+          <div class="hud-card">
+            <span class="hud-label">分数</span>
+            <strong id="game2048Score">0</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">最佳</span>
+            <strong id="game2048Best">0</strong>
+          </div>
+          <div class="hud-card">
+            <span class="hud-label">状态</span>
+            <strong id="game2048Status" aria-live="polite">进行中</strong>
+          </div>
+        </section>
+
+        <section class="game2048-stage" aria-label="2048 游戏区域">
+          <div id="game2048Board" class="game2048-board" role="grid" aria-label="2048 棋盘" tabindex="0"></div>
+          <div id="game2048Overlay" class="game2048-overlay" role="dialog" aria-modal="true" aria-labelledby="game2048OverlayTitle" hidden>
+            <div class="game2048-overlay-card">
+              <p class="game2048-overlay-eyebrow">RUN COMPLETE</p>
+              <h2 id="game2048OverlayTitle">你得到 2048 了！</h2>
+              <p id="game2048OverlayText">继续合并，挑战更高分。</p>
+              <div class="game2048-overlay-actions">
+                <button class="game2048-btn game2048-btn--primary" id="game2048Continue" type="button">继续游戏</button>
+                <button class="game2048-btn" id="game2048OverlayNew" type="button">新局</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="game2048-pad" role="group" aria-label="2048 方向控制">
+          <button class="game2048-pad-button game2048-pad-button--up" id="game2048Up" type="button" aria-label="向上移动">↑</button>
+          <button class="game2048-pad-button game2048-pad-button--left" id="game2048Left" type="button" aria-label="向左移动">←</button>
+          <button class="game2048-pad-button game2048-pad-button--down" id="game2048Down" type="button" aria-label="向下移动">↓</button>
+          <button class="game2048-pad-button game2048-pad-button--right" id="game2048Right" type="button" aria-label="向右移动">→</button>
+        </div>
+
+        <div class="game2048-controls" role="group" aria-label="2048 操作说明">
+          <span><kbd>方向键</kbd> / <kbd>WASD</kbd> 移动</span>
+          <span>鼠标点击方向按钮或手机滑动棋盘</span>
+          <span><kbd>R</kbd> 重开</span>
+        </div>
+        <p class="hint game2048-hint">相同数字相撞会合并；每次有效移动后，棋盘会出现一个新的 2 或 4。</p>
       </section>
     </section>
 

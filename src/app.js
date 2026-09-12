@@ -15,6 +15,7 @@ import {
   createRogueGuide,
 } from "./rogue-guide.js";
 import { createRogueUI } from "./rogue-ui.js";
+import { create2048UI } from "./2048-ui.js";
 import { compressImageDataUrl, loadImageSource } from "./image.js";
 import {
   loadSettings,
@@ -86,6 +87,21 @@ const elements = {
   bestTimeEl: document.getElementById("bestTime"),
   pageBackdropEl: document.getElementById("pageBackdrop"),
   fireworksLayer: document.getElementById("fireworksLayer"),
+  game2048Root: document.getElementById("game2048Shell"),
+  game2048Board: document.getElementById("game2048Board"),
+  game2048Score: document.getElementById("game2048Score"),
+  game2048Best: document.getElementById("game2048Best"),
+  game2048Status: document.getElementById("game2048Status"),
+  game2048Overlay: document.getElementById("game2048Overlay"),
+  game2048OverlayTitle: document.getElementById("game2048OverlayTitle"),
+  game2048OverlayText: document.getElementById("game2048OverlayText"),
+  game2048Continue: document.getElementById("game2048Continue"),
+  game2048New: document.getElementById("game2048New"),
+  game2048OverlayNew: document.getElementById("game2048OverlayNew"),
+  game2048Up: document.getElementById("game2048Up"),
+  game2048Down: document.getElementById("game2048Down"),
+  game2048Left: document.getElementById("game2048Left"),
+  game2048Right: document.getElementById("game2048Right"),
 };
 
 const storage = loadSettings();
@@ -438,6 +454,25 @@ const game = createGameLogic({
 const rogueUI = createRogueUI(elements);
 const rogueGame = createRogueGame({ rng: Math.random });
 const rogueGuideController = createRogueGuide(elements);
+const game2048UI = create2048UI({
+  root: elements.game2048Root,
+  board: elements.game2048Board,
+  score: elements.game2048Score,
+  best: elements.game2048Best,
+  status: elements.game2048Status,
+  overlay: elements.game2048Overlay,
+  overlayTitle: elements.game2048OverlayTitle,
+  overlayText: elements.game2048OverlayText,
+  continueButton: elements.game2048Continue,
+  newButton: elements.game2048New,
+  overlayNewButton: elements.game2048OverlayNew,
+  upButton: elements.game2048Up,
+  downButton: elements.game2048Down,
+  leftButton: elements.game2048Left,
+  rightButton: elements.game2048Right,
+}, {
+  isActive: () => window.__GAME_TABS__?.getCurrent() === "2048",
+});
 window.addEventListener("keydown", (event) => rogueGuideController.handleGlobalKeydown(event), true);
 window.__GAME_TABS__?.register("sweep", {
   onDeactivate: () => {
@@ -445,6 +480,9 @@ window.__GAME_TABS__?.register("sweep", {
       queueMicrotask(() => document.querySelector('.game-tab[aria-selected="true"]')?.focus());
     }
   },
+});
+window.__GAME_TABS__?.register("2048", {
+  onActivate: () => game2048UI.render(),
 });
 const rogueHandlers = {
   onReset: () => {

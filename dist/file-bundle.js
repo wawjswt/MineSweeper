@@ -1959,29 +1959,29 @@
         }),
       }),
     ]);
-
+    
     function cloneDefinition(definition) {
       return definition
         ? { ...definition, reward: { ...definition.reward } }
         : null;
     }
-
+    
     function randomIndex(rng, length) {
       const value = Number(rng?.());
       const normalized = Number.isFinite(value) ? Math.min(Math.max(value, 0), 0.999999999) : 0;
       return Math.floor(normalized * length);
     }
-
+    
     function getContractDefinition(contractId) {
       return cloneDefinition(
         CONTRACT_DEFINITIONS.find(({ id }) => id === contractId),
       );
     }
-
+    
     function getContractCatalog() {
       return CONTRACT_DEFINITIONS.map(cloneDefinition);
     }
-
+    
     function getContractOptions({ floor: _floor, rng = Math.random } = {}) {
       const pool = [...CONTRACT_DEFINITIONS];
       for (let index = pool.length - 1; index > 0; index -= 1) {
@@ -1990,7 +1990,7 @@
       }
       return pool.slice(0, 2).map(cloneDefinition);
     }
-
+    
     function getContractReward(contractId) {
       return getContractDefinition(contractId)?.reward ?? null;
     }
@@ -2617,13 +2617,13 @@
     const { ROGUE_LEVELS: ROGUE_LEVELS } = __require("src/rogue-level.js");
     const { TOOL_DEFINITIONS: TOOL_DEFINITIONS, UPGRADE_DEFINITIONS: UPGRADE_DEFINITIONS } = __require("src/rogue-items.js");
     const { createRogueRunState: createRogueRunState } = __require("src/rogue-state.js");
-
+    
     const TOOL_GUIDANCE = {
       scoutPulse: "怎么用：先选中它，再点一个没有翻开的格子。效果：告诉你这个格子周围 3×3 范围里有几颗雷，但不会替你翻开格子，也不会告诉你每颗雷的具体位置。只有你点中的情报点会被收集。",
       defusalKit: "怎么用：先给一个格子插旗，再选中它并点击这面旗。效果：如果旗子插对了，雷会被拆掉；如果插错了，旗子会被清除，并翻开这片安全区域。没有插旗的格子不能使用它。",
       reactionShield: "怎么用：选中它后，再点一下棋盘就会开启。效果：本层下一次踩到雷时不会掉生命，但护盾会随即消失。同一时间只能开一个护盾，它不需要指定某个战区。",
     };
-
+    
     const CONTRACT_GUIDANCE = {
       noDamage: "在本层清空全部安全格时结算。护盾抵挡爆炸不算损失生命；实际受伤后本层契约立即失败。",
       reconnaissance: "直接揭开情报点，或把侦察目标落在情报点上即可完成；只把情报点包含在扫描范围内不算收集。",
@@ -2634,7 +2634,7 @@
       crossFire: "第一次成功使用有落点的工具会记录工具种类与战区；之后须在另一个战区使用另一种工具。重复同种工具、同区操作或启动护盾都不能凑齐条件。",
       safeInsertion: "在首次实际受伤前满足描述中的战区与安全格数量；空白区域自动展开的安全格也会计入。未完成时首次受伤即失败，护盾抵挡不算受伤。",
     };
-
+    
     const UPGRADE_GUIDANCE = {
       storage: "效果：能量上限加 1，并马上获得 1 点能量。",
       chain: "效果：连续成功翻开 3 次安全区域后获得 1 点能量；踩到雷会清空连击。",
@@ -2644,7 +2644,7 @@
       "toolBoost:reactionShield": "效果：下一层的反应护盾多 1 次使用机会。",
       supply: "效果：下一层的三种工具各多 1 次使用机会。",
     };
-
+    
     const SPECIAL_CELL_DEFINITIONS = Object.freeze([
       Object.freeze({
         id: "intel",
@@ -2659,7 +2659,7 @@
         effect: "怎么用：直接翻开它，或被拆雷装置触发。结果：能量最多恢复 1 点，并给当前剩余次数最少的工具补充 1 次。",
       }),
     ]);
-
+    
     const SECTION_DEFINITIONS = Object.freeze([
       { id: "overview", title: "快速开始", dataKey: "overview" },
       { id: "floors", title: "五层流程", dataKey: "floors" },
@@ -2670,7 +2670,7 @@
       { id: "illustrations", title: "道具效果图", dataKey: "illustrations" },
       { id: "tips", title: "操作方法", dataKey: "tips" },
     ]);
-
+    
     const ILLUSTRATION_ENTRIES = [
       ["tool", "scoutPulse", "侦察脉冲", "主动道具", "游戏内画面：选中道具后，棋盘上会圈出被扫描的 3×3 格子。"],
       ["tool", "defusalKit", "拆雷装置", "主动道具", "游戏内画面：先插旗，再对着旗子使用；真雷会被拆掉，假旗会变成安全区域。"],
@@ -2685,11 +2685,11 @@
       ["upgrade", "toolBoost:reactionShield", "工具增幅·反应护盾", "强化道具", "游戏内画面：下一层反应护盾的可用次数增加 1 次。"],
       ["upgrade", "supply", "补给箱", "强化道具", "游戏内画面：下一层侦察、拆雷、护盾三种工具各增加 1 次。"],
     ];
-
+    
     function clone(value) {
       return structuredClone(value);
     }
-
+    
     function getIllustrations() {
       return ILLUSTRATION_ENTRIES.map(([entityType, entityId, title, category, alt]) => ({
         id: `${entityType}-${entityId}`,
@@ -2702,7 +2702,7 @@
         caption: alt,
       }));
     }
-
+    
     function getRogueGuideCatalog() {
       const floors = ROGUE_LEVELS.map(clone);
       const tools = Object.values(TOOL_DEFINITIONS).map((tool) => ({ ...clone(tool), guidance: TOOL_GUIDANCE[tool.id] }));
@@ -2734,7 +2734,7 @@
         "契约排错：注意先后顺序、不同战区与不同工具这三个条件。护盾没有战区落点，不能用于跨区工具步骤；未完成契约仍可过层，但会扣除能量。",
         "收尾检查：每层目标是揭开全部安全格，不必标完或拆完所有雷；标错旗的安全格仍会阻止过层。先核对战区进度、工具次数和能量，再决定最后几步。",
       ];
-
+    
       return clone({
         sections: SECTION_DEFINITIONS,
         overview,
@@ -2747,7 +2747,7 @@
         tips,
       });
     }
-
+    
     function formatContractReward(reward, tools) {
       if (!reward) return "完成后获得行动奖励";
       if (reward.type === "energy") return `获得 ${reward.amount} 点能量`;
@@ -2758,11 +2758,11 @@
       }
       return "完成后获得行动奖励";
     }
-
+    
     function makeCards(items, makeCard) {
       return items.map((item) => makeCard(item));
     }
-
+    
     function getRogueGuideRenderSections(catalog = getRogueGuideCatalog()) {
       const data = {
         overview: {
@@ -2837,13 +2837,13 @@
           notes: catalog.tips,
         },
       };
-
+    
       return catalog.sections.map((section) => ({
         ...section,
         ...(data[section.dataKey] || {}),
       }));
     }
-
+    
     function appendGuideText(parent, tagName, text, className = "") {
       const element = document.createElement(tagName);
       if (className) element.className = className;
@@ -2851,13 +2851,13 @@
       parent.appendChild(element);
       return element;
     }
-
+    
     function renderRogueGuideCatalog({ chapterNav, contentRoot, catalog = getRogueGuideCatalog() }) {
       if (!chapterNav || !contentRoot) return;
       const sections = getRogueGuideRenderSections(catalog);
       chapterNav.replaceChildren();
       contentRoot.replaceChildren();
-
+    
       for (const sectionData of sections) {
         const sectionId = `rogueGuideSection-${sectionData.id}`;
         const chapter = document.createElement("a");
@@ -2865,7 +2865,7 @@
         chapter.href = `#${sectionId}`;
         chapter.textContent = sectionData.title;
         chapterNav.appendChild(chapter);
-
+    
         const section = document.createElement("section");
         section.className = "rogue-guide__section";
         section.id = sectionId;
@@ -2875,14 +2875,14 @@
         const heading = appendGuideText(section, "h3", sectionData.title, "rogue-guide__section-title");
         heading.id = headingId;
         if (sectionData.intro) appendGuideText(section, "p", sectionData.intro, "rogue-guide__intro");
-
+    
         if (sectionData.notes) {
           const list = document.createElement("ul");
           list.className = "rogue-guide__notes";
           for (const note of sectionData.notes) appendGuideText(list, "li", note);
           section.appendChild(list);
         }
-
+    
         if (sectionData.sectorMap) {
           const figure = document.createElement("figure");
           figure.className = "rogue-guide__sector-figure";
@@ -2907,7 +2907,7 @@
           appendGuideText(figure, "figcaption", sectionData.sectorMap.caption);
           section.appendChild(figure);
         }
-
+    
         if (sectionData.cards) {
           const cards = document.createElement("div");
           cards.className = "rogue-guide__cards";
@@ -2930,7 +2930,7 @@
           }
           section.appendChild(cards);
         }
-
+    
         if (sectionData.illustrations) {
           const gallery = document.createElement("div");
           gallery.className = "rogue-guide__gallery";
@@ -2949,20 +2949,20 @@
           }
           section.appendChild(gallery);
         }
-
+    
         contentRoot.appendChild(section);
       }
     }
-
+    
     function createRogueGuideDialogController({ dialog, trigger, closeButton }) {
       let restoreFocus = false;
-
+    
       function restoreTriggerFocus() {
         if (!restoreFocus) return;
         restoreFocus = false;
         trigger?.focus?.({ preventScroll: true });
       }
-
+    
       function close({ restoreFocus: restore = true } = {}) {
         if (!dialog?.open) return false;
         restoreFocus = restore;
@@ -2970,14 +2970,14 @@
         restoreTriggerFocus();
         return true;
       }
-
+    
       function open() {
         if (!dialog || dialog.open) return false;
         restoreFocus = true;
         dialog.showModal();
         return true;
       }
-
+    
       function handleGlobalKeydown(event) {
         if (!dialog?.open) return false;
         // Only global gameplay shortcuts are intercepted in capture phase.
@@ -2988,7 +2988,7 @@
         if (event.key === "Escape") close();
         return true;
       }
-
+    
       trigger?.addEventListener("click", open);
       closeButton?.addEventListener("click", () => close());
       dialog?.addEventListener("close", () => {
@@ -3005,10 +3005,10 @@
         if (event.clientX < bounds.left || event.clientX > bounds.right
           || event.clientY < bounds.top || event.clientY > bounds.bottom) close();
       });
-
+    
       return Object.freeze({ open, close, isOpen: () => Boolean(dialog?.open), handleGlobalKeydown });
     }
-
+    
     function createRogueGuide(elements = {}) {
       renderRogueGuideCatalog({
         chapterNav: elements.rogueGuideChapters,
@@ -3623,6 +3623,617 @@
     exports.getRogueContractProgressText = getRogueContractProgressText;
     exports.createRogueUI = createRogueUI;
   };
+  moduleFactories["src/2048-game.js"] = function (exports, __require) {
+    const BOARD_SIZE_2048 = 4;
+    const CELL_COUNT_2048 = BOARD_SIZE_2048 * BOARD_SIZE_2048;
+    const DIRECTIONS_2048 = new Set(["up", "down", "left", "right"]);
+
+    function assertBoard2048(board) {
+      if (!Array.isArray(board) || board.length !== CELL_COUNT_2048) {
+        throw new TypeError("A 2048 board must contain exactly 16 cells.");
+      }
+    }
+
+    function assertDirection2048(direction) {
+      if (!DIRECTIONS_2048.has(direction)) {
+        throw new RangeError(`Unknown 2048 direction: ${direction}`);
+      }
+    }
+
+    function randomUnit2048(rng) {
+      const value = Number(rng());
+      if (!Number.isFinite(value)) return 0;
+      return Math.min(0.999999999, Math.max(0, value));
+    }
+
+    function slideLine2048(line) {
+      const compact = line.filter((entry) => entry.value !== 0);
+      const result = [];
+      let scoreDelta = 0;
+
+      for (let index = 0; index < compact.length; index += 1) {
+        const current = compact[index];
+        const next = compact[index + 1];
+        if (next && current.value === next.value) {
+          const mergedValue = current.value * 2;
+          result.push({
+            value: mergedValue,
+            sources: [current, next],
+            merged: true,
+          });
+          scoreDelta += mergedValue;
+          index += 1;
+        } else {
+          result.push({
+            value: current.value,
+            sources: [current],
+            merged: false,
+          });
+        }
+      }
+
+      while (result.length < BOARD_SIZE_2048) result.push(null);
+      return { line: result, scoreDelta };
+    }
+
+    function lineIndexes2048(lineIndex, direction) {
+      if (direction === "left" || direction === "right") {
+        return Array.from({ length: BOARD_SIZE_2048 }, (_, offset) => lineIndex * BOARD_SIZE_2048 + offset);
+      }
+      return Array.from({ length: BOARD_SIZE_2048 }, (_, offset) => offset * BOARD_SIZE_2048 + lineIndex);
+    }
+
+    function sameBoard2048(first, second) {
+      return first.every((value, index) => value === second[index]);
+    }
+
+    function moveBoard2048(board, direction) {
+      assertBoard2048(board);
+      assertDirection2048(direction);
+
+      const nextBoard = board.slice();
+      let scoreDelta = 0;
+      const transitions = [];
+      const reverseLine = direction === "right" || direction === "down";
+
+      for (let lineIndex = 0; lineIndex < BOARD_SIZE_2048; lineIndex += 1) {
+        const indexes = lineIndexes2048(lineIndex, direction);
+        const values = indexes.map((index) => board[index]);
+        const orientedValues = (reverseLine ? values.slice().reverse() : values).map((value, offset) => ({
+          value,
+          index: indexes[reverseLine ? BOARD_SIZE_2048 - 1 - offset : offset],
+        }));
+        const slid = slideLine2048(orientedValues);
+        scoreDelta += slid.scoreDelta;
+        slid.line.forEach((token, orientedOffset) => {
+          const physicalOffset = reverseLine
+            ? BOARD_SIZE_2048 - 1 - orientedOffset
+            : orientedOffset;
+          const destinationIndex = indexes[physicalOffset];
+          nextBoard[destinationIndex] = token?.value || 0;
+          token?.sources.forEach((source) => {
+            transitions.push({
+              from: source.index,
+              to: destinationIndex,
+              value: source.value,
+              merged: token.merged,
+            });
+          });
+        });
+      }
+
+      return {
+        board: nextBoard,
+        moved: !sameBoard2048(board, nextBoard),
+        scoreDelta,
+        transitions,
+      };
+    }
+
+    function canMove2048(board) {
+      assertBoard2048(board);
+
+      for (let index = 0; index < board.length; index += 1) {
+        if (board[index] === 0) return true;
+        const row = Math.floor(index / BOARD_SIZE_2048);
+        const col = index % BOARD_SIZE_2048;
+        if (col < BOARD_SIZE_2048 - 1 && board[index] === board[index + 1]) return true;
+        if (row < BOARD_SIZE_2048 - 1 && board[index] === board[index + BOARD_SIZE_2048]) return true;
+      }
+      return false;
+    }
+
+    function spawnTile2048(board, rng = Math.random) {
+      assertBoard2048(board);
+      const emptyIndexes = board.reduce((indexes, value, index) => {
+        if (value === 0) indexes.push(index);
+        return indexes;
+      }, []);
+
+      const nextBoard = board.slice();
+      if (emptyIndexes.length === 0) {
+        return { board: nextBoard, index: -1, value: 0, spawned: false };
+      }
+
+      const index = emptyIndexes[Math.floor(randomUnit2048(rng) * emptyIndexes.length)];
+      const value = randomUnit2048(rng) < 0.9 ? 2 : 4;
+      nextBoard[index] = value;
+      return { board: nextBoard, index, value, spawned: true };
+    }
+
+    function createInitialBoard2048(rng = Math.random) {
+      let board = Array(CELL_COUNT_2048).fill(0);
+      board = spawnTile2048(board, rng).board;
+      board = spawnTile2048(board, rng).board;
+      return board;
+    }
+
+    function hasReachedTarget2048(board, target = 2048) {
+      assertBoard2048(board);
+      return board.some((value) => value >= target);
+    }
+
+    function copyState2048(state) {
+      return {
+        ...state,
+        board: state.board.slice(),
+        lastMove: state.lastMove
+          ? {
+            ...state.lastMove,
+            transitions: state.lastMove.transitions.map((transition) => ({ ...transition })),
+            spawned: state.lastMove.spawned ? { ...state.lastMove.spawned } : null,
+          }
+          : null,
+      };
+    }
+
+    function create2048Game(options = {}) {
+      const rng = typeof options.rng === "function" ? options.rng : Math.random;
+      const target = Number.isFinite(options.target) && options.target > 0 ? options.target : 2048;
+      const suppliedInitialBoard = options.initialBoard ? options.initialBoard.slice() : null;
+      if (suppliedInitialBoard) assertBoard2048(suppliedInitialBoard);
+      let state;
+
+      function makeInitialState() {
+        const board = suppliedInitialBoard ? suppliedInitialBoard.slice() : createInitialBoard2048(rng);
+        const won = hasReachedTarget2048(board, target);
+        return {
+          board,
+          score: 0,
+          status: won ? "won" : (canMove2048(board) ? "playing" : "over"),
+          won,
+          continued: false,
+          moves: 0,
+          lastMove: null,
+        };
+      }
+
+      function reset() {
+        state = makeInitialState();
+        return copyState2048(state);
+      }
+
+      function move(direction) {
+        assertDirection2048(direction);
+        if (state.status !== "playing") {
+          state = { ...state, lastMove: null };
+          return copyState2048(state);
+        }
+
+        const result = moveBoard2048(state.board, direction);
+        if (!result.moved) {
+          state = { ...state, lastMove: null };
+          return copyState2048(state);
+        }
+
+        const spawned = spawnTile2048(result.board, rng);
+        const board = spawned.board;
+        const won = state.won || hasReachedTarget2048(board, target);
+        const status = won && !state.continued
+          ? "won"
+          : (canMove2048(board) ? "playing" : "over");
+
+        state = {
+          ...state,
+          board,
+          score: state.score + result.scoreDelta,
+          status,
+          won,
+          moves: state.moves + 1,
+          lastMove: {
+            direction,
+            transitions: result.transitions,
+            spawned: spawned.spawned ? { index: spawned.index, value: spawned.value } : null,
+          },
+        };
+        return copyState2048(state);
+      }
+
+      function continueAfterWin() {
+        if (state.status === "won") {
+          state = { ...state, status: "playing", continued: true, lastMove: null };
+        }
+        return copyState2048(state);
+      }
+
+      reset();
+      return {
+        getState: () => copyState2048(state),
+        move,
+        reset,
+        continueAfterWin,
+      };
+    }
+    exports.moveBoard2048 = moveBoard2048;
+    exports.canMove2048 = canMove2048;
+    exports.spawnTile2048 = spawnTile2048;
+    exports.createInitialBoard2048 = createInitialBoard2048;
+    exports.hasReachedTarget2048 = hasReachedTarget2048;
+    exports.create2048Game = create2048Game;
+  };
+  moduleFactories["src/2048-ui.js"] = function (exports, __require) {
+    const { create2048Game: create2048Game } = __require("src/2048-game.js");
+
+    const KEY_TO_DIRECTION_2048 = {
+      ArrowUp: "up",
+      w: "up",
+      W: "up",
+      ArrowDown: "down",
+      s: "down",
+      S: "down",
+      ArrowLeft: "left",
+      a: "left",
+      A: "left",
+      ArrowRight: "right",
+      d: "right",
+      D: "right",
+    };
+
+    const STATUS_LABEL_2048 = {
+      playing: "进行中",
+      won: "已达成",
+      over: "已结束",
+    };
+
+    const MOVE_ANIMATION_MS_2048 = 180;
+
+    function readBestScore2048(storage) {
+      try {
+        const score = Number(storage?.getItem("2048-best-score"));
+        return Number.isFinite(score) && score > 0 ? score : 0;
+      } catch (_error) {
+        return 0;
+      }
+    }
+
+    function saveBestScore2048(storage, score) {
+      try {
+        storage?.setItem("2048-best-score", String(score));
+      } catch (_error) {
+        // Persistence is best-effort; private browsing may disable localStorage.
+      }
+    }
+
+    function getCellLabel2048(value, index) {
+      const row = Math.floor(index / 4) + 1;
+      const column = (index % 4) + 1;
+      return value ? `第${row}行第${column}列，${value}` : `第${row}行第${column}列，空`;
+    }
+
+    function setStyleProperty2048(element, property, value) {
+      if (element.style?.setProperty) {
+        element.style.setProperty(property, value);
+      } else if (element.style) {
+        element.style[property] = value;
+      }
+    }
+
+    function setTileGridPosition2048(tile, index) {
+      if (!tile.style) return;
+      const column = (index % 4) + 1;
+      const row = Math.floor(index / 4) + 1;
+      tile.style.gridColumnStart = String(column);
+      tile.style.gridRowStart = String(row);
+    }
+
+    function getGapExpression2048(delta) {
+      if (delta === 0) return "0px";
+      const percentage = `${delta * 100}%`;
+      const gapTerms = Array.from({ length: Math.abs(delta) }, () => "var(--game2048-gap)");
+      const operator = delta > 0 ? " + " : " - ";
+      return `calc(${percentage}${operator}${gapTerms.join(operator)})`;
+    }
+
+    function setTileMovement2048(tile, from, to) {
+      const fromColumn = from % 4;
+      const fromRow = Math.floor(from / 4);
+      const toColumn = to % 4;
+      const toRow = Math.floor(to / 4);
+      setStyleProperty2048(tile, "--game2048-move-x", getGapExpression2048(toColumn - fromColumn));
+      setStyleProperty2048(tile, "--game2048-move-y", getGapExpression2048(toRow - fromRow));
+    }
+
+    function create2048UI(elements, options = {}) {
+      const game = options.game || create2048Game();
+      const storage = options.storage || (typeof localStorage !== "undefined" ? localStorage : null);
+      const isActive = options.isActive || (() => true);
+      let bestScore = readBestScore2048(storage);
+      let touchStart = null;
+      let tileLayer = null;
+      let animationFrameId = null;
+      let animationFrameKind = null;
+      let animationTimer = null;
+      let animationToken = 0;
+      let isAnimating = false;
+
+      function updateBestScore(state) {
+        if (state.score <= bestScore) return;
+        bestScore = state.score;
+        saveBestScore2048(storage, bestScore);
+      }
+
+      function ensureTileLayer() {
+        if (tileLayer) return tileLayer;
+        tileLayer = document.createElement("div");
+        tileLayer.className = "game2048-tiles";
+        tileLayer.setAttribute("aria-hidden", "true");
+        elements.board.appendChild(tileLayer);
+        return tileLayer;
+      }
+
+      function createTile(value, index, extraClass = "") {
+        const tile = document.createElement("span");
+        tile.className = `game2048-tile${extraClass ? ` ${extraClass}` : ""}`;
+        tile.dataset.value = String(value);
+        tile.textContent = String(value);
+        tile.setAttribute("aria-hidden", "true");
+        setTileGridPosition2048(tile, index);
+        return tile;
+      }
+
+      function renderGrid(state) {
+        const nextChildren = [];
+        state.board.forEach((value, index) => {
+          const cell = document.createElement("div");
+          cell.className = "game2048-cell";
+          cell.setAttribute("role", "gridcell");
+          cell.setAttribute("aria-label", getCellLabel2048(value, index));
+          nextChildren.push(cell);
+        });
+
+        elements.board.replaceChildren();
+        nextChildren.forEach((cell) => elements.board.appendChild(cell));
+        ensureTileLayer();
+        elements.board.appendChild(tileLayer);
+      }
+
+      function renderTiles(state, effects = {}) {
+        const mergedIndexes = effects.mergedIndexes || new Set();
+        const spawnedIndex = effects.spawnedIndex ?? -1;
+        tileLayer.replaceChildren();
+        state.board.forEach((value, index) => {
+          if (!value) return;
+          const classes = [
+            mergedIndexes.has(index) ? "is-merged" : "",
+            spawnedIndex === index ? "is-spawned" : "",
+          ].filter(Boolean).join(" ");
+          tileLayer.appendChild(createTile(value, index, classes));
+        });
+      }
+
+      function renderStaticBoard(state, effects = {}) {
+        renderGrid(state);
+        renderTiles(state, effects);
+      }
+
+      function renderOverlay(state, hidden = false) {
+        const ended = state.status === "won" || state.status === "over";
+        elements.overlay.hidden = hidden || !ended;
+        elements.continueButton.hidden = state.status !== "won";
+        elements.overlayTitle.textContent = state.status === "won" ? "你得到 2048 了！" : "棋盘已满";
+        elements.overlayText.textContent = state.status === "won"
+          ? "继续合并，挑战更高分。"
+          : "这局结束了，重新开始再试一次。";
+      }
+
+      function renderHud(state) {
+        updateBestScore(state);
+        elements.score.textContent = String(state.score);
+        elements.best.textContent = String(bestScore);
+        elements.status.textContent = STATUS_LABEL_2048[state.status] || STATUS_LABEL_2048.playing;
+        elements.root.classList.toggle("is-won", state.status === "won");
+        elements.root.classList.toggle("is-over", state.status === "over");
+      }
+
+      function cancelAnimation() {
+        animationToken += 1;
+        if (animationFrameId !== null) {
+          if (animationFrameKind === "raf" && typeof window.cancelAnimationFrame === "function") {
+            window.cancelAnimationFrame(animationFrameId);
+          } else {
+            clearTimeout(animationFrameId);
+          }
+        }
+        if (animationTimer !== null) clearTimeout(animationTimer);
+        animationFrameId = null;
+        animationFrameKind = null;
+        animationTimer = null;
+        isAnimating = false;
+        elements.root.classList.toggle("is-animating", false);
+        elements.board.setAttribute("aria-busy", "false");
+      }
+
+      function scheduleFrame(callback) {
+        if (typeof window.requestAnimationFrame === "function") {
+          animationFrameKind = "raf";
+          animationFrameId = window.requestAnimationFrame(() => {
+            animationFrameId = null;
+            animationFrameKind = null;
+            callback();
+          });
+          return;
+        }
+        animationFrameKind = "timeout";
+        animationFrameId = setTimeout(() => {
+          animationFrameId = null;
+          animationFrameKind = null;
+          callback();
+        }, 0);
+      }
+
+      function shouldAnimate() {
+        if (options.reducedMotion === true) return false;
+        return !(typeof window.matchMedia === "function"
+          && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      }
+
+      function finishMoveAnimation(state, token) {
+        if (token !== animationToken) return;
+        animationTimer = null;
+        isAnimating = false;
+        elements.root.classList.toggle("is-animating", false);
+        elements.board.setAttribute("aria-busy", "false");
+        const transitions = state.lastMove?.transitions || [];
+        const mergedIndexes = new Set(
+          transitions.filter((transition) => transition.merged).map((transition) => transition.to),
+        );
+        renderStaticBoard(state, {
+          mergedIndexes,
+          spawnedIndex: state.lastMove?.spawned?.index,
+        });
+        renderOverlay(state);
+      }
+
+      function animateMove(state) {
+        const transitions = state.lastMove?.transitions || [];
+        if (!transitions.length || !shouldAnimate()) {
+          renderStaticBoard(state, {
+            spawnedIndex: shouldAnimate() ? state.lastMove?.spawned?.index : -1,
+          });
+          renderOverlay(state);
+          return;
+        }
+
+        renderGrid(state);
+        tileLayer.replaceChildren();
+        isAnimating = true;
+        const token = animationToken;
+        elements.root.classList.toggle("is-animating", true);
+        elements.board.setAttribute("aria-busy", "true");
+
+        transitions.forEach((transition) => {
+          const tile = createTile(transition.value, transition.from, "is-motion-tile");
+          tileLayer.appendChild(tile);
+          setTileMovement2048(tile, transition.from, transition.to);
+        });
+
+        scheduleFrame(() => {
+          if (token !== animationToken) return;
+          Array.from(tileLayer.children).forEach((tile) => tile.classList.add("is-moving"));
+          animationTimer = setTimeout(() => finishMoveAnimation(state, token), MOVE_ANIMATION_MS_2048);
+        });
+      }
+
+      function render() {
+        cancelAnimation();
+        const state = game.getState();
+        renderHud(state);
+        renderStaticBoard(state);
+        renderOverlay(state);
+      }
+
+      function move(direction) {
+        if (isAnimating) return game.getState();
+        const state = game.move(direction);
+        renderHud(state);
+        if (state.lastMove) {
+          renderOverlay(state, true);
+          animateMove(state);
+        } else {
+          renderStaticBoard(state);
+          renderOverlay(state);
+        }
+        return state;
+      }
+
+      function reset() {
+        cancelAnimation();
+        const state = game.reset();
+        renderHud(state);
+        renderStaticBoard(state);
+        renderOverlay(state);
+      }
+
+      function continueAfterWin() {
+        cancelAnimation();
+        const state = game.continueAfterWin();
+        renderHud(state);
+        renderStaticBoard(state);
+        renderOverlay(state);
+      }
+
+      function handleKeydown(event) {
+        if (!isActive()) return;
+        if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+        const direction = KEY_TO_DIRECTION_2048[event.key];
+        if (direction) {
+          event.preventDefault();
+          move(direction);
+          return;
+        }
+        if (event.key === "r" || event.key === "R") {
+          event.preventDefault();
+          reset();
+        }
+      }
+
+      function handleTouchStart(event) {
+        const touch = event.changedTouches?.[0];
+        if (!touch) return;
+        touchStart = { x: touch.clientX, y: touch.clientY };
+      }
+
+      function handleTouchEnd(event) {
+        if (!touchStart) return;
+        const touch = event.changedTouches?.[0];
+        if (!touch) return;
+        const dx = touch.clientX - touchStart.x;
+        const dy = touch.clientY - touchStart.y;
+        touchStart = null;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+        const direction = Math.abs(dx) > Math.abs(dy)
+          ? (dx > 0 ? "right" : "left")
+          : (dy > 0 ? "down" : "up");
+        move(direction);
+      }
+
+      const directionButtons = [
+        ["up", elements.upButton],
+        ["down", elements.downButton],
+        ["left", elements.leftButton],
+        ["right", elements.rightButton],
+      ];
+
+      window.addEventListener("keydown", handleKeydown);
+      elements.board.addEventListener("touchstart", handleTouchStart, { passive: true });
+      elements.board.addEventListener("touchend", handleTouchEnd, { passive: true });
+      elements.newButton.addEventListener("click", reset);
+      elements.overlayNewButton.addEventListener("click", reset);
+      elements.continueButton.addEventListener("click", continueAfterWin);
+      directionButtons.forEach(([direction, button]) => {
+        button?.addEventListener("click", () => move(direction));
+      });
+      render();
+
+      return {
+        getState: () => game.getState(),
+        move,
+        reset,
+        render,
+      };
+    }
+    exports.create2048UI = create2048UI;
+  };
   moduleFactories["src/image.js"] = function (exports, __require) {
     function loadImageSource(file) {
       return new Promise((resolve, reject) => {
@@ -3715,6 +4326,7 @@
     const { createRogueGame: createRogueGame } = __require("src/rogue-game.js");
     const { createRogueGuide: createRogueGuide } = __require("src/rogue-guide.js");
     const { createRogueUI: createRogueUI } = __require("src/rogue-ui.js");
+    const { create2048UI: create2048UI } = __require("src/2048-ui.js");
     const { compressImageDataUrl: compressImageDataUrl, loadImageSource: loadImageSource } = __require("src/image.js");
     const { loadSettings: loadSettings, saveBackgroundOpacity: saveBackgroundOpacity, saveBackgroundUrl: saveBackgroundUrl, saveGenerationMode: saveGenerationMode, saveModeKey: saveModeKey, saveThemeKey: saveThemeKey } = __require("src/storage.js");
     
@@ -3779,6 +4391,21 @@
       bestTimeEl: document.getElementById("bestTime"),
       pageBackdropEl: document.getElementById("pageBackdrop"),
       fireworksLayer: document.getElementById("fireworksLayer"),
+      game2048Root: document.getElementById("game2048Shell"),
+      game2048Board: document.getElementById("game2048Board"),
+      game2048Score: document.getElementById("game2048Score"),
+      game2048Best: document.getElementById("game2048Best"),
+      game2048Status: document.getElementById("game2048Status"),
+      game2048Overlay: document.getElementById("game2048Overlay"),
+      game2048OverlayTitle: document.getElementById("game2048OverlayTitle"),
+      game2048OverlayText: document.getElementById("game2048OverlayText"),
+      game2048Continue: document.getElementById("game2048Continue"),
+      game2048New: document.getElementById("game2048New"),
+      game2048OverlayNew: document.getElementById("game2048OverlayNew"),
+      game2048Up: document.getElementById("game2048Up"),
+      game2048Down: document.getElementById("game2048Down"),
+      game2048Left: document.getElementById("game2048Left"),
+      game2048Right: document.getElementById("game2048Right"),
     };
     
     const storage = loadSettings();
@@ -4131,6 +4758,25 @@
     const rogueUI = createRogueUI(elements);
     const rogueGame = createRogueGame({ rng: Math.random });
     const rogueGuideController = createRogueGuide(elements);
+    const game2048UI = create2048UI({
+      root: elements.game2048Root,
+      board: elements.game2048Board,
+      score: elements.game2048Score,
+      best: elements.game2048Best,
+      status: elements.game2048Status,
+      overlay: elements.game2048Overlay,
+      overlayTitle: elements.game2048OverlayTitle,
+      overlayText: elements.game2048OverlayText,
+      continueButton: elements.game2048Continue,
+      newButton: elements.game2048New,
+      overlayNewButton: elements.game2048OverlayNew,
+      upButton: elements.game2048Up,
+      downButton: elements.game2048Down,
+      leftButton: elements.game2048Left,
+      rightButton: elements.game2048Right,
+    }, {
+      isActive: () => window.__GAME_TABS__?.getCurrent() === "2048",
+    });
     window.addEventListener("keydown", (event) => rogueGuideController.handleGlobalKeydown(event), true);
     window.__GAME_TABS__?.register("sweep", {
       onDeactivate: () => {
@@ -4138,6 +4784,9 @@
           queueMicrotask(() => document.querySelector('.game-tab[aria-selected="true"]')?.focus());
         }
       },
+    });
+    window.__GAME_TABS__?.register("2048", {
+      onActivate: () => game2048UI.render(),
     });
     const rogueHandlers = {
       onReset: () => {

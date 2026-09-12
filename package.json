@@ -3,6 +3,6 @@
   "type": "module",
   "scripts": {
     "build:file": "node tools/build-file-bundle.mjs",
-    "test": "npm run build:file && node --test tests/file-entry.test.js tests/minesweeper.test.js tests/rogue-minesweeper.test.js tests/rogue-task1.test.js tests/rogue-task3.test.js tests/rogue-task4.test.js tests/rogue-guide.test.js tests/rogue-guide-assets.test.js tests/rogue-guide-integration.test.js && node tests/sudoku-generator.test.cjs && node tests/classic-sudoku.test.cjs && node tests/lianliankan.test.cjs && node tests/lianliankan3d.test.cjs && node tests/lianliankan-levels.test.cjs && node tests/lianliankan-level-flow.test.cjs"
+    "test": "npm run build:file && node --test tests/file-entry.test.js tests/2048.test.js tests/minesweeper.test.js tests/rogue-minesweeper.test.js tests/rogue-task1.test.js tests/rogue-task3.test.js tests/rogue-task4.test.js tests/rogue-guide.test.js tests/rogue-guide-assets.test.js tests/rogue-guide-integration.test.js && node tests/sudoku-generator.test.cjs && node tests/classic-sudoku.test.cjs && node tests/lianliankan.test.cjs && node tests/lianliankan3d.test.cjs && node tests/lianliankan-levels.test.cjs && node tests/lianliankan-level-flow.test.cjs"
   }
 }

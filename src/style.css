@@ -1240,6 +1240,8 @@ html[data-theme="light"] input[type="range"] {
   background: color-mix(in srgb, var(--panel) 82%, transparent);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(14px);
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
 }
 
 .game-tab {
@@ -1253,6 +1255,7 @@ html[data-theme="light"] input[type="range"] {
   color: var(--muted);
   background: transparent;
   cursor: pointer;
+  white-space: nowrap;
   transition: color 0.16s ease, background-color 0.16s ease;
 }
 
@@ -1269,18 +1272,21 @@ html[data-theme="light"] input[type="range"] {
 /* 各游戏壳共用顶部留白,避免内容被悬浮 Tab 遮挡 */
 main.app-shell,
 .sudoku-shell,
-.llk-shell {
+.llk-shell,
+.game2048-shell {
   padding: 92px 24px 24px;
 }
 
 main.app-shell[hidden],
 .sudoku-shell[hidden],
-.llk-shell[hidden] {
+.llk-shell[hidden],
+.game2048-shell[hidden] {
   display: none;
 }
 
 .sudoku-shell,
-.llk-shell {
+.llk-shell,
+.game2048-shell {
   min-height: 100vh;
   display: grid;
   place-items: center;
@@ -1644,7 +1650,8 @@ main.app-shell[hidden],
   }
   main.app-shell,
   .sudoku-shell,
-  .llk-shell {
+  .llk-shell,
+  .game2048-shell {
     padding: 84px 12px 16px;
   }
 }
@@ -2079,4 +2086,354 @@ main.app-shell[hidden],
     width: 90%;
     text-align: center;
   }
+}
+
+/* ============================================================
+   2048 小游戏(与扫雷、数独、连连看共用 Tab 与主题)
+   ============================================================ */
+
+.game2048-panel {
+  width: min(100%, 720px);
+}
+
+.game2048-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.game2048-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game2048-btn {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--control-border);
+  border-radius: 11px;
+  background: var(--control-bg);
+  color: var(--control-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.game2048-btn:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--control-border));
+}
+
+.game2048-btn:focus-visible,
+.game2048-pad-button:focus-visible,
+.game2048-board:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.game2048-btn--primary {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--control-border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 24%, var(--control-bg)), var(--control-bg));
+  color: var(--text);
+}
+
+.game2048-hud {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.game2048-stage {
+  position: relative;
+  width: min(100%, 560px);
+  margin: 0 auto;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--panel-border));
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 28%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    color-mix(in srgb, var(--panel) 88%, #050b14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 48px rgba(0, 0, 0, 0.24);
+}
+
+.game2048-board {
+  --game2048-gap: clamp(7px, 1.8vw, 12px);
+  --game2048-padding: clamp(9px, 1.8vw, 14px);
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: var(--game2048-gap);
+  width: 100%;
+  aspect-ratio: 1;
+  padding: var(--game2048-padding);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--control-bg) 78%, #050b14);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.06), inset 0 -10px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.game2048-board:active {
+  cursor: grabbing;
+}
+
+.game2048-tiles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: var(--game2048-gap);
+  padding: var(--game2048-padding);
+  pointer-events: none;
+}
+
+.game2048-cell {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  border-radius: clamp(8px, 1.8vw, 13px);
+  background: color-mix(in srgb, var(--panel-border) 68%, transparent);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.game2048-tile {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border-radius: inherit;
+  color: #f9f6f2;
+  font-size: clamp(25px, 7vw, 46px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 6px 12px rgba(0, 0, 0, 0.16);
+  transform: translate3d(0, 0, 0);
+  transition: transform 180ms cubic-bezier(0.22, 0.85, 0.32, 1);
+  will-change: transform;
+}
+
+.game2048-tile.is-moving {
+  transform: translate3d(var(--game2048-move-x, 0px), var(--game2048-move-y, 0px), 0);
+}
+
+.game2048-tile.is-spawned {
+  animation: game2048-tile-in 0.18s ease-out both;
+}
+
+.game2048-tile.is-merged {
+  animation: game2048-tile-merge 0.22s ease-out both;
+}
+
+.game2048-tile[data-value="2"] {
+  color: #776e65;
+  background: linear-gradient(145deg, #fffaf4, #eee4da);
+}
+
+.game2048-tile[data-value="4"] {
+  color: #776e65;
+  background: linear-gradient(145deg, #fff6e6, #ede0c8);
+}
+
+.game2048-tile[data-value="8"] { background: linear-gradient(145deg, #ffd19d, #f2b179); }
+.game2048-tile[data-value="16"] { background: linear-gradient(145deg, #ffb27e, #f59563); }
+.game2048-tile[data-value="32"] { background: linear-gradient(145deg, #ff927f, #f67c5f); }
+.game2048-tile[data-value="64"] { background: linear-gradient(145deg, #ff7666, #f65e3b); }
+.game2048-tile[data-value="128"] { background: linear-gradient(145deg, #ffe28a, #edcf72); }
+.game2048-tile[data-value="256"] { background: linear-gradient(145deg, #ffda68, #edcc61); }
+.game2048-tile[data-value="512"] { background: linear-gradient(145deg, #f8cf58, #edc850); }
+.game2048-tile[data-value="1024"] { background: linear-gradient(145deg, #f5c84a, #edc53f); }
+.game2048-tile[data-value="2048"] {
+  background: linear-gradient(145deg, #ffe995, #edc22e);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 0 2px color-mix(in srgb, var(--win) 62%, transparent),
+    0 0 26px color-mix(in srgb, var(--win) 38%, transparent);
+}
+
+.game2048-tile[data-value="128"],
+.game2048-tile[data-value="256"],
+.game2048-tile[data-value="512"],
+.game2048-tile[data-value="1024"],
+.game2048-tile[data-value="2048"] {
+  font-size: clamp(19px, 5.5vw, 36px);
+}
+
+.game2048-tile[data-value="4096"],
+.game2048-tile[data-value="8192"] {
+  font-size: clamp(17px, 4.8vw, 32px);
+  background: linear-gradient(145deg, #c7b8ff, #8e7cc3);
+}
+
+.game2048-overlay {
+  position: absolute;
+  inset: 14px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  backdrop-filter: blur(10px);
+  animation: game2048-overlay-in 0.22s ease-out both;
+}
+
+.game2048-overlay[hidden] {
+  display: none;
+}
+
+.game2048-overlay-card {
+  width: min(100%, 360px);
+  padding: 28px 22px;
+  text-align: center;
+}
+
+.game2048-overlay-eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+
+.game2048-overlay-card h2 {
+  margin: 0;
+  font-size: clamp(24px, 6vw, 34px);
+}
+
+.game2048-overlay-card > p:not(.game2048-overlay-eyebrow) {
+  margin: 10px 0 20px;
+  color: var(--muted);
+}
+
+.game2048-overlay-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.game2048-pad {
+  display: grid;
+  grid-template-areas:
+    ". up ."
+    "left down right";
+  grid-template-columns: repeat(3, 48px);
+  grid-template-rows: repeat(2, 42px);
+  gap: 6px;
+  justify-content: center;
+  margin: 16px auto 2px;
+}
+
+.game2048-pad-button {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  min-height: 42px;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 16%, var(--control-bg)), var(--control-bg));
+  color: var(--control-text);
+  font: inherit;
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.game2048-pad-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--control-border));
+}
+
+.game2048-pad-button:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+.game2048-pad-button--up { grid-area: up; }
+.game2048-pad-button--left { grid-area: left; }
+.game2048-pad-button--down { grid-area: down; }
+.game2048-pad-button--right { grid-area: right; }
+
+.game2048-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px 22px;
+  flex-wrap: wrap;
+  margin: 18px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.game2048-controls kbd {
+  padding: 1px 6px;
+  border-radius: 6px;
+  border-color: var(--control-border);
+  background: var(--control-bg);
+}
+
+.game2048-hint {
+  margin-bottom: 0;
+  text-align: center;
+}
+
+.game2048-shell.is-won .game2048-stage {
+  border-color: color-mix(in srgb, var(--win) 46%, var(--panel-border));
+}
+
+.game2048-shell.is-over .game2048-stage {
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--panel-border));
+}
+
+@keyframes game2048-tile-in {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes game2048-tile-merge {
+  0% { transform: scale(0.88); }
+  55% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes game2048-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+  .game2048-head { align-items: stretch; }
+  .game2048-actions,
+  .game2048-actions .game2048-btn { width: 100%; }
+  .game2048-controls { gap: 8px 14px; font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game2048-btn,
+  .game2048-pad-button,
+  .game2048-tile,
+  .game2048-overlay { transition: none; animation: none; }
 }
