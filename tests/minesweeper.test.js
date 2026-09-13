@@ -148,6 +148,35 @@ test("game logic keeps the first click and its neighborhood safe", () => {
   game.resetTimer();
 });
 
+test("game logic uses the injected clock for its timer", () => {
+  const state = makeState("easy", "classic");
+  const calls = [];
+  const clock = {
+    now: () => 1000,
+    setInterval: (callback, delay) => {
+      calls.push(["setInterval", callback, delay]);
+      return "fake-interval";
+    },
+    clearInterval: (id) => calls.push(["clearInterval", id]),
+    setTimeout: () => "fake-timeout",
+    clearTimeout: () => {},
+  };
+  const game = createGameLogic({
+    getState: () => state,
+    getDifficultySpec: () => ({ rows: state.rows, cols: state.cols, mines: state.mines }),
+    getGenerationMode: () => "standard",
+    clock,
+    rng: constantRng(0.2),
+  });
+
+  game.reveal(0, 0, () => {});
+  game.resetTimer();
+
+  assert.equal(calls[0][0], "setInterval");
+  assert.equal(calls[0][2], 100);
+  assert.deepEqual(calls[1], ["clearInterval", "fake-interval"]);
+});
+
 test("game logic cycles a hidden cell through flag, question, and clear", () => {
   const state = makeState("easy", "classic");
   const game = createGameLogic({

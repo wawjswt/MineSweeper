@@ -1,6 +1,7 @@
-import { generateClassicBoard } from "./minesweeper-generator.js";
-import { analyzePosition } from "./minesweeper-solver.js";
+import { generateClassicBoard } from "./core/games/minesweeper/generator.js";
+import { analyzePosition } from "./core/games/minesweeper/solver.js";
 import { generateSudokuMines } from "./sudoku-minesweeper.js";
+import { createWebClock } from "./platform/web/clock.js";
 
 function shuffle(list, rng) {
   for (let index = list.length - 1; index > 0; index--) {
@@ -29,6 +30,7 @@ export function createGameLogic({
   getDifficultySpec,
   getGenerationMode = () => "standard",
   rng = Math.random,
+  clock = createWebClock(),
 }) {
   let timerId = null;
   let timerStartAt = null;
@@ -259,13 +261,13 @@ export function createGameLogic({
   }
 
   function startTimer(onTick = () => {}) {
-    if (timerId) return;
-    const now = globalThis.performance?.now?.() ?? Date.now();
+    if (timerId !== null) return;
+    const now = clock.now();
     timerStartAt = now - state().timer * 1000;
-    timerId = setInterval(() => {
+    timerId = clock.setInterval(() => {
       const current = state();
       if (current.started && !current.ended && timerStartAt !== null) {
-        const timestamp = globalThis.performance?.now?.() ?? Date.now();
+        const timestamp = clock.now();
         current.timer = Math.min(999, (timestamp - timerStartAt) / 1000);
         onTick();
       }
@@ -273,7 +275,7 @@ export function createGameLogic({
   }
 
   function stopTimer() {
-    if (timerId) clearInterval(timerId);
+    if (timerId !== null) clock.clearInterval(timerId);
     timerId = null;
     timerStartAt = null;
   }

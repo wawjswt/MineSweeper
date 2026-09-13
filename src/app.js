@@ -7,7 +7,7 @@ import {
   SUDOKU_DIFFICULTIES,
   THEMES,
 } from "./config.js";
-import { makeState } from "./state.js";
+import { makeState } from "./core/games/minesweeper/state.js";
 import { createGameLogic } from "./game.js";
 import { createUI } from "./ui.js";
 import { createRogueGame } from "./rogue-game.js";
