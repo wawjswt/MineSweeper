@@ -4,6 +4,18 @@
   padding: 48rpx 32rpx;
 }
 
+.arcade {
+  max-width: 680rpx;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-bottom: 32rpx;
+}
+
 .empty-state {
   min-height: 60vh;
   display: flex;
@@ -21,4 +33,139 @@
 .subtitle {
   color: #aab4c6;
   font-size: 28rpx;
+}
+
+.game-tabs {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+
+.game-tab,
+.primary-button,
+.direction-button {
+  border: 0;
+  border-radius: 18rpx;
+  color: #d7dfed;
+  background: #1c2638;
+  font-size: 28rpx;
+}
+
+.game-tab::after,
+.primary-button::after,
+.direction-button::after {
+  border: 0;
+}
+
+.game-tab.is-active,
+.primary-button {
+  color: #101522;
+  background: #8ee3c2;
+}
+
+.game-card {
+  padding: 24rpx;
+  border-radius: 32rpx;
+  background: #182235;
+  box-shadow: 0 24rpx 60rpx rgba(0, 0, 0, 0.24);
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+
+.score-row view {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.score-label {
+  color: #8290a8;
+  font-size: 20rpx;
+  letter-spacing: 2rpx;
+}
+
+.score-value {
+  color: #f4f7fb;
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.board-wrap {
+  padding: 16rpx;
+  border-radius: 24rpx;
+  background: #101827;
+}
+
+.board-2048 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12rpx;
+}
+
+.cell-2048 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border-radius: 16rpx;
+  color: #f4f7fb;
+  background: #26334a;
+  font-size: 42rpx;
+  font-weight: 800;
+}
+
+.cell-2048-0 {
+  color: transparent;
+  background: #1e2a3d;
+}
+
+.cell-2048-2 { color: #253044; background: #dbe8f5; }
+.cell-2048-4 { color: #253044; background: #bcd7ef; }
+.cell-2048-8 { background: #ffb86b; }
+.cell-2048-16 { background: #f18f72; }
+.cell-2048-32 { background: #ed6f7a; }
+.cell-2048-64 { background: #d94c69; }
+.cell-2048-128 { background: #d8bd63; }
+.cell-2048-256 { background: #b3a54d; }
+.cell-2048-512 { background: #8f9b48; }
+.cell-2048-1024,
+.cell-2048-2048 { background: #8ee3c2; }
+
+.actions,
+.direction-pad {
+  display: flex;
+  justify-content: center;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.direction-pad {
+  flex-wrap: wrap;
+  max-width: 360rpx;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.direction-button {
+  width: 96rpx;
+  height: 76rpx;
+  line-height: 76rpx;
+  padding: 0;
+  font-size: 40rpx;
+}
+
+.direction-up {
+  flex-basis: 100%;
+}
+
+.hint {
+  display: block;
+  margin-top: 20rpx;
+  color: #8290a8;
+  font-size: 24rpx;
+  text-align: center;
 }

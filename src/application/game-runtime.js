@@ -5,7 +5,7 @@ function entriesOf(games) {
   return Object.entries(games);
 }
 
-export function createGameRuntime({ initialGame = null, games = {} } = {}) {
+export function createGameRuntime({ initialGame = null, games = {}, viewModels = {} } = {}) {
   const registry = createGameRegistry({ initialGame });
   for (const [name, session] of entriesOf(games)) registry.register(name, session);
 
@@ -15,7 +15,9 @@ export function createGameRuntime({ initialGame = null, games = {} } = {}) {
 
   function getState(gameName = registry.current()) {
     const session = getSession(gameName);
-    return typeof session?.getState === "function" ? session.getState() : null;
+    const state = typeof session?.getState === "function" ? session.getState() : null;
+    const viewModel = viewModels?.[gameName];
+    return typeof viewModel === "function" ? viewModel(state) : state;
   }
 
   function dispatch(action, gameName = registry.current()) {

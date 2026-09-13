@@ -192,19 +192,19 @@
 - The session exposes `board`, `score`, `bestScore`, `status`, `won`, `continued`, `moves`, and `lastMove`; best score uses the existing `2048-best-score` key.
 - `to2048ViewModel(state)` returns a WXML-friendly object with a flat `cells` array; it does not create nodes or read platform globals.
 
-- [ ] **Step 1: Add failing session and view-model tests**
+- [x] **Step 1: Add failing session and view-model tests**
 
   Assert a deterministic fake RNG produces a stable initial state, a move changes score/board through the session, best score persists through the injected storage, and the view model contains only arrays, numbers, strings, booleans, and `null`.
 
-- [ ] **Step 2: Implement the session by wrapping the existing core engine**
+- [x] **Step 2: Implement the session by wrapping the existing core engine**
 
   Do not copy `moveBoard2048` or tile rules. The session calls `create2048Game`, updates best score after each dispatch, and returns a copied state.
 
-- [ ] **Step 3: Implement WXML input and rendering**
+- [x] **Step 3: Implement WXML input and rendering**
 
   Add a 4×4 `wx:for` grid, new-game/continue buttons, direction buttons, and `touchstart`/`touchend` swipe detection. Map a swipe only when the absolute horizontal or vertical delta is at least 24 px; dispatch one direction and clear the touch origin after the action.
 
-- [ ] **Step 4: Wire page lifecycle and build output**
+- [x] **Step 4: Wire page lifecycle and build output**
 
   `onLoad` creates one runtime and calls `syncView`; `onShow` resumes it; `onHide` pauses it; `onUnload` releases transient page references. `syncView` calls `setData({ activeGame, game })` with the view model and never stores timer IDs.
 

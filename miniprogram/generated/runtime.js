@@ -99,7 +99,7 @@ moduleFactories["src/application/game-runtime.js"] = function (exports, __requir
     return Object.entries(games);
   }
 
-  function createGameRuntime({ initialGame = null, games = {} } = {}) {
+  function createGameRuntime({ initialGame = null, games = {}, viewModels = {} } = {}) {
     const registry = createGameRegistry({ initialGame });
     for (const [name, session] of entriesOf(games)) registry.register(name, session);
 
@@ -109,7 +109,9 @@ moduleFactories["src/application/game-runtime.js"] = function (exports, __requir
 
     function getState(gameName = registry.current()) {
       const session = getSession(gameName);
-      return typeof session?.getState === "function" ? session.getState() : null;
+      const state = typeof session?.getState === "function" ? session.getState() : null;
+      const viewModel = viewModels?.[gameName];
+      return typeof viewModel === "function" ? viewModel(state) : state;
     }
 
     function dispatch(action, gameName = registry.current()) {
@@ -138,6 +140,323 @@ moduleFactories["src/application/game-runtime.js"] = function (exports, __requir
     });
   }
   exports.createGameRuntime = createGameRuntime;
+};
+moduleFactories["src/core/games/2048/engine.js"] = function (exports, __require) {
+  const BOARD_SIZE_2048 = 4;
+  const CELL_COUNT_2048 = BOARD_SIZE_2048 * BOARD_SIZE_2048;
+  const DIRECTIONS_2048 = new Set(["up", "down", "left", "right"]);
+
+  function assertBoard2048(board) {
+    if (!Array.isArray(board) || board.length !== CELL_COUNT_2048) {
+      throw new TypeError("A 2048 board must contain exactly 16 cells.");
+    }
+  }
+
+  function assertDirection2048(direction) {
+    if (!DIRECTIONS_2048.has(direction)) {
+      throw new RangeError(`Unknown 2048 direction: ${direction}`);
+    }
+  }
+
+  function randomUnit2048(rng) {
+    const value = Number(rng());
+    if (!Number.isFinite(value)) return 0;
+    return Math.min(0.999999999, Math.max(0, value));
+  }
+
+  function slideLine2048(line) {
+    const compact = line.filter((entry) => entry.value !== 0);
+    const result = [];
+    let scoreDelta = 0;
+
+    for (let index = 0; index < compact.length; index += 1) {
+      const current = compact[index];
+      const next = compact[index + 1];
+      if (next && current.value === next.value) {
+        const mergedValue = current.value * 2;
+        result.push({
+          value: mergedValue,
+          sources: [current, next],
+          merged: true,
+        });
+        scoreDelta += mergedValue;
+        index += 1;
+      } else {
+        result.push({
+          value: current.value,
+          sources: [current],
+          merged: false,
+        });
+      }
+    }
+
+    while (result.length < BOARD_SIZE_2048) result.push(null);
+    return { line: result, scoreDelta };
+  }
+
+  function lineIndexes2048(lineIndex, direction) {
+    if (direction === "left" || direction === "right") {
+      return Array.from({ length: BOARD_SIZE_2048 }, (_, offset) => lineIndex * BOARD_SIZE_2048 + offset);
+    }
+    return Array.from({ length: BOARD_SIZE_2048 }, (_, offset) => offset * BOARD_SIZE_2048 + lineIndex);
+  }
+
+  function sameBoard2048(first, second) {
+    return first.every((value, index) => value === second[index]);
+  }
+
+  function moveBoard2048(board, direction) {
+    assertBoard2048(board);
+    assertDirection2048(direction);
+
+    const nextBoard = board.slice();
+    let scoreDelta = 0;
+    const transitions = [];
+    const reverseLine = direction === "right" || direction === "down";
+
+    for (let lineIndex = 0; lineIndex < BOARD_SIZE_2048; lineIndex += 1) {
+      const indexes = lineIndexes2048(lineIndex, direction);
+      const values = indexes.map((index) => board[index]);
+      const orientedValues = (reverseLine ? values.slice().reverse() : values).map((value, offset) => ({
+        value,
+        index: indexes[reverseLine ? BOARD_SIZE_2048 - 1 - offset : offset],
+      }));
+      const slid = slideLine2048(orientedValues);
+      scoreDelta += slid.scoreDelta;
+      slid.line.forEach((token, orientedOffset) => {
+        const physicalOffset = reverseLine
+          ? BOARD_SIZE_2048 - 1 - orientedOffset
+          : orientedOffset;
+        const destinationIndex = indexes[physicalOffset];
+        nextBoard[destinationIndex] = token?.value || 0;
+        token?.sources.forEach((source) => {
+          transitions.push({
+            from: source.index,
+            to: destinationIndex,
+            value: source.value,
+            merged: token.merged,
+          });
+        });
+      });
+    }
+
+    return {
+      board: nextBoard,
+      moved: !sameBoard2048(board, nextBoard),
+      scoreDelta,
+      transitions,
+    };
+  }
+
+  function canMove2048(board) {
+    assertBoard2048(board);
+
+    for (let index = 0; index < board.length; index += 1) {
+      if (board[index] === 0) return true;
+      const row = Math.floor(index / BOARD_SIZE_2048);
+      const col = index % BOARD_SIZE_2048;
+      if (col < BOARD_SIZE_2048 - 1 && board[index] === board[index + 1]) return true;
+      if (row < BOARD_SIZE_2048 - 1 && board[index] === board[index + BOARD_SIZE_2048]) return true;
+    }
+    return false;
+  }
+
+  function spawnTile2048(board, rng = Math.random) {
+    assertBoard2048(board);
+    const emptyIndexes = board.reduce((indexes, value, index) => {
+      if (value === 0) indexes.push(index);
+      return indexes;
+    }, []);
+
+    const nextBoard = board.slice();
+    if (emptyIndexes.length === 0) {
+      return { board: nextBoard, index: -1, value: 0, spawned: false };
+    }
+
+    const index = emptyIndexes[Math.floor(randomUnit2048(rng) * emptyIndexes.length)];
+    const value = randomUnit2048(rng) < 0.9 ? 2 : 4;
+    nextBoard[index] = value;
+    return { board: nextBoard, index, value, spawned: true };
+  }
+
+  function createInitialBoard2048(rng = Math.random) {
+    let board = Array(CELL_COUNT_2048).fill(0);
+    board = spawnTile2048(board, rng).board;
+    board = spawnTile2048(board, rng).board;
+    return board;
+  }
+
+  function hasReachedTarget2048(board, target = 2048) {
+    assertBoard2048(board);
+    return board.some((value) => value >= target);
+  }
+
+  function copyState2048(state) {
+    return {
+      ...state,
+      board: state.board.slice(),
+      lastMove: state.lastMove
+        ? {
+          ...state.lastMove,
+          transitions: state.lastMove.transitions.map((transition) => ({ ...transition })),
+          spawned: state.lastMove.spawned ? { ...state.lastMove.spawned } : null,
+        }
+        : null,
+    };
+  }
+
+  function create2048Game(options = {}) {
+    const rng = typeof options.rng === "function" ? options.rng : Math.random;
+    const target = Number.isFinite(options.target) && options.target > 0 ? options.target : 2048;
+    const suppliedInitialBoard = options.initialBoard ? options.initialBoard.slice() : null;
+    if (suppliedInitialBoard) assertBoard2048(suppliedInitialBoard);
+    let state;
+
+    function makeInitialState() {
+      const board = suppliedInitialBoard ? suppliedInitialBoard.slice() : createInitialBoard2048(rng);
+      const won = hasReachedTarget2048(board, target);
+      return {
+        board,
+        score: 0,
+        status: won ? "won" : (canMove2048(board) ? "playing" : "over"),
+        won,
+        continued: false,
+        moves: 0,
+        lastMove: null,
+      };
+    }
+
+    function reset() {
+      state = makeInitialState();
+      return copyState2048(state);
+    }
+
+    function move(direction) {
+      assertDirection2048(direction);
+      if (state.status !== "playing") {
+        state = { ...state, lastMove: null };
+        return copyState2048(state);
+      }
+
+      const result = moveBoard2048(state.board, direction);
+      if (!result.moved) {
+        state = { ...state, lastMove: null };
+        return copyState2048(state);
+      }
+
+      const spawned = spawnTile2048(result.board, rng);
+      const board = spawned.board;
+      const won = state.won || hasReachedTarget2048(board, target);
+      const status = won && !state.continued
+        ? "won"
+        : (canMove2048(board) ? "playing" : "over");
+
+      state = {
+        ...state,
+        board,
+        score: state.score + result.scoreDelta,
+        status,
+        won,
+        moves: state.moves + 1,
+        lastMove: {
+          direction,
+          transitions: result.transitions,
+          spawned: spawned.spawned ? { index: spawned.index, value: spawned.value } : null,
+        },
+      };
+      return copyState2048(state);
+    }
+
+    function continueAfterWin() {
+      if (state.status === "won") {
+        state = { ...state, status: "playing", continued: true, lastMove: null };
+      }
+      return copyState2048(state);
+    }
+
+    reset();
+    return {
+      getState: () => copyState2048(state),
+      move,
+      reset,
+      continueAfterWin,
+    };
+  }
+  exports.moveBoard2048 = moveBoard2048;
+  exports.canMove2048 = canMove2048;
+  exports.spawnTile2048 = spawnTile2048;
+  exports.createInitialBoard2048 = createInitialBoard2048;
+  exports.hasReachedTarget2048 = hasReachedTarget2048;
+  exports.create2048Game = create2048Game;
+};
+moduleFactories["src/application/games/2048-session.js"] = function (exports, __require) {
+  const { create2048Game: create2048Game } = __require("src/core/games/2048/engine.js");
+
+  const BEST_SCORE_KEY = "2048-best-score";
+
+  function readBestScore(storage) {
+    const score = Number(storage?.getItem?.(BEST_SCORE_KEY));
+    return Number.isFinite(score) && score > 0 ? score : 0;
+  }
+
+  function saveBestScore(storage, score) {
+    storage?.setItem?.(BEST_SCORE_KEY, String(score));
+  }
+
+  function create2048Session({ storage = null, rng = Math.random, initialBoard = null } = {}) {
+    const game = create2048Game({ rng, initialBoard });
+    let bestScore = readBestScore(storage);
+
+    function snapshot() {
+      const state = game.getState();
+      return { ...state, bestScore };
+    }
+
+    function record(state) {
+      if (state.score > bestScore) {
+        bestScore = state.score;
+        saveBestScore(storage, bestScore);
+      }
+      return snapshot();
+    }
+
+    function dispatch(action = {}) {
+      let state;
+      if (action.type === "move") state = game.move(action.direction);
+      else if (action.type === "reset") state = game.reset();
+      else if (action.type === "continue") state = game.continueAfterWin();
+      else return { handled: false, state: snapshot() };
+      return { handled: true, state: record(state) };
+    }
+
+    record(game.getState());
+    return Object.freeze({
+      getState: snapshot,
+      dispatch,
+    });
+  }
+  exports.create2048Session = create2048Session;
+};
+moduleFactories["src/adapters/miniprogram/view-models/2048.js"] = function (exports, __require) {
+  function to2048ViewModel(state) {
+    const board = Array.isArray(state?.board) ? state.board : [];
+    return {
+      cells: board.map((value, index) => ({
+        index,
+        row: Math.floor(index / 4),
+        column: index % 4,
+        value,
+      })),
+      score: Number(state?.score) || 0,
+      bestScore: Number(state?.bestScore) || 0,
+      status: state?.status || "playing",
+      won: state?.won === true,
+      continued: state?.continued === true,
+      moves: Number(state?.moves) || 0,
+      lastMove: state?.lastMove || null,
+    };
+  }
+  exports.to2048ViewModel = to2048ViewModel;
 };
 moduleFactories["src/core/shared/clock.js"] = function (exports, __require) {
   function requireFunction(name, value) {
@@ -247,6 +566,8 @@ moduleFactories["src/platform/wechat/storage.js"] = function (exports, __require
 };
 moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __require) {
   const { createGameRuntime: createGameRuntime } = __require("src/application/game-runtime.js");
+  const { create2048Session: create2048Session } = __require("src/application/games/2048-session.js");
+  const { to2048ViewModel: to2048ViewModel } = __require("src/adapters/miniprogram/view-models/2048.js");
   const { createWechatClock: createWechatClock } = __require("src/platform/wechat/clock.js");
   const { createWechatRandom: createWechatRandom } = __require("src/platform/wechat/random.js");
   const { createWechatStorage: createWechatStorage } = __require("src/platform/wechat/storage.js");
@@ -255,10 +576,16 @@ moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __re
     const storage = createWechatStorage(wxApi);
     const clock = createWechatClock({ timers });
     const random = createWechatRandom(rng);
-    void storage;
     void clock;
-    void random;
-    return createGameRuntime();
+    return createGameRuntime({
+      initialGame: "2048",
+      games: {
+        "2048": create2048Session({ storage, rng: random }),
+      },
+      viewModels: {
+        "2048": to2048ViewModel,
+      },
+    });
   }
   exports.createMiniProgramRuntime = createMiniProgramRuntime;
 };

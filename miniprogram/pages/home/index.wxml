@@ -1,7 +1,50 @@
 <view class="page-shell">
-  <view wx:if="{{ready}}" class="empty-state">
-    <text class="title">Puzzle Arcade</text>
-    <text class="subtitle">运行包已加载，下一步接入游戏页面。</text>
+  <view wx:if="{{ready}}" class="arcade">
+    <view class="header">
+      <text class="title">Puzzle Arcade</text>
+      <text class="subtitle">原生微信小程序运行切片</text>
+    </view>
+
+    <view class="game-tabs" wx:if="{{games.length}}">
+      <button
+        wx:for="{{games}}"
+        wx:key="*this"
+        class="game-tab {{item === activeGame ? 'is-active' : ''}}"
+        data-game="{{item}}"
+        bindtap="onSelectGame"
+      >{{item}}</button>
+    </view>
+
+    <view wx:if="{{game}}" class="game-card">
+      <view class="score-row">
+        <view><text class="score-label">SCORE</text><text class="score-value">{{game.score}}</text></view>
+        <view><text class="score-label">BEST</text><text class="score-value">{{game.bestScore}}</text></view>
+        <view><text class="score-label">STATUS</text><text class="score-value">{{game.status}}</text></view>
+      </view>
+
+      <view class="board-wrap" catchtouchstart="onTouchStart" catchtouchend="onTouchEnd">
+        <view class="board-2048">
+          <view
+            wx:for="{{game.cells}}"
+            wx:key="index"
+            class="cell-2048 cell-2048-{{item.value}}"
+          >{{item.value || ''}}</view>
+        </view>
+      </view>
+
+      <view class="actions">
+        <button class="primary-button" bindtap="onNewGame">新局</button>
+        <button wx:if="{{game.status === 'won'}}" class="primary-button" bindtap="onContinue">继续</button>
+      </view>
+
+      <view class="direction-pad">
+        <button class="direction-button direction-up" data-direction="up" bindtap="onTapMove">↑</button>
+        <button class="direction-button" data-direction="left" bindtap="onTapMove">←</button>
+        <button class="direction-button" data-direction="down" bindtap="onTapMove">↓</button>
+        <button class="direction-button" data-direction="right" bindtap="onTapMove">→</button>
+      </view>
+      <text class="hint">滑动棋盘或点击方向按钮移动方块。</text>
+    </view>
   </view>
   <view wx:else class="empty-state">
     <text class="title">正在加载</text>
