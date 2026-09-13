@@ -4,6 +4,7 @@
     "sudoku-board": "/components/sudoku-board/index",
     "lianliankan-board": "/components/lianliankan-board/index",
     "rogue-board": "/components/rogue-board/index",
-    "rogue-hud": "/components/rogue-hud/index"
+    "rogue-hud": "/components/rogue-hud/index",
+    "game-tabs": "/components/game-tabs/index"
   }
 }

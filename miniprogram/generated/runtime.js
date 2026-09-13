@@ -5634,6 +5634,21 @@ moduleFactories["src/adapters/miniprogram/view-models/rogue.js"] = function (exp
   }
   exports.toRogueViewModel = toRogueViewModel;
 };
+moduleFactories["src/adapters/miniprogram/view-models/game-tabs.js"] = function (exports, __require) {
+  function toGameTabViewModel(runtime) {
+    const names = typeof runtime?.listGames === "function" ? runtime.listGames() : [];
+    const active = typeof runtime?.currentGame === "function" ? runtime.currentGame() : null;
+    return {
+      tabs: names.map((name) => ({
+        name,
+        active: name === active,
+        disabled: false,
+      })),
+      loading: names.length === 0,
+    };
+  }
+  exports.toGameTabViewModel = toGameTabViewModel;
+};
 moduleFactories["src/core/shared/clock.js"] = function (exports, __require) {
   function requireFunction(name, value) {
     if (typeof value !== "function") {
@@ -5752,6 +5767,7 @@ moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __re
   const { toSudokuViewModel: toSudokuViewModel } = __require("src/adapters/miniprogram/view-models/sudoku.js");
   const { toLianliankanViewModel: toLianliankanViewModel } = __require("src/adapters/miniprogram/view-models/lianliankan.js");
   const { toRogueViewModel: toRogueViewModel } = __require("src/adapters/miniprogram/view-models/rogue.js");
+  const { toGameTabViewModel: toGameTabViewModel } = __require("src/adapters/miniprogram/view-models/game-tabs.js");
   const { createWechatClock: createWechatClock } = __require("src/platform/wechat/clock.js");
   const { createWechatRandom: createWechatRandom } = __require("src/platform/wechat/random.js");
   const { createWechatStorage: createWechatStorage } = __require("src/platform/wechat/storage.js");
@@ -5760,7 +5776,7 @@ moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __re
     const storage = createWechatStorage(wxApi);
     const clock = createWechatClock({ timers });
     const random = createWechatRandom(rng);
-    return createGameRuntime({
+    const runtime = createGameRuntime({
       initialGame: "2048",
       games: {
         "2048": create2048Session({ storage, rng: random }),
@@ -5776,6 +5792,10 @@ moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __re
         lianliankan: toLianliankanViewModel,
         rogue: toRogueViewModel,
       },
+    });
+    return Object.freeze({
+      ...runtime,
+      getTabViewModel: () => toGameTabViewModel(runtime),
     });
   }
   exports.createMiniProgramRuntime = createMiniProgramRuntime;

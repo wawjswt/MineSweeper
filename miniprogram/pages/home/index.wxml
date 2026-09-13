@@ -5,15 +5,7 @@
       <text class="subtitle">原生微信小程序运行切片</text>
     </view>
 
-    <view class="game-tabs" wx:if="{{games.length}}">
-      <button
-        wx:for="{{games}}"
-        wx:key="*this"
-        class="game-tab {{item === activeGame ? 'is-active' : ''}}"
-        data-game="{{item}}"
-        bindtap="onSelectGame"
-      >{{item}}</button>
-    </view>
+    <game-tabs tabs="{{games}}" bind:select="onSelectGame" />
 
     <view wx:if="{{activeGame === '2048' && game}}" class="game-card">
       <view class="score-row">

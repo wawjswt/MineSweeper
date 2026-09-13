@@ -42,6 +42,24 @@ npm run build:file
 
 生成文件为 `dist/file-bundle.js`。
 
+### 微信小程序开发构建
+
+项目已经提供原生小程序开发壳，入口目录为 [`miniprogram/`](miniprogram/)。当前运行时已接入 2048、经典扫雷、标准数独、2D 连连看和 Rogue；它们通过 `src/application/` 会话复用 `src/core/` 规则，不在 WXML 中复制规则。
+
+在微信开发者工具中导入项目根目录下的 `miniprogram/`，开发阶段可直接使用无 AppID 配置。修改共享源码后执行：
+
+```bash
+npm run build:miniprogram
+```
+
+该命令会生成并更新 `miniprogram/generated/runtime.js`。提交源码时请同时提交生成文件。发布前建议执行：
+
+```bash
+npm run check:miniprogram
+```
+
+质量命令会构建小程序运行包、检查平台边界和 bundle，再运行完整 `npm test`。真实 AppID、微信审核配置、真机性能和最终发布包仍需在微信开发者工具中完成。
+
 ## 开发与测试
 
 项目使用原生 JavaScript、HTML 和 CSS，不依赖 React、Vue、Taro 或 uni-app。需要安装 Node.js 后执行：
@@ -67,7 +85,10 @@ npm test
 │   │   ├── games/rogue/
 │   │   └── games/sudoku/
 │   ├── platform/web/          # Web 存储、计时等平台能力
-│   └── adapters/web/          # Web 适配说明与边界
+│   ├── platform/wechat/       # 微信 storage、clock、random、media 端口
+│   ├── adapters/web/          # Web 适配说明与边界
+│   └── adapters/miniprogram/  # 小程序 runtime 与 WXML view model
+├── miniprogram/               # 原生微信小程序页面和组件
 ├── assets/                    # Rogue 指南插图等资源
 ├── tests/                     # Node 核心测试与兼容流程测试
 ├── tools/                     # 构建工具
@@ -82,13 +103,14 @@ npm test
 - [x] 扫雷、2048、数独、连连看和 Rogue 核心模块拆分
 - [x] 应用层游戏注册与动作分发边界
 - [x] 文件协议 bundle 构建与测试
-- [ ] 微信小程序平台适配层
-- [ ] WXML/WXSS 页面与组件迁移
+- [x] 微信小程序平台适配层、运行包和五个游戏会话
+- [x] WXML/WXSS 页面与组件迁移的开发切片
 - [ ] 小程序真机和性能验证
+
+当前小程序交付仍是开发阶段切片：3D 连连看、背景图片媒体接入、账号/云开发/排行榜/支付、正式 AppID 和发布配置暂未纳入。缺少微信开发者工具时，自动化 Node 检查无法替代页面冒烟和真机触摸验收。
 
 后续小程序工作会新增微信平台能力和 WXML/WXSS 适配器，复用 `src/core/` 与 `src/application/`，不会在页面中复制游戏规则。
 
 ## 贡献约定
 
 提交新的游戏规则或核心逻辑时，请保持 `src/core/` 与浏览器环境无关，并为新边界补充测试。涉及 Web DOM、Canvas、浏览器存储或计时器的代码，应放在 Web 适配层或平台层。
-

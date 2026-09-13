@@ -40,7 +40,7 @@ Page({
     if (!this.runtime) return;
     this.setData({
       ready: true,
-      games: this.runtime.listGames(),
+      games: this.runtime.getTabViewModel?.().tabs || [],
       activeGame: this.runtime.currentGame(),
       game: this.runtime.getState(),
     });
@@ -53,7 +53,8 @@ Page({
   },
 
   onSelectGame(event) {
-    const result = this.runtime?.select(event.currentTarget.dataset.game);
+    const game = event.detail?.game || event.currentTarget.dataset.game;
+    const result = this.runtime?.select(game);
     if (result?.ok) this.syncView();
   },
 

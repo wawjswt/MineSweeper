@@ -9,6 +9,7 @@ import { toMinesweeperViewModel } from "./view-models/minesweeper.js";
 import { toSudokuViewModel } from "./view-models/sudoku.js";
 import { toLianliankanViewModel } from "./view-models/lianliankan.js";
 import { toRogueViewModel } from "./view-models/rogue.js";
+import { toGameTabViewModel } from "./view-models/game-tabs.js";
 import { createWechatClock } from "../../platform/wechat/clock.js";
 import { createWechatRandom } from "../../platform/wechat/random.js";
 import { createWechatStorage } from "../../platform/wechat/storage.js";
@@ -17,7 +18,7 @@ export function createMiniProgramRuntime({ wxApi, rng = Math.random, timers } = 
   const storage = createWechatStorage(wxApi);
   const clock = createWechatClock({ timers });
   const random = createWechatRandom(rng);
-  return createGameRuntime({
+  const runtime = createGameRuntime({
     initialGame: "2048",
     games: {
       "2048": create2048Session({ storage, rng: random }),
@@ -33,5 +34,9 @@ export function createMiniProgramRuntime({ wxApi, rng = Math.random, timers } = 
       lianliankan: toLianliankanViewModel,
       rogue: toRogueViewModel,
     },
+  });
+  return Object.freeze({
+    ...runtime,
+    getTabViewModel: () => toGameTabViewModel(runtime),
   });
 }

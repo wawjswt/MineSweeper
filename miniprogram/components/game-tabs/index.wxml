@@ -1,0 +1,10 @@
+<view class="game-tabs" wx:if="{{tabs.length}}">
+  <button
+    wx:for="{{tabs}}"
+    wx:key="name"
+    class="game-tab {{item.active ? 'is-active' : ''}}"
+    data-game="{{item.name}}"
+    disabled="{{item.disabled}}"
+    bindtap="onTabTap"
+  >{{item.name}}</button>
+</view>

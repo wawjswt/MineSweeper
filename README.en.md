@@ -42,6 +42,24 @@ npm run build:file
 
 The generated file is `dist/file-bundle.js`.
 
+### WeChat Mini Program development build
+
+The repository now includes a native Mini Program shell in [`miniprogram/`](miniprogram/). Its development runtime registers 2048, classic Minesweeper, standard Sudoku, 2D Link-Link, and Rogue. Each game reuses the sessions in `src/application/` and rules in `src/core/`; WXML does not duplicate game logic.
+
+Import the `miniprogram/` directory from the project root into WeChat DevTools. During development it can run without a real AppID. After changing shared source code, run:
+
+```bash
+npm run build:miniprogram
+```
+
+This regenerates `miniprogram/generated/runtime.js`; commit the generated file together with its source. Before release, run:
+
+```bash
+npm run check:miniprogram
+```
+
+The quality command builds the Mini Program runtime, checks platform boundaries and the generated bundle, then runs the full `npm test` suite. A real AppID, DevTools configuration, device performance checks, and the final release package still need to be completed in WeChat DevTools.
+
 ## Development and tests
 
 The project uses native JavaScript, HTML, and CSS. It does not depend on React, Vue, Taro, or uni-app. Install Node.js, then run:
@@ -67,7 +85,10 @@ The test command first builds the file-protocol bundle, then runs core-rule, pla
 │   │   ├── games/rogue/
 │   │   └── games/sudoku/
 │   ├── platform/web/          # Web storage, clock, and other capabilities
-│   └── adapters/web/           # Web adapter notes and boundaries
+│   ├── platform/wechat/        # WeChat storage, clock, random, and media ports
+│   ├── adapters/web/           # Web adapter notes and boundaries
+│   └── adapters/miniprogram/   # Mini Program runtime and WXML view models
+├── miniprogram/                # Native Mini Program pages and components
 ├── assets/                    # Rogue guide illustrations and other assets
 ├── tests/                     # Node core and compatibility-flow tests
 ├── tools/                     # Build tools
@@ -82,13 +103,14 @@ The core handles serializable state, rules, and action results. It does not dire
 - [x] Core extraction for Minesweeper, 2048, Sudoku, Link-Link, and Rogue
 - [x] Application-level game registration and action dispatch boundary
 - [x] File-protocol bundle build and tests
-- [ ] WeChat Mini Program platform adapters
-- [ ] WXML/WXSS pages and components
+- [x] WeChat Mini Program platform adapters, runtime, and five game sessions
+- [x] Development slices for WXML/WXSS pages and components
 - [ ] Mini Program device and performance validation
+
+The Mini Program work is still a development build: 3D Link-Link, background-media integration, accounts/cloud development/leaderboards/payments, the production AppID, and release configuration are intentionally deferred. Without WeChat DevTools, automated Node checks cannot replace page smoke tests or real-device touch validation.
 
 The next Mini Program phase will add WeChat platform capabilities and WXML/WXSS adapters while reusing `src/core/` and `src/application/`. Game rules will not be copied into page code.
 
 ## Contribution guidelines
 
 Keep new game rules and core logic independent from the browser environment, and add tests for new boundaries. Code that depends on Web DOM, Canvas, browser storage, or browser timers belongs in a Web adapter or platform module.
-

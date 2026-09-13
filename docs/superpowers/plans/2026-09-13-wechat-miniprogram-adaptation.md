@@ -218,7 +218,7 @@
 
   In WeChat DevTools verify: page opens, 4×4 board renders, swipe and direction buttons move once, reaching 2048 can continue, best score survives page reload, and switching away/back does not create duplicate listeners.
 
-- [ ] **Step 6: Commit the first vertical slice**
+- [x] **Step 6: Commit the first vertical slice**
 
   ```bash
   git add src/application/games/2048-session.js src/adapters/miniprogram miniprogram tests/2048-session.test.js
@@ -312,7 +312,7 @@
 
   Verify reload restores a saved puzzle, page hide pauses timing, and a page restart does not mutate the stored puzzle unexpectedly.
 
-- [x] **Step 5: Commit the Sudoku slice**
+- [ ] **Step 5: Commit the Sudoku slice**
 
   ```bash
   git add src/application/games/sudoku-session.js src/adapters/miniprogram miniprogram src/sudoku-game.js tests/sudoku-session.test.js
@@ -362,7 +362,7 @@
 
   3D remains a separate enhancement: reuse `src/core/games/lianliankan` geometry in a Canvas component only after 2D package size and touch performance are acceptable.
 
-- [ ] **Step 5: Commit the 2D Link-Link slice**
+- [x] **Step 5: Commit the 2D Link-Link slice**
 
   ```bash
   git add src/application/games/lianliankan-session.js src/adapters/miniprogram miniprogram src/lianliankan-game.js tests/lianliankan-session.test.js
@@ -411,7 +411,7 @@
 
   Verify contract selection, tools, sector labels, reward selection, page hide/resume, and the guide/result panels on a narrow device viewport.
 
-- [ ] **Step 5: Commit the Rogue slice**
+- [x] **Step 5: Commit the Rogue slice**
 
   ```bash
   git add src/application/games/rogue-session.js src/adapters/miniprogram miniprogram tests/rogue-session.test.js
@@ -440,15 +440,15 @@
 - `toGameTabViewModel(runtime)` returns game names, active state, and disabled/loading state for WXML.
 - `npm run check:miniprogram` runs the build, core boundary scan, generated-bundle test, and all Node tests.
 
-- [ ] **Step 1: Add failing media, tab, and package checks**
+- [x] **Step 1: Add failing media, tab, and package checks**
 
   Test that media API failures return a non-throwing result, tab selection delegates to `runtime.select`, and the generated bundle does not contain Web controller imports or forbidden browser globals.
 
-- [ ] **Step 2: Implement media and shared navigation**
+- [x] **Step 2: Implement media and shared navigation**
 
   Keep custom background image support optional and best-effort. A failed image pick must not prevent gameplay. Navigation must select a registered game and refresh only the active view model.
 
-- [ ] **Step 3: Add the package-quality command**
+- [x] **Step 3: Add the package-quality command**
 
   The command must run in this order:
 
