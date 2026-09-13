@@ -1,0 +1,9 @@
+.rogue-hud { margin-top: 20rpx; }
+.rogue-stats { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12rpx; color: #d7dfed; font-size: 24rpx; }
+.rogue-tools { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 18rpx; }
+.rogue-tool, .rogue-option { border: 0; border-radius: 14rpx; color: #d7dfed; background: #26334a; font-size: 22rpx; }
+.rogue-tool::after, .rogue-option::after { border: 0; }
+.rogue-tool.is-selected { color: #101522; background: #8ee3c2; }
+.rogue-panel { display: flex; flex-direction: column; gap: 10rpx; margin-top: 18rpx; }
+.rogue-panel-title { color: #f6d365; font-size: 24rpx; }
+.rogue-option { padding: 12rpx; text-align: left; line-height: 1.45; }

@@ -1,0 +1,19 @@
+<view class="rogue-board" style="grid-template-columns: repeat({{cols}}, minmax(0, 1fr));">
+  <view
+    wx:for="{{cells}}"
+    wx:key="index"
+    class="rogue-cell sector-{{item.sectorId}} {{item.revealed ? 'is-revealed' : ''}} {{item.flagged ? 'is-flagged' : ''}} {{item.questioned ? 'is-questioned' : ''}} {{item.exploded ? 'is-exploded' : ''}} {{item.neutralized ? 'is-neutralized' : ''}}"
+    data-row="{{item.row}}"
+    data-col="{{item.column}}"
+    bindtap="onCellTap"
+    bindlongpress="onCellLongPress"
+  >
+    <text wx:if="{{item.neutralized}}">✦</text>
+    <text wx:elif="{{item.flagged}}">⚑</text>
+    <text wx:elif="{{item.questioned}}">?</text>
+    <text wx:elif="{{item.revealed && item.mine}}">✹</text>
+    <text wx:elif="{{item.revealed && item.count}}">{{item.count}}</text>
+    <text wx:elif="{{item.revealed && item.special === 'intel'}}">⌁</text>
+    <text wx:elif="{{item.revealed && item.special === 'supply'}}">◆</text>
+  </view>
+</view>

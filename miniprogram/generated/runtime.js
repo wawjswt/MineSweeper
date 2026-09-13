@@ -4012,6 +4012,1359 @@ moduleFactories["src/application/games/lianliankan-session.js"] = function (expo
   }
   exports.createLianliankanSession = createLianliankanSession;
 };
+moduleFactories["src/core/games/rogue/state.js"] = function (exports, __require) {
+  const TOOL_KEYS = ["scoutPulse", "defusalKit", "reactionShield"];
+
+  function createRogueEmptyCell() {
+    return {
+      mine: false,
+      revealed: false,
+      flagged: false,
+      questioned: false,
+      exploded: false,
+      neutralized: false,
+      count: 0,
+      sectorId: null,
+      special: null,
+      specialCollected: false,
+    };
+  }
+
+  function createEmptyBoard(rows, cols) {
+    return Array.from({ length: rows }, () =>
+      Array.from({ length: cols }, () => createRogueEmptyCell()),
+    );
+  }
+
+  function createContractContext() {
+    return {
+      intelSectorId: null,
+      supplySectorId: null,
+      firstCrossFireEvent: null,
+      insertionQualifiedSectors: [],
+    };
+  }
+
+  function createRogueRunState() {
+    return {
+      modeKey: "rogue",
+      status: "ready",
+      floor: 1,
+      totalFloors: 5,
+      lives: 3,
+      maxLives: 3,
+      energy: 2,
+      maxEnergy: 3,
+      safeRevealStreak: 0,
+      score: 0,
+      upgrades: [],
+      nextLevelToolBonus: {
+        scoutPulse: 0,
+        defusalKit: 0,
+        reactionShield: 0,
+      },
+      level: {
+        floor: 1,
+        rows: 7,
+        cols: 7,
+        mines: 8,
+        board: createEmptyBoard(7, 7),
+        started: false,
+        ended: false,
+        safeCellsRemaining: 7 * 7 - 8,
+        activeToolUses: Object.fromEntries(TOOL_KEYS.map((key) => [key, 1])),
+        shieldActive: false,
+      },
+      contractOptions: [],
+      selectedContract: null,
+      contractProgress: 0,
+      contractTarget: 1,
+      contractCompleted: false,
+      contractRewardGranted: false,
+      contractFailed: false,
+      contractFailureReason: "",
+      contractPenaltyApplied: false,
+      contractContext: createContractContext(),
+      levelStats: {
+        damageTaken: 0,
+        safeReveals: 0,
+        toolsUsed: {},
+        trueMinesDefused: 0,
+        shieldedHits: 0,
+        specialCellsCollected: 0,
+      },
+      rewardOptions: [],
+      notice: "",
+      focusedCell: [0, 0],
+    };
+  }
+  exports.createRogueEmptyCell = createRogueEmptyCell;
+  exports.createRogueRunState = createRogueRunState;
+};
+moduleFactories["src/core/games/rogue/sectors.js"] = function (exports, __require) {
+  const ROGUE_SECTOR_COUNT = 3;
+  const MIN_SECTOR_WIDTH = 2;
+  const MIN_BOARD_COLS = ROGUE_SECTOR_COUNT * MIN_SECTOR_WIDTH;
+  const SECTOR_LABELS = ["A区", "B区", "C区"];
+
+  function randomIndex(rng, length) {
+    const value = Number(typeof rng === "function" ? rng() : 0);
+    const normalized = Number.isFinite(value)
+      ? Math.min(Math.max(value, 0), 0.999999999)
+      : 0;
+    return Math.floor(normalized * length);
+  }
+
+  function validateSectors(sectors) {
+    if (!Array.isArray(sectors)) throw new TypeError("sectors 必须是数组。");
+  }
+
+  function createRogueSectors({ cols, rng = Math.random } = {}) {
+    if (!Number.isInteger(cols) || cols < MIN_BOARD_COLS) {
+      throw new RangeError(`createRogueSectors 的 cols 必须是至少 ${MIN_BOARD_COLS} 列的整数。`);
+    }
+
+    const widths = Array.from({ length: ROGUE_SECTOR_COUNT }, () => MIN_SECTOR_WIDTH);
+    for (let extra = cols - MIN_BOARD_COLS; extra > 0; extra -= 1) {
+      widths[randomIndex(rng, ROGUE_SECTOR_COUNT)] += 1;
+    }
+
+    let startCol = 0;
+    return widths.map((width, id) => {
+      const sector = {
+        id,
+        label: SECTOR_LABELS[id],
+        startCol,
+        endColExclusive: startCol + width,
+        safeCells: 0,
+        revealedSafeCells: 0,
+        secured: false,
+      };
+      startCol += width;
+      return sector;
+    });
+  }
+
+  function getRogueSectorForColumn(sectors, col) {
+    validateSectors(sectors);
+    if (!Number.isInteger(col) || col < 0) return null;
+    return sectors.find((sector) => (
+      Number.isInteger(sector?.startCol)
+        && Number.isInteger(sector?.endColExclusive)
+        && col >= sector.startCol
+        && col < sector.endColExclusive
+    )) || null;
+  }
+
+  function getRogueSectorId(sectors, col) {
+    return getRogueSectorForColumn(sectors, col)?.id ?? null;
+  }
+
+  function assignRogueSectorIds(board, sectors) {
+    if (!Array.isArray(board)) throw new TypeError("board 必须是数组。");
+    validateSectors(sectors);
+    return board.map((row) => row.map((cell, col) => ({
+      ...cell,
+      sectorId: getRogueSectorId(sectors, col),
+    })));
+  }
+
+  function calculateRogueSectorStats({ board, sectors } = {}) {
+    if (!Array.isArray(board)) throw new TypeError("board 必须是数组。");
+    validateSectors(sectors);
+    return sectors.map((sector) => {
+      let safeCells = 0;
+      let revealedSafeCells = 0;
+      for (const row of board) {
+        for (let col = sector.startCol; col < sector.endColExclusive; col += 1) {
+          const cell = row?.[col];
+          if (!cell || cell.mine) continue;
+          safeCells += 1;
+          if (cell.revealed) revealedSafeCells += 1;
+        }
+      }
+      return {
+        ...sector,
+        safeCells,
+        revealedSafeCells,
+        secured: revealedSafeCells >= safeCells,
+      };
+    });
+  }
+  exports.createRogueSectors = createRogueSectors;
+  exports.getRogueSectorForColumn = getRogueSectorForColumn;
+  exports.getRogueSectorId = getRogueSectorId;
+  exports.assignRogueSectorIds = assignRogueSectorIds;
+  exports.calculateRogueSectorStats = calculateRogueSectorStats;
+};
+moduleFactories["src/core/games/rogue/level.js"] = function (exports, __require) {
+  const { generateClassicBoard: generateClassicBoard } = __require("src/core/games/minesweeper/generator.js");
+  const { createRogueEmptyCell: createRogueEmptyCell } = __require("src/core/games/rogue/state.js");
+  const { assignRogueSectorIds: assignRogueSectorIds, calculateRogueSectorStats: calculateRogueSectorStats, createRogueSectors: createRogueSectors } = __require("src/core/games/rogue/sectors.js");
+
+  const ROGUE_LEVELS = Object.freeze([
+    { floor: 1, rows: 7, cols: 7, mines: 8, label: "教学层" },
+    { floor: 2, rows: 8, cols: 9, mines: 13, label: "扩张层" },
+    { floor: 3, rows: 9, cols: 10, mines: 19, label: "压力层" },
+    { floor: 4, rows: 10, cols: 12, mines: 28, label: "高压层" },
+    { floor: 5, rows: 11, cols: 14, mines: 40, label: "最终层" },
+  ]);
+
+  function getRogueLevelSpec(floor) {
+    const index = Math.max(0, Math.min(ROGUE_LEVELS.length - 1, Math.floor(floor) - 1));
+    return ROGUE_LEVELS[index];
+  }
+
+  function getRogueNeighbors(row, col, rows, cols) {
+    const result = [];
+    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+      for (let colOffset = -1; colOffset <= 1; colOffset++) {
+        if (rowOffset === 0 && colOffset === 0) continue;
+        const nextRow = row + rowOffset;
+        const nextCol = col + colOffset;
+        if (nextRow >= 0 && nextRow < rows && nextCol >= 0 && nextCol < cols) {
+          result.push([nextRow, nextCol]);
+        }
+      }
+    }
+    return result;
+  }
+
+  function createEmptyBoard(rows, cols) {
+    return Array.from({ length: rows }, () =>
+      Array.from({ length: cols }, () => createRogueEmptyCell()),
+    );
+  }
+
+  function normalizeRogueSectors(sectors, cols) {
+    if (!Array.isArray(sectors) || sectors.length !== 3) {
+      throw new TypeError("sectors 必须包含三个连续战区。");
+    }
+
+    let expectedStartCol = 0;
+    const normalized = sectors.map((sector, index) => {
+      const startCol = sector?.startCol;
+      const endColExclusive = sector?.endColExclusive;
+      if (
+        !Number.isInteger(startCol)
+        || !Number.isInteger(endColExclusive)
+        || startCol !== expectedStartCol
+        || endColExclusive - startCol < 2
+      ) {
+        throw new RangeError("sectors 必须是每区至少两列、连续覆盖棋盘的战区。");
+      }
+      expectedStartCol = endColExclusive;
+      return {
+        ...sector,
+        id: sector.id ?? index,
+        safeCells: 0,
+        revealedSafeCells: 0,
+        secured: false,
+      };
+    });
+    return normalized;
+  }
+
+  function validateRogueSectorCoverage(sectors, cols) {
+    if (sectors.at(-1)?.endColExclusive !== cols) {
+      throw new RangeError("sectors 必须完整覆盖棋盘列。");
+    }
+    return sectors;
+  }
+
+  function normalizeGeneratedBoard(board) {
+    return board.map((row) => row.map((cell) => ({
+      neutralized: false,
+      special: null,
+      specialCollected: false,
+      ...cell,
+    })));
+  }
+
+  function shuffle(list, rng) {
+    for (let index = list.length - 1; index > 0; index -= 1) {
+      const value = Number(rng?.());
+      const normalized = Number.isFinite(value) ? Math.min(Math.max(value, 0), 0.999999999) : 0;
+      const swapIndex = Math.floor(normalized * (index + 1));
+      [list[index], list[swapIndex]] = [list[swapIndex], list[index]];
+    }
+    return list;
+  }
+
+  function placeRogueSpecialCells({
+    board,
+    rows,
+    cols,
+    safeRow = null,
+    safeCol = null,
+    rng = Math.random,
+  }) {
+    const safeCells = [];
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const cell = board[row][col];
+        if (!cell.mine) safeCells.push([row, col]);
+      }
+    }
+
+    const preferredCells = safeCells.filter(([row, col]) => (
+      safeRow === null
+        || safeCol === null
+        || !(Math.abs(row - safeRow) <= 1 && Math.abs(col - safeCol) <= 1)
+    ));
+    const candidates = preferredCells.length >= 2 ? preferredCells : safeCells;
+    shuffle(candidates, rng);
+
+    const result = { intel: null, supply: null };
+    const intelCoordinates = candidates.shift();
+    if (intelCoordinates) {
+      const [row, col] = intelCoordinates;
+      board[row][col].special = "intel";
+      board[row][col].specialCollected = false;
+      result.intel = [row, col];
+    }
+
+    let supplyIndex = -1;
+    if (intelCoordinates) {
+      const intelSectorId = board[intelCoordinates[0]][intelCoordinates[1]].sectorId;
+      if (intelSectorId !== null && intelSectorId !== undefined) {
+        supplyIndex = candidates.findIndex(([row, col]) => {
+          const sectorId = board[row][col].sectorId;
+          return sectorId !== null && sectorId !== undefined && sectorId !== intelSectorId;
+        });
+      }
+    }
+    const supplyCoordinates = supplyIndex >= 0
+      ? candidates.splice(supplyIndex, 1)[0]
+      : candidates.shift();
+    if (supplyCoordinates) {
+      const [row, col] = supplyCoordinates;
+      board[row][col].special = "supply";
+      board[row][col].specialCollected = false;
+      result.supply = [row, col];
+    }
+    return result;
+  }
+
+  function createRogueLevel({
+    floor,
+    rng = Math.random,
+    safeRow = null,
+    safeCol = null,
+    toolBonus = {},
+    sectors = null,
+  }) {
+    const spec = getRogueLevelSpec(floor);
+    const started = safeRow !== null && safeCol !== null;
+    const levelSectors = validateRogueSectorCoverage(
+      normalizeRogueSectors(
+        sectors || createRogueSectors({ cols: spec.cols, rng }),
+        spec.cols,
+      ),
+      spec.cols,
+    );
+    const generation = started
+      ? generateClassicBoard({
+        rows: spec.rows,
+        cols: spec.cols,
+        mines: spec.mines,
+        safeRow,
+        safeCol,
+        rng,
+        generationMode: "standard",
+      })
+      : { board: createEmptyBoard(spec.rows, spec.cols), generationMode: "standard", fallback: false };
+    const board = assignRogueSectorIds(normalizeGeneratedBoard(generation.board), levelSectors);
+    if (started) {
+      placeRogueSpecialCells({
+        board,
+        rows: spec.rows,
+        cols: spec.cols,
+        safeRow,
+        safeCol,
+        rng,
+      });
+    }
+
+    const currentSectors = started
+      ? calculateRogueSectorStats({ board, sectors: levelSectors })
+      : levelSectors;
+
+    return {
+      ...spec,
+      board,
+      started,
+      ended: false,
+      generationMode: generation.generationMode,
+      generationFallback: generation.fallback,
+      sectors: currentSectors,
+      safeCellsRemaining: board.flat().filter((cell) => !cell.mine && !cell.revealed).length,
+      activeToolUses: {
+        scoutPulse: 1 + Math.max(0, toolBonus.scoutPulse || 0),
+        defusalKit: 1 + Math.max(0, toolBonus.defusalKit || 0),
+        reactionShield: 1 + Math.max(0, toolBonus.reactionShield || 0),
+      },
+      shieldActive: false,
+    };
+  }
+
+  function refreshRogueSectorStats(level) {
+    if (!level || !Array.isArray(level.board) || !Array.isArray(level.sectors)) {
+      throw new TypeError("level 必须包含 board 和 sectors。");
+    }
+    level.sectors = calculateRogueSectorStats({
+      board: level.board,
+      sectors: level.sectors,
+    });
+    return level.sectors;
+  }
+
+  function revealRogueFlood(board, row, col, rows, cols, onReveal) {
+    const queue = [[row, col]];
+    let index = 0;
+    let revealed = 0;
+
+    while (index < queue.length) {
+      const [currentRow, currentCol] = queue[index++];
+      const cell = board[currentRow][currentCol];
+      if (cell.revealed || cell.flagged || cell.mine) continue;
+      cell.revealed = true;
+      revealed += 1;
+      onReveal?.(cell, currentRow, currentCol);
+      if (cell.count !== 0) continue;
+      for (const [neighborRow, neighborCol] of getRogueNeighbors(currentRow, currentCol, rows, cols)) {
+        const neighbor = board[neighborRow][neighborCol];
+        if (!neighbor.revealed && !neighbor.flagged && !neighbor.mine) {
+          queue.push([neighborRow, neighborCol]);
+        }
+      }
+    }
+
+    return revealed;
+  }
+  exports.ROGUE_LEVELS = ROGUE_LEVELS;
+  exports.getRogueLevelSpec = getRogueLevelSpec;
+  exports.getRogueNeighbors = getRogueNeighbors;
+  exports.placeRogueSpecialCells = placeRogueSpecialCells;
+  exports.createRogueLevel = createRogueLevel;
+  exports.refreshRogueSectorStats = refreshRogueSectorStats;
+  exports.revealRogueFlood = revealRogueFlood;
+};
+moduleFactories["src/core/games/rogue/items.js"] = function (exports, __require) {
+  const TOOL_DEFINITIONS = Object.freeze({
+    scoutPulse: Object.freeze({
+      id: "scoutPulse",
+      label: "侦察脉冲",
+      cost: 1,
+      description: "扫描一个 3×3 区域的雷数",
+    }),
+    defusalKit: Object.freeze({
+      id: "defusalKit",
+      label: "拆雷装置",
+      cost: 2,
+      description: "拆除真雷或拆穿假旗",
+    }),
+    reactionShield: Object.freeze({
+      id: "reactionShield",
+      label: "反应护盾",
+      cost: 1,
+      description: "抵挡本层下一次踩雷",
+    }),
+  });
+
+  const UPGRADE_DEFINITIONS = Object.freeze([
+    Object.freeze({ id: "storage", label: "储能核心", description: "最大能量 +1，并立即获得 1 点能量" }),
+    Object.freeze({ id: "chain", label: "连锁能源", description: "连续安全揭开 3 次获得 1 点能量" }),
+    Object.freeze({ id: "medical", label: "医疗组件", description: "最大生命 +1，并立即恢复 1 点生命" }),
+    Object.freeze({ id: "toolBoost:scoutPulse", label: "工具增幅·侦察脉冲", description: "下一层侦察脉冲额外使用 1 次" }),
+    Object.freeze({ id: "toolBoost:defusalKit", label: "工具增幅·拆雷装置", description: "下一层拆雷装置额外使用 1 次" }),
+    Object.freeze({ id: "toolBoost:reactionShield", label: "工具增幅·反应护盾", description: "下一层反应护盾额外使用 1 次" }),
+    Object.freeze({ id: "supply", label: "补给箱", description: "下一层三种工具各额外使用 1 次" }),
+  ]);
+
+  function getToolDefinition(toolKey) {
+    return TOOL_DEFINITIONS[toolKey] || null;
+  }
+
+  function getUpgradeDefinition(upgradeId) {
+    return UPGRADE_DEFINITIONS.find(({ id }) => id === upgradeId) || null;
+  }
+
+  function getRewardOptions({ ownedUpgrades = [], rng = Math.random } = {}) {
+    const owned = new Set(ownedUpgrades);
+    const pool = UPGRADE_DEFINITIONS.filter(({ id }) => !owned.has(id)).map((option) => ({ ...option }));
+    for (let index = pool.length - 1; index > 0; index--) {
+      const randomIndex = Math.floor(rng() * (index + 1));
+      [pool[index], pool[randomIndex]] = [pool[randomIndex], pool[index]];
+    }
+    const options = pool.slice(0, 3);
+    let fallbackIndex = 0;
+    while (options.length < 3) {
+      options.push({
+        id: `energy:${fallbackIndex++}`,
+        label: "+1 能量",
+        description: "立即获得 1 点能量",
+      });
+    }
+    return options;
+  }
+  exports.TOOL_DEFINITIONS = TOOL_DEFINITIONS;
+  exports.UPGRADE_DEFINITIONS = UPGRADE_DEFINITIONS;
+  exports.getToolDefinition = getToolDefinition;
+  exports.getUpgradeDefinition = getUpgradeDefinition;
+  exports.getRewardOptions = getRewardOptions;
+};
+moduleFactories["src/core/games/rogue/contracts.js"] = function (exports, __require) {
+  const CONTRACT_DEFINITIONS = Object.freeze([
+    Object.freeze({
+      id: "noDamage",
+      label: "零误触",
+      description: "本层清空安全格时不损失生命。",
+      target: 1,
+      progressLabel: "保持无伤",
+      reward: Object.freeze({ type: "energy", amount: 1 }),
+    }),
+    Object.freeze({
+      id: "reconnaissance",
+      label: "情报回收",
+      description: "触发或扫描一个情报点。",
+      target: 1,
+      progressLabel: "回收情报点",
+      reward: Object.freeze({
+        type: "toolBonus",
+        amount: 1,
+        toolKey: "scoutPulse",
+      }),
+    }),
+    Object.freeze({
+      id: "controlledDemolition",
+      label: "精准爆破",
+      description: "使用拆雷装置成功拆除一颗真雷。",
+      target: 1,
+      progressLabel: "拆除真雷",
+      reward: Object.freeze({
+        type: "toolBonus",
+        amount: 1,
+        toolKey: "defusalKit",
+      }),
+    }),
+    Object.freeze({
+      id: "reservePower",
+      label: "节能推进",
+      description: "本层清空安全格时至少保留 1 点能量。",
+      target: 1,
+      progressLabel: "保留能量",
+      reward: Object.freeze({
+        type: "score",
+        amount: 10,
+        streakAmount: 1,
+      }),
+    }),
+    Object.freeze({
+      id: "intelRelay",
+      label: "情报接力",
+      description: "先收集情报点，再在不同战区使用一次工具。",
+      target: 2,
+      progressLabel: "完成接力步骤",
+      reward: Object.freeze({
+        type: "toolBonus",
+        amount: 1,
+        toolKey: "scoutPulse",
+      }),
+    }),
+    Object.freeze({
+      id: "supplyRelay",
+      label: "补给转运",
+      description: "先收集补给点，再在不同战区揭开一个安全格。",
+      target: 2,
+      progressLabel: "完成转运步骤",
+      reward: Object.freeze({
+        type: "toolBonus",
+        amount: 1,
+        toolKey: "reactionShield",
+      }),
+    }),
+    Object.freeze({
+      id: "crossFire",
+      label: "交叉火力",
+      description: "使用两种不同工具，且分别作用于两个不同战区。",
+      target: 2,
+      progressLabel: "完成工具协同",
+      reward: Object.freeze({
+        type: "toolBonus",
+        amount: 1,
+        toolKey: "defusalKit",
+      }),
+    }),
+    Object.freeze({
+      id: "safeInsertion",
+      label: "分段突入",
+      description: "第一次受伤前，在两个不同战区各揭开至少 3 个安全格。",
+      target: 2,
+      progressLabel: "达标战区数",
+      reward: Object.freeze({
+        type: "score",
+        amount: 15,
+      }),
+    }),
+  ]);
+
+  function cloneDefinition(definition) {
+    return definition
+      ? { ...definition, reward: { ...definition.reward } }
+      : null;
+  }
+
+  function randomIndex(rng, length) {
+    const value = Number(rng?.());
+    const normalized = Number.isFinite(value) ? Math.min(Math.max(value, 0), 0.999999999) : 0;
+    return Math.floor(normalized * length);
+  }
+
+  function getContractDefinition(contractId) {
+    return cloneDefinition(
+      CONTRACT_DEFINITIONS.find(({ id }) => id === contractId),
+    );
+  }
+
+  function getContractCatalog() {
+    return CONTRACT_DEFINITIONS.map(cloneDefinition);
+  }
+
+  function getContractOptions({ floor: _floor, rng = Math.random } = {}) {
+    const pool = [...CONTRACT_DEFINITIONS];
+    for (let index = pool.length - 1; index > 0; index -= 1) {
+      const swapIndex = randomIndex(rng, index + 1);
+      [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
+    }
+    return pool.slice(0, 2).map(cloneDefinition);
+  }
+
+  function getContractReward(contractId) {
+    return getContractDefinition(contractId)?.reward ?? null;
+  }
+  exports.getContractDefinition = getContractDefinition;
+  exports.getContractCatalog = getContractCatalog;
+  exports.getContractOptions = getContractOptions;
+  exports.getContractReward = getContractReward;
+};
+moduleFactories["src/core/games/rogue/game.js"] = function (exports, __require) {
+  const { createRogueRunState: createRogueRunState } = __require("src/core/games/rogue/state.js");
+  const { createRogueLevel: createRogueLevel, getRogueNeighbors: getRogueNeighbors, refreshRogueSectorStats: refreshRogueSectorStats, revealRogueFlood: revealRogueFlood } = __require("src/core/games/rogue/level.js");
+  const { getRewardOptions: getRewardOptions, getToolDefinition: getToolDefinition, getUpgradeDefinition: getUpgradeDefinition } = __require("src/core/games/rogue/items.js");
+  const { getContractDefinition: getContractDefinition, getContractOptions: getContractOptions, getContractReward: getContractReward } = __require("src/core/games/rogue/contracts.js");
+
+  const TOOL_KEYS = ["scoutPulse", "defusalKit", "reactionShield"];
+
+  function createLevelStats() {
+    return {
+      damageTaken: 0,
+      safeReveals: 0,
+      toolsUsed: {},
+      trueMinesDefused: 0,
+      shieldedHits: 0,
+      specialCellsCollected: 0,
+    };
+  }
+
+  function createContractContext() {
+    return {
+      intelSectorId: null,
+      supplySectorId: null,
+      firstCrossFireEvent: null,
+      insertionQualifiedSectors: [],
+    };
+  }
+
+  function getContractLabel(contractId) {
+    return getContractDefinition(contractId)?.label || contractId;
+  }
+
+  function createRogueGame({ rng = Math.random, levelFactory = createRogueLevel } = {}) {
+    let currentState = createRogueRunState();
+    let selectedTool = null;
+
+    function getState() {
+      return currentState;
+    }
+
+    function inBounds(row, col) {
+      return Number.isInteger(row)
+        && Number.isInteger(col)
+        && row >= 0
+        && row < currentState.level.rows
+        && col >= 0
+        && col < currentState.level.cols;
+    }
+
+    function isBlocked() {
+      return currentState.status === "won"
+        || currentState.status === "lost"
+        || currentState.status === "reward";
+    }
+
+    function clearNotice() {
+      currentState.notice = "";
+    }
+
+    function resetCurrentLevelContract() {
+      currentState.contractOptions = getContractOptions({
+        floor: currentState.floor,
+        rng,
+      });
+      currentState.selectedContract = null;
+      currentState.contractProgress = 0;
+      currentState.contractTarget = 1;
+      currentState.contractCompleted = false;
+      currentState.contractRewardGranted = false;
+      currentState.contractFailed = false;
+      currentState.contractFailureReason = "";
+      currentState.contractPenaltyApplied = false;
+      currentState.contractContext = createContractContext();
+      currentState.levelStats = createLevelStats();
+    }
+
+    function refreshSectorStats() {
+      if (Array.isArray(currentState.level?.sectors)) {
+        refreshRogueSectorStats(currentState.level);
+      }
+    }
+
+    function getCellSectorId(row, col) {
+      const sectorId = currentState.level?.board?.[row]?.[col]?.sectorId;
+      return Number.isInteger(sectorId) ? sectorId : null;
+    }
+
+    function failContract(reason) {
+      if (!currentState.selectedContract || currentState.contractCompleted || currentState.contractFailed) {
+        return "";
+      }
+      currentState.contractFailed = true;
+      currentState.contractFailureReason = reason;
+      return reason;
+    }
+
+    function contractRewardText(reward) {
+      if (reward.type === "energy") return `能量 +${reward.amount}`;
+      if (reward.type === "toolBonus") {
+        const tool = getToolDefinition(reward.toolKey);
+        return `${tool?.label || reward.toolKey}下层使用次数 +${reward.amount}`;
+      }
+      if (reward.type === "score") {
+        const streak = reward.streakAmount ? `，安全连击 +${reward.streakAmount}` : "";
+        return `分数 +${reward.amount}${streak}`;
+      }
+      return "已获得额外奖励";
+    }
+
+    function completedContractNotice() {
+      if (!currentState.selectedContract || !currentState.contractCompleted) return "";
+      const definition = getContractDefinition(currentState.selectedContract);
+      const reward = getContractReward(currentState.selectedContract);
+      return definition && reward
+        ? `契约「${definition.label}」完成，${contractRewardText(reward)}。`
+        : "";
+    }
+
+    function applyContractReward() {
+      if (currentState.contractRewardGranted || !currentState.selectedContract) return "";
+      const reward = getContractReward(currentState.selectedContract);
+      if (!reward) return "";
+      if (reward.type === "energy") {
+        currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + reward.amount);
+      } else if (reward.type === "toolBonus" && TOOL_KEYS.includes(reward.toolKey)) {
+        currentState.nextLevelToolBonus[reward.toolKey] += reward.amount;
+      } else if (reward.type === "score") {
+        currentState.score += reward.amount;
+        currentState.safeRevealStreak += reward.streakAmount || 0;
+      }
+      currentState.contractRewardGranted = true;
+      return completedContractNotice();
+    }
+
+    function completeCurrentContract() {
+      if (!currentState.selectedContract || currentState.contractCompleted || currentState.contractFailed) {
+        return completedContractNotice();
+      }
+      const definition = getContractDefinition(currentState.selectedContract);
+      if (!definition) return "";
+      currentState.contractProgress = definition.target;
+      currentState.contractTarget = definition.target;
+      currentState.contractCompleted = true;
+      const notice = applyContractReward();
+      currentState.notice = notice;
+      return notice;
+    }
+
+    function applyContractPenalty() {
+      if (!currentState.selectedContract || currentState.contractCompleted || currentState.contractPenaltyApplied) {
+        return "";
+      }
+      currentState.contractPenaltyApplied = true;
+      const energyBefore = currentState.energy;
+      currentState.energy = Math.max(0, currentState.energy - 1);
+      return energyBefore > currentState.energy
+        ? "未完成契约，扣除 1 点能量。"
+        : "未完成契约，能量已为 0。";
+    }
+
+    function resolveLevelContract() {
+      const stats = currentState.levelStats;
+      if (currentState.selectedContract === "noDamage" && stats.damageTaken === 0) {
+        completeCurrentContract();
+      } else if (currentState.selectedContract === "reservePower" && currentState.energy >= 1) {
+        completeCurrentContract();
+      }
+      if (currentState.contractCompleted) return completedContractNotice();
+      if (!currentState.selectedContract) return "";
+      failContract(currentState.contractFailureReason || "本层结束时未完成契约。");
+      const penaltyNotice = applyContractPenalty();
+      const reason = currentState.contractFailureReason
+        ? `（${currentState.contractFailureReason}）`
+        : "";
+      return `本层契约「${getContractLabel(currentState.selectedContract)}」未完成${reason} ${penaltyNotice}`.trim();
+    }
+
+    function recordToolUse(toolKey, row = null, col = null) {
+      const toolsUsed = currentState.levelStats.toolsUsed;
+      toolsUsed[toolKey] = (toolsUsed[toolKey] || 0) + 1;
+      const sectorId = Number.isInteger(row) && Number.isInteger(col)
+        ? getCellSectorId(row, col)
+        : null;
+      if (currentState.contractFailed || currentState.contractCompleted || sectorId === null) return "";
+
+      if (currentState.selectedContract === "intelRelay"
+        && currentState.contractContext.intelSectorId !== null
+        && currentState.contractContext.intelSectorId !== sectorId) {
+        currentState.contractProgress = 2;
+        return completeCurrentContract();
+      }
+
+      if (currentState.selectedContract !== "crossFire") return "";
+      if (!currentState.contractContext.firstCrossFireEvent) {
+        currentState.contractContext.firstCrossFireEvent = { toolKey, sectorId };
+        currentState.contractProgress = Math.max(1, currentState.contractProgress);
+        return "";
+      }
+      const firstEvent = currentState.contractContext.firstCrossFireEvent;
+      if (firstEvent.toolKey === toolKey || firstEvent.sectorId === sectorId) {
+        currentState.contractProgress = Math.max(1, currentState.contractProgress);
+        return "";
+      }
+      currentState.contractProgress = 2;
+      return completeCurrentContract();
+    }
+
+    function collectSpecialCell(cell, row, col) {
+      if (!cell?.special || cell.specialCollected) return "";
+      cell.specialCollected = true;
+      currentState.levelStats.specialCellsCollected += 1;
+      const notices = [];
+      const sectorId = Number.isInteger(cell.sectorId) ? cell.sectorId : getCellSectorId(row, col);
+      if (cell.special === "intel") {
+        if (currentState.selectedContract === "intelRelay" && !currentState.contractFailed) {
+          currentState.contractContext.intelSectorId = sectorId;
+          currentState.contractProgress = Math.max(1, currentState.contractProgress);
+        }
+        const level = currentState.level;
+        const startRow = Math.max(0, row - 1);
+        const endRow = Math.min(level.rows - 1, row + 1);
+        const startCol = Math.max(0, col - 1);
+        const endCol = Math.min(level.cols - 1, col + 1);
+        let mines = 0;
+        for (let currentRow = startRow; currentRow <= endRow; currentRow += 1) {
+          for (let currentCol = startCol; currentCol <= endCol; currentCol += 1) {
+            if (level.board[currentRow][currentCol].mine) mines += 1;
+          }
+        }
+        notices.push(`情报点：该区域包含 ${mines} 个雷（行 ${startRow + 1}–${endRow + 1}，列 ${startCol + 1}–${endCol + 1}）。`);
+        if (currentState.selectedContract === "reconnaissance") {
+          const contractNotice = completeCurrentContract();
+          if (contractNotice) notices.push(contractNotice);
+        }
+      } else if (cell.special === "supply") {
+        if (currentState.selectedContract === "supplyRelay" && !currentState.contractFailed) {
+          currentState.contractContext.supplySectorId = sectorId;
+          currentState.contractProgress = Math.max(1, currentState.contractProgress);
+        }
+        currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + 1);
+        const rechargeKey = TOOL_KEYS.reduce((leastKey, toolKey) => (
+          currentState.level.activeToolUses[toolKey] < currentState.level.activeToolUses[leastKey]
+            ? toolKey
+            : leastKey
+        ), TOOL_KEYS[0]);
+        currentState.level.activeToolUses[rechargeKey] += 1;
+        const tool = getToolDefinition(rechargeKey);
+        notices.push(`补给点：能量 +1，${tool?.label || rechargeKey}使用次数 +1。`);
+      }
+      currentState.notice = notices.join(" ");
+      return currentState.notice;
+    }
+
+    function selectContract(contractId) {
+      if (currentState.status !== "ready") return "invalid";
+      if (!currentState.contractOptions.some(({ id }) => id === contractId)) return "invalid";
+      const definition = getContractDefinition(contractId);
+      currentState.selectedContract = contractId;
+      currentState.contractOptions = [];
+      currentState.contractProgress = 0;
+      currentState.contractTarget = definition.target;
+      currentState.contractCompleted = false;
+      currentState.contractRewardGranted = false;
+      currentState.contractFailed = false;
+      currentState.contractFailureReason = "";
+      currentState.contractPenaltyApplied = false;
+      currentState.contractContext = createContractContext();
+      currentState.notice = `已选择契约「${definition.label}」。`;
+      return "continue";
+    }
+
+    function createLevel(floor, sectors = null) {
+      const options = {
+        floor,
+        rng,
+        toolBonus: currentState.nextLevelToolBonus,
+      };
+      if (sectors) options.sectors = sectors;
+      return levelFactory(options);
+    }
+
+    function reset() {
+      currentState = createRogueRunState();
+      currentState.level = createLevel(1);
+      resetCurrentLevelContract();
+      selectedTool = null;
+      return "continue";
+    }
+
+    function energyThreshold() {
+      return currentState.upgrades.includes("chain") ? 3 : 4;
+    }
+
+    function recordSafeRevealForContracts(row, col) {
+      if (currentState.contractFailed || currentState.contractCompleted) return "";
+      const sectorId = getCellSectorId(row, col);
+      if (sectorId === null) return "";
+
+      if (currentState.selectedContract === "supplyRelay"
+        && currentState.contractContext.supplySectorId !== null
+        && currentState.contractContext.supplySectorId !== sectorId) {
+        currentState.contractProgress = 2;
+        return completeCurrentContract();
+      }
+
+      if (currentState.selectedContract !== "safeInsertion") return "";
+      const insertionSectors = currentState.contractContext.insertionQualifiedSectors;
+      if (!insertionSectors.includes(sectorId)) {
+        const revealedInSector = currentState.level.board.flat().filter((cell) => (
+          !cell.mine && cell.revealed && cell.sectorId === sectorId
+        )).length;
+        if (revealedInSector >= 3) {
+          insertionSectors.push(sectorId);
+          insertionSectors.sort((first, second) => first - second);
+        }
+      }
+      currentState.contractProgress = Math.min(
+        currentState.contractTarget,
+        insertionSectors.length,
+      );
+      return insertionSectors.length >= 2 ? completeCurrentContract() : "";
+    }
+
+    function awardSafeReveal(count) {
+      if (count <= 0) return "";
+      currentState.levelStats.safeReveals += count;
+      currentState.level.safeCellsRemaining = Math.max(0, currentState.level.safeCellsRemaining - count);
+      currentState.score += count;
+      currentState.safeRevealStreak += 1;
+      let notice = "";
+      if (currentState.safeRevealStreak >= energyThreshold()) {
+        currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + 1);
+        currentState.safeRevealStreak = 0;
+        notice = "连续安全揭开，获得 1 点能量。";
+        currentState.notice = notice;
+      }
+      return notice;
+    }
+
+    function revealSafeArea(row, col) {
+      const specialNotices = [];
+      const revealed = revealRogueFlood(
+        currentState.level.board,
+        row,
+        col,
+        currentState.level.rows,
+        currentState.level.cols,
+        (cell, currentRow, currentCol) => {
+          const notice = collectSpecialCell(cell, currentRow, currentCol);
+          if (notice) specialNotices.push(notice);
+          const contractNotice = recordSafeRevealForContracts(currentRow, currentCol);
+          if (contractNotice) specialNotices.push(contractNotice);
+        },
+      );
+      const safeNotice = awardSafeReveal(revealed);
+      refreshSectorStats();
+      if (specialNotices.length || safeNotice) {
+        currentState.notice = [...specialNotices, safeNotice].filter(Boolean).join(" ");
+      }
+      return revealed;
+    }
+
+    function completeLevelIfReady() {
+      if (currentState.level.safeCellsRemaining > 0) return "continue";
+      currentState.level.ended = true;
+      currentState.score += 10;
+      const contractNotice = resolveLevelContract();
+      selectedTool = null;
+      if (currentState.floor >= currentState.totalFloors) {
+        currentState.status = "won";
+        currentState.notice = [contractNotice, "战术扫雷通关！"].filter(Boolean).join(" ");
+        return "win";
+      }
+      currentState.status = "reward";
+      currentState.rewardOptions = getRewardOptions({
+        ownedUpgrades: currentState.upgrades,
+        rng,
+      });
+      currentState.notice = [contractNotice, "关卡完成，请选择一项强化。"].filter(Boolean).join(" ");
+      return "reward";
+    }
+
+    function hitMine(cell) {
+      if (cell.neutralized) return "continue";
+      cell.neutralized = true;
+      cell.exploded = true;
+      cell.revealed = true;
+      currentState.score += 3;
+      currentState.safeRevealStreak = 0;
+      if (currentState.level.shieldActive) {
+        currentState.level.shieldActive = false;
+        currentState.levelStats.shieldedHits += 1;
+        currentState.notice = "反应护盾已抵挡这次爆炸。";
+      } else {
+        currentState.lives -= 1;
+        currentState.levelStats.damageTaken += 1;
+        if (currentState.selectedContract === "safeInsertion") {
+          failContract("第一次受伤，分段突入已失败。");
+        } else if (currentState.selectedContract === "noDamage") {
+          failContract("发生受伤，零误触已失败。");
+        }
+        currentState.notice = `触发地雷，损失 1 点生命。还剩 ${currentState.lives} 点。`;
+      }
+      refreshSectorStats();
+      if (currentState.lives <= 0) {
+        currentState.status = "lost";
+        currentState.level.ended = true;
+        currentState.notice = "生命耗尽，本局结束。";
+        return "lose";
+      }
+      return "hit";
+    }
+
+    function reveal(row, col) {
+      if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
+      const level = currentState.level;
+      if (!level.started) {
+        currentState.level = levelFactory({
+          floor: currentState.floor,
+          safeRow: row,
+          safeCol: col,
+          rng,
+          toolBonus: currentState.nextLevelToolBonus,
+          sectors: level.sectors,
+        });
+        currentState.status = "playing";
+        refreshSectorStats();
+      }
+      const cell = currentState.level.board[row][col];
+      if (cell.neutralized) return "continue";
+      if (cell.flagged) return "continue";
+      if (cell.revealed) return chord(row, col);
+      clearNotice();
+      if (cell.mine) return hitMine(cell);
+      revealSafeArea(row, col);
+      return completeLevelIfReady();
+    }
+
+    function chord(row, col) {
+      if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
+      const level = currentState.level;
+      const cell = level.board[row][col];
+      if (!cell.revealed || cell.mine || cell.count === 0) return "invalid";
+      const adjacent = getRogueNeighbors(row, col, level.rows, level.cols);
+      const flagged = adjacent.reduce(
+        (total, [neighborRow, neighborCol]) => total + (level.board[neighborRow][neighborCol].flagged ? 1 : 0),
+        0,
+      );
+      if (flagged !== cell.count) return "invalid";
+      clearNotice();
+      for (const [neighborRow, neighborCol] of adjacent) {
+        const neighbor = level.board[neighborRow][neighborCol];
+        if (neighbor.revealed || neighbor.flagged) continue;
+        if (neighbor.mine) return hitMine(neighbor);
+        revealSafeArea(neighborRow, neighborCol);
+      }
+      return completeLevelIfReady();
+    }
+
+    function cycleMark(row, col) {
+      if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
+      const cell = currentState.level.board[row][col];
+      if (cell.revealed) return "invalid";
+      clearNotice();
+      if (!cell.flagged && !cell.questioned) cell.flagged = true;
+      else if (cell.flagged) {
+        cell.flagged = false;
+        cell.questioned = true;
+      } else {
+        cell.questioned = false;
+      }
+      return "continue";
+    }
+
+    function canSelectTool(toolKey) {
+      const definition = getToolDefinition(toolKey);
+      return currentState.status === "playing"
+        && Boolean(definition)
+        && currentState.level.activeToolUses[toolKey] > 0
+        && currentState.energy >= definition.cost
+        && !(toolKey === "reactionShield" && currentState.level.shieldActive);
+    }
+
+    function selectTool(toolKey) {
+      if (!canSelectTool(toolKey)) return false;
+      selectedTool = toolKey;
+      currentState.notice = `${getToolDefinition(toolKey).label}已就绪。`;
+      return true;
+    }
+
+    function cancelTool() {
+      selectedTool = null;
+      return "continue";
+    }
+
+    function consumeTool(toolKey) {
+      const definition = getToolDefinition(toolKey);
+      currentState.energy -= definition.cost;
+      currentState.level.activeToolUses[toolKey] -= 1;
+    }
+
+    function useSelectedTool(row, col) {
+      if (!selectedTool || !canSelectTool(selectedTool)) return "invalid";
+      const toolKey = selectedTool;
+      const level = currentState.level;
+      if (toolKey === "reactionShield") {
+        consumeTool(toolKey);
+        const contractNotice = recordToolUse(toolKey);
+        level.shieldActive = true;
+        selectedTool = null;
+        currentState.notice = [
+          "反应护盾已启动，本层下一次踩雷不会损失生命。",
+          contractNotice,
+        ].filter(Boolean).join(" ");
+        return "continue";
+      }
+      if (!inBounds(row, col)) return "invalid";
+      const cell = level.board[row][col];
+      if (toolKey === "scoutPulse") {
+        if (cell.revealed) return "invalid";
+        consumeTool(toolKey);
+        const contractNotice = recordToolUse(toolKey, row, col);
+        const startRow = Math.max(0, row - 1);
+        const endRow = Math.min(level.rows - 1, row + 1);
+        const startCol = Math.max(0, col - 1);
+        const endCol = Math.min(level.cols - 1, col + 1);
+        let mines = 0;
+        for (let currentRow = startRow; currentRow <= endRow; currentRow++) {
+          for (let currentCol = startCol; currentCol <= endCol; currentCol++) {
+            if (level.board[currentRow][currentCol].mine) mines += 1;
+          }
+        }
+        const specialNotice = cell.special
+          ? collectSpecialCell(cell, row, col)
+          : "";
+        selectedTool = null;
+        const scanNotice = `侦察脉冲：该区域包含 ${mines} 个雷（行 ${startRow + 1}–${endRow + 1}，列 ${startCol + 1}–${endCol + 1}）。`;
+        currentState.notice = [scanNotice, specialNotice, contractNotice].filter(Boolean).join(" ");
+        return "continue";
+      }
+      if (!cell.flagged) return "invalid";
+      consumeTool(toolKey);
+      const contractNotice = recordToolUse(toolKey, row, col);
+      selectedTool = null;
+      if (cell.mine) {
+        cell.neutralized = true;
+        cell.exploded = false;
+        currentState.score += 3;
+        currentState.levelStats.trueMinesDefused += 1;
+        const demolitionNotice = currentState.selectedContract === "controlledDemolition"
+          ? completeCurrentContract()
+          : "";
+        currentState.notice = ["拆雷装置已解除这颗地雷。", contractNotice, demolitionNotice].filter(Boolean).join(" ");
+        return completeLevelIfReady();
+      }
+      cell.flagged = false;
+      cell.questioned = false;
+      const safeNotice = revealSafeArea(row, col);
+      currentState.notice = ["拆雷装置拆穿了假旗，并揭开了安全区域。", safeNotice, contractNotice].filter(Boolean).join(" ");
+      return completeLevelIfReady();
+    }
+
+    function applyUpgrade(upgradeId) {
+      if (upgradeId === "storage") {
+        currentState.maxEnergy += 1;
+        currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + 1);
+      } else if (upgradeId === "medical") {
+        currentState.maxLives += 1;
+        currentState.lives += 1;
+      } else if (upgradeId.startsWith("toolBoost:")) {
+        const toolKey = upgradeId.slice("toolBoost:".length);
+        if (TOOL_KEYS.includes(toolKey)) currentState.nextLevelToolBonus[toolKey] += 1;
+      } else if (upgradeId === "supply") {
+        for (const toolKey of TOOL_KEYS) currentState.nextLevelToolBonus[toolKey] += 1;
+      } else if (upgradeId.startsWith("energy:")) {
+        currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + 1);
+      }
+    }
+
+    function chooseReward(upgradeId) {
+      if (currentState.status !== "reward") return "invalid";
+      const option = currentState.rewardOptions.find(({ id }) => id === upgradeId);
+      if (!option || !getUpgradeDefinition(option.id) && !option.id.startsWith("energy:")) return "invalid";
+      applyUpgrade(option.id);
+      currentState.upgrades.push(option.id);
+      currentState.rewardOptions = [];
+      currentState.floor += 1;
+      currentState.level = createLevel(currentState.floor);
+      resetCurrentLevelContract();
+      currentState.status = "ready";
+      currentState.safeRevealStreak = 0;
+      currentState.notice = `已获得「${option.label}」，准备进入第 ${currentState.floor} 层。`;
+      selectedTool = null;
+      return "continue";
+    }
+
+    reset();
+    return {
+      getState,
+      reset,
+      selectContract,
+      reveal,
+      chord,
+      cycleMark,
+      selectTool,
+      cancelTool,
+      useSelectedTool,
+      chooseReward,
+      getSelectedTool: () => selectedTool,
+    };
+  }
+  exports.createRogueGame = createRogueGame;
+};
+moduleFactories["src/application/games/rogue-session.js"] = function (exports, __require) {
+  const { createRogueGame: createRogueGame } = __require("src/core/games/rogue/game.js");
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function createRogueSession({ rng = Math.random, clock, storage = null } = {}) {
+    if (!clock || typeof clock.now !== "function") throw new TypeError("clock is required");
+    void storage;
+    const game = createRogueGame({ rng });
+    const listeners = new Set();
+    let paused = false;
+
+    function getState() {
+      return {
+        ...clone(game.getState()),
+        selectedTool: game.getSelectedTool(),
+        paused,
+      };
+    }
+
+    function notify() {
+      const state = getState();
+      for (const listener of listeners) listener(state);
+    }
+
+    function dispatch(action = {}) {
+      if (paused && action.type !== "resume" && action.type !== "reset") {
+        return { handled: true, result: "paused", state: getState() };
+      }
+      let result;
+      switch (action.type) {
+        case "reset":
+          paused = false;
+          result = game.reset();
+          break;
+        case "select-contract":
+          result = game.selectContract(action.contractId);
+          break;
+        case "reveal":
+          result = game.reveal(action.row, action.col);
+          break;
+        case "chord":
+          result = game.chord(action.row, action.col);
+          break;
+        case "mark":
+          result = game.cycleMark(action.row, action.col);
+          break;
+        case "select-tool":
+          result = game.selectTool(action.toolKey);
+          break;
+        case "use-tool":
+          result = game.useSelectedTool(action.row, action.col);
+          break;
+        case "cancel-tool":
+          result = game.cancelTool();
+          break;
+        case "choose-reward":
+          result = game.chooseReward(action.upgradeId);
+          break;
+        case "resume":
+          paused = false;
+          result = "continue";
+          break;
+        case "pause":
+          paused = true;
+          result = "continue";
+          break;
+        default:
+          return { handled: false, state: getState() };
+      }
+      notify();
+      return { handled: true, result, state: getState() };
+    }
+
+    function pause() {
+      if (!paused) {
+        paused = true;
+        notify();
+      }
+    }
+
+    function resume() {
+      if (paused) {
+        paused = false;
+        notify();
+      }
+    }
+
+    return Object.freeze({
+      getState,
+      dispatch,
+      pause,
+      resume,
+      subscribe(listener) {
+        if (typeof listener !== "function") throw new TypeError("listener must be a function");
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    });
+  }
+  exports.createRogueSession = createRogueSession;
+};
 moduleFactories["src/adapters/miniprogram/view-models/2048.js"] = function (exports, __require) {
   function to2048ViewModel(state) {
     const board = Array.isArray(state?.board) ? state.board : [];
@@ -4202,6 +5555,85 @@ moduleFactories["src/adapters/miniprogram/view-models/lianliankan.js"] = functio
   }
   exports.toLianliankanViewModel = toLianliankanViewModel;
 };
+moduleFactories["src/adapters/miniprogram/view-models/rogue.js"] = function (exports, __require) {
+  const { TOOL_DEFINITIONS: TOOL_DEFINITIONS } = __require("src/core/games/rogue/items.js");
+
+  function cellLabel(cell, row, col) {
+    const parts = [`第${row + 1}行第${col + 1}列`];
+    if (cell.revealed) parts.push(cell.mine ? "地雷" : `数字${cell.count}`);
+    if (cell.flagged) parts.push("旗标");
+    if (cell.questioned) parts.push("问号");
+    if (cell.neutralized) parts.push("已中和");
+    if (cell.special) parts.push(cell.special === "intel" ? "情报点" : "补给点");
+    return parts.join("，");
+  }
+
+  function toRogueViewModel(state) {
+    const level = state?.level || {};
+    const board = Array.isArray(level.board) ? level.board : [];
+    const rows = Number(level.rows) || board.length;
+    const cols = Number(level.cols) || (board[0]?.length || 0);
+    const cells = [];
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const cell = board[row]?.[col] || {};
+        cells.push({
+          index: row * cols + col,
+          row,
+          column: col,
+          mine: cell.revealed || cell.neutralized ? cell.mine === true : false,
+          revealed: cell.revealed === true,
+          flagged: cell.flagged === true,
+          questioned: cell.questioned === true,
+          exploded: cell.exploded === true,
+          neutralized: cell.neutralized === true,
+          count: Number(cell.count) || 0,
+          sectorId: Number.isInteger(cell.sectorId) ? cell.sectorId : null,
+          special: cell.special || null,
+          specialCollected: cell.specialCollected === true,
+          ariaLabel: cellLabel(cell, row, col),
+        });
+      }
+    }
+
+    return {
+      status: state?.status || "ready",
+      paused: state?.paused === true,
+      floor: Number(state?.floor) || 1,
+      totalFloors: Number(state?.totalFloors) || 5,
+      lives: Number(state?.lives) || 0,
+      maxLives: Number(state?.maxLives) || 0,
+      energy: Number(state?.energy) || 0,
+      maxEnergy: Number(state?.maxEnergy) || 0,
+      score: Number(state?.score) || 0,
+      rows,
+      cols,
+      cells,
+      sectors: Array.isArray(level.sectors) ? level.sectors.map((sector) => ({ ...sector })) : [],
+      contract: state?.selectedContract
+        ? {
+            id: state.selectedContract,
+            progress: Number(state.contractProgress) || 0,
+            target: Number(state.contractTarget) || 0,
+            completed: state.contractCompleted === true,
+            failed: state.contractFailed === true,
+          }
+        : null,
+      contracts: Array.isArray(state?.contractOptions) ? state.contractOptions.map((option) => ({ ...option })) : [],
+      selectedTool: state?.selectedTool || null,
+      tools: Object.entries(TOOL_DEFINITIONS).map(([key, definition]) => ({
+        ...definition,
+        key,
+        uses: Number(level.activeToolUses?.[key]) || 0,
+        disabled: Number(level.activeToolUses?.[key]) <= 0 || Number(state?.energy) < definition.cost,
+        selected: state?.selectedTool === key,
+      })),
+      rewards: Array.isArray(state?.rewardOptions) ? state.rewardOptions.map((option) => ({ ...option })) : [],
+      notice: state?.notice || "",
+    };
+  }
+  exports.toRogueViewModel = toRogueViewModel;
+};
 moduleFactories["src/core/shared/clock.js"] = function (exports, __require) {
   function requireFunction(name, value) {
     if (typeof value !== "function") {
@@ -4314,10 +5746,12 @@ moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __re
   const { createMinesweeperSession: createMinesweeperSession } = __require("src/application/games/minesweeper-session.js");
   const { createSudokuSession: createSudokuSession } = __require("src/application/games/sudoku-session.js");
   const { createLianliankanSession: createLianliankanSession } = __require("src/application/games/lianliankan-session.js");
+  const { createRogueSession: createRogueSession } = __require("src/application/games/rogue-session.js");
   const { to2048ViewModel: to2048ViewModel } = __require("src/adapters/miniprogram/view-models/2048.js");
   const { toMinesweeperViewModel: toMinesweeperViewModel } = __require("src/adapters/miniprogram/view-models/minesweeper.js");
   const { toSudokuViewModel: toSudokuViewModel } = __require("src/adapters/miniprogram/view-models/sudoku.js");
   const { toLianliankanViewModel: toLianliankanViewModel } = __require("src/adapters/miniprogram/view-models/lianliankan.js");
+  const { toRogueViewModel: toRogueViewModel } = __require("src/adapters/miniprogram/view-models/rogue.js");
   const { createWechatClock: createWechatClock } = __require("src/platform/wechat/clock.js");
   const { createWechatRandom: createWechatRandom } = __require("src/platform/wechat/random.js");
   const { createWechatStorage: createWechatStorage } = __require("src/platform/wechat/storage.js");
@@ -4333,12 +5767,14 @@ moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __re
         sweep: createMinesweeperSession({ rng: random, clock }),
         sudoku: createSudokuSession({ rng: random, clock, storage }),
         lianliankan: createLianliankanSession({ rng: random, clock, storage }),
+        rogue: createRogueSession({ rng: random, clock, storage }),
       },
       viewModels: {
         "2048": to2048ViewModel,
         sweep: toMinesweeperViewModel,
         sudoku: toSudokuViewModel,
         lianliankan: toLianliankanViewModel,
+        rogue: toRogueViewModel,
       },
     });
   }

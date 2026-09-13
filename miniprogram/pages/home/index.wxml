@@ -114,6 +114,29 @@
         <button class="secondary-button" bindtap="onLianliankanReshuffle">重排</button>
       </view>
     </view>
+
+    <view wx:elif="{{activeGame === 'rogue' && game}}" class="game-card rogue-card">
+      <view class="score-row">
+        <view><text class="score-label">STATUS</text><text class="score-value">{{game.status}}</text></view>
+        <view><text class="score-label">LIFE</text><text class="score-value">{{game.lives}}</text></view>
+        <view><text class="score-label">ENERGY</text><text class="score-value">{{game.energy}}</text></view>
+      </view>
+      <rogue-board
+        cells="{{game.cells}}"
+        cols="{{game.cols}}"
+        bind:select="onRogueSelect"
+        bind:mark="onRogueMark"
+      />
+      <rogue-hud
+        game="{{game}}"
+        bind:contract="onRogueContract"
+        bind:tool="onRogueTool"
+        bind:reward="onRogueReward"
+      />
+      <view class="actions">
+        <button class="primary-button" bindtap="onRogueNew">新局</button>
+      </view>
+    </view>
   </view>
   <view wx:else class="empty-state">
     <text class="title">正在加载</text>

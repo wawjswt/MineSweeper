@@ -390,15 +390,15 @@
 - `createRogueSession({ rng, clock, storage })` wraps `createRogueGame` and maps actions `{ type: "reset" }`, `{ type: "reveal", row, col }`, `{ type: "chord", row, col }`, `{ type: "mark", row, col }`, `{ type: "select-contract", contractId }`, `{ type: "select-tool", toolKey }`, `{ type: "use-tool", row, col }`, `{ type: "cancel-tool" }`, and `{ type: "choose-reward", upgradeId }`.
 - `toRogueViewModel(state)` exposes board cells, sectors, contract cards, tool availability, resources, rewards, feedback, and result state as serializable view data.
 
-- [ ] **Step 1: Add session and view-model tests**
+- [x] **Step 1: Add session and view-model tests**
 
   Cover contract selection before reveal, sector progress, mine damage/shield behavior, tool resource consumption, reward selection, level progression, accessibility labels, and lost/won run transitions.
 
-- [ ] **Step 2: Implement the session wrapper without copying Rogue rules**
+- [x] **Step 2: Implement the session wrapper without copying Rogue rules**
 
   Reuse `createRogueGame` and the canonical `src/core/games/rogue` exports. The adapter maps button/tile events to actions; it must not calculate contracts, sectors, damage, or rewards.
 
-- [ ] **Step 3: Implement the board/HUD/components**
+- [x] **Step 3: Implement the board/HUD/components**
 
   Use separate WXML components for the board, contracts, tools, reward choices, and result panel. Keep the tactical HUD distinct from the shared conventional-game board component.
 

@@ -1,0 +1,26 @@
+.rogue-board {
+  display: grid;
+  gap: 5rpx;
+  padding: 12rpx;
+  border-radius: 20rpx;
+  background: #101827;
+}
+
+.rogue-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 10rpx;
+  color: #d7dfed;
+  background: #26334a;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.rogue-cell.is-revealed { background: #35445b; }
+.rogue-cell.is-flagged { color: #f6d365; }
+.rogue-cell.is-questioned { color: #9eabc0; }
+.rogue-cell.is-exploded { color: #ff8d8d; background: #592d3a; }
+.rogue-cell.is-neutralized { color: #8ee3c2; background: #254d4b; }

@@ -105,6 +105,34 @@ Page({
     this.dispatch({ type: "new" }, "lianliankan");
   },
 
+  onRogueSelect(event) {
+    const action = this.data.game?.selectedTool
+      ? { type: "use-tool", row: event.detail.row, col: event.detail.col }
+      : { type: "reveal", row: event.detail.row, col: event.detail.col };
+    this.dispatch(action, "rogue");
+  },
+
+  onRogueMark(event) {
+    this.dispatch({ type: "mark", row: event.detail.row, col: event.detail.col }, "rogue");
+  },
+
+  onRogueContract(event) {
+    this.dispatch({ type: "select-contract", contractId: event.detail.contractId }, "rogue");
+  },
+
+  onRogueTool(event) {
+    const selected = this.data.game?.selectedTool;
+    this.dispatch({ type: selected === event.detail.toolKey ? "cancel-tool" : "select-tool", toolKey: event.detail.toolKey }, "rogue");
+  },
+
+  onRogueReward(event) {
+    this.dispatch({ type: "choose-reward", upgradeId: event.detail.upgradeId }, "rogue");
+  },
+
+  onRogueNew() {
+    this.dispatch({ type: "reset" }, "rogue");
+  },
+
   onNewGame() {
     const game = this.runtime?.currentGame();
     this.dispatch({ type: game === "lianliankan" ? "new" : "reset" });

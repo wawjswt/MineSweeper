@@ -1,0 +1,39 @@
+<view class="rogue-hud" wx:if="{{game}}">
+  <view class="rogue-stats">
+    <text>第 {{game.floor}}/{{game.totalFloors}} 层</text>
+    <text>生命 {{game.lives}}/{{game.maxLives}}</text>
+    <text>能量 {{game.energy}}/{{game.maxEnergy}}</text>
+    <text>分数 {{game.score}}</text>
+  </view>
+  <view wx:if="{{game.contracts.length}}" class="rogue-panel">
+    <text class="rogue-panel-title">选择战术契约</text>
+    <button
+      wx:for="{{game.contracts}}"
+      wx:key="id"
+      class="rogue-option"
+      data-id="{{item.id}}"
+      bindtap="onContractTap"
+    >{{item.label}}：{{item.description}}</button>
+  </view>
+  <view class="rogue-tools">
+    <button
+      wx:for="{{game.tools}}"
+      wx:key="key"
+      class="rogue-tool {{item.selected ? 'is-selected' : ''}}"
+      data-key="{{item.key}}"
+      disabled="{{item.disabled}}"
+      bindtap="onToolTap"
+    >{{item.label}} · {{item.uses}}</button>
+  </view>
+  <view wx:if="{{game.rewards.length}}" class="rogue-panel">
+    <text class="rogue-panel-title">选择强化</text>
+    <button
+      wx:for="{{game.rewards}}"
+      wx:key="id"
+      class="rogue-option"
+      data-id="{{item.id}}"
+      bindtap="onRewardTap"
+    >{{item.label}}：{{item.description}}</button>
+  </view>
+  <text wx:if="{{game.notice}}" class="notice">{{game.notice}}</text>
+</view>

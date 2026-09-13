@@ -2,6 +2,8 @@
   "usingComponents": {
     "minesweeper-board": "/components/minesweeper-board/index",
     "sudoku-board": "/components/sudoku-board/index",
-    "lianliankan-board": "/components/lianliankan-board/index"
+    "lianliankan-board": "/components/lianliankan-board/index",
+    "rogue-board": "/components/rogue-board/index",
+    "rogue-hud": "/components/rogue-hud/index"
   }
 }

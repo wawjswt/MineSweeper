@@ -218,3 +218,5 @@
 .sudoku-actions { margin-top: 16rpx; }
 
 .llk-card { padding-bottom: 28rpx; }
+
+.rogue-card { padding-bottom: 28rpx; }
