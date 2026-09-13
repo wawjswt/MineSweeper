@@ -25,6 +25,7 @@ import {
   saveModeKey,
   saveThemeKey,
 } from "./storage.js";
+import { createWebStorage } from "./platform/web/storage.js";
 
 const elements = {
   boardEl: document.getElementById("board"),
@@ -104,7 +105,8 @@ const elements = {
   game2048Right: document.getElementById("game2048Right"),
 };
 
-const storage = loadSettings();
+const webStorage = createWebStorage();
+const storage = loadSettings(webStorage);
 const validModes = Object.keys(MODES);
 let modeKey = validModes.includes(storage.modeKey) ? storage.modeKey : "classic";
 let difficultyKey = elements.difficultySelect.value;
@@ -146,8 +148,8 @@ function getCustomStorageKey(field) {
 }
 
 function readCustomValue(field, fallback) {
-  const modeValue = localStorage.getItem(getCustomStorageKey(field));
-  const legacyValue = modeKey === "classic" ? localStorage.getItem(`minesweeper-custom-${field}`) : null;
+  const modeValue = webStorage.getItem(getCustomStorageKey(field));
+  const legacyValue = modeKey === "classic" ? webStorage.getItem(`minesweeper-custom-${field}`) : null;
   const value = modeValue ?? legacyValue;
   return value === null ? fallback : Number(value);
 }
@@ -249,12 +251,12 @@ function getDifficultyRecordKey() {
 }
 
 function loadBestTime() {
-  const value = Number(localStorage.getItem(getDifficultyRecordKey()));
+  const value = Number(webStorage.getItem(getDifficultyRecordKey()));
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
 function saveBestTime(seconds) {
-  localStorage.setItem(getDifficultyRecordKey(), seconds.toFixed(3));
+  webStorage.setItem(getDifficultyRecordKey(), seconds.toFixed(3));
 }
 
 function renderBestTime() {
@@ -471,6 +473,7 @@ const game2048UI = create2048UI({
   leftButton: elements.game2048Left,
   rightButton: elements.game2048Right,
 }, {
+  storage: webStorage,
   isActive: () => window.__GAME_TABS__?.getCurrent() === "2048",
 });
 window.addEventListener("keydown", (event) => rogueGuideController.handleGlobalKeydown(event), true);
@@ -512,7 +515,7 @@ ui.bindHandlers({
   },
   onModeChange: (value) => {
     modeKey = validModes.includes(value) ? value : "classic";
-    saveModeKey(modeKey);
+    saveModeKey(modeKey, webStorage);
     refreshDifficultyOptions();
     syncCustomDifficultyForm();
     updateGenerationModeVisibility();
@@ -521,7 +524,7 @@ ui.bindHandlers({
   },
   onGenerationModeChange: (value) => {
     generationMode = value === "no-guess" && modeKey === "classic" ? "no-guess" : "standard";
-    saveGenerationMode(generationMode);
+    saveGenerationMode(generationMode, webStorage);
     ui.setGenerationMode(generationMode);
     resetGame();
   },
@@ -529,9 +532,9 @@ ui.bindHandlers({
   onApplyCustomDifficulty: () => {
     if (modeKey === "sudoku") return;
     const { rows, cols, mines } = getCustomFormValues();
-    localStorage.setItem(getCustomStorageKey("rows"), String(rows));
-    localStorage.setItem(getCustomStorageKey("cols"), String(cols));
-    localStorage.setItem(getCustomStorageKey("mines"), String(mines));
+    webStorage.setItem(getCustomStorageKey("rows"), String(rows));
+    webStorage.setItem(getCustomStorageKey("cols"), String(cols));
+    webStorage.setItem(getCustomStorageKey("mines"), String(mines));
     elements.customRows.value = String(rows);
     elements.customCols.value = String(cols);
     elements.customMines.value = String(mines);
@@ -541,23 +544,23 @@ ui.bindHandlers({
     resetGame();
   },
   onThemeChange: (value) => {
-    saveThemeKey(value);
+    saveThemeKey(value, webStorage);
     applyTheme(value);
   },
   onBackgroundUpload: async (file) => {
     if (!file || !file.type.startsWith("image/")) return;
     const raw = await loadImageSource(file);
     const compressed = await compressImageDataUrl(raw);
-    saveBackgroundUrl(compressed);
+    saveBackgroundUrl(compressed, webStorage);
     ui.applyBackground(compressed);
   },
   onClearBackground: () => {
     elements.bgUpload.value = "";
-    saveBackgroundUrl("");
+    saveBackgroundUrl("", webStorage);
     ui.applyBackground("");
   },
   onBackgroundOpacityChange: (value) => {
-    saveBackgroundOpacity(value);
+    saveBackgroundOpacity(value, webStorage);
     ui.applyBackgroundOpacity(value);
   },
 });

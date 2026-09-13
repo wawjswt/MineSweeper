@@ -1,4 +1,5 @@
 import { create2048Game } from "./2048-game.js";
+import { createWebStorage } from "./platform/web/storage.js";
 
 const KEY_TO_DIRECTION_2048 = {
   ArrowUp: "up",
@@ -81,7 +82,7 @@ function setTileMovement2048(tile, from, to) {
 
 export function create2048UI(elements, options = {}) {
   const game = options.game || create2048Game();
-  const storage = options.storage || (typeof localStorage !== "undefined" ? localStorage : null);
+  const storage = options.storage || createWebStorage();
   const isActive = options.isActive || (() => true);
   let bestScore = readBestScore2048(storage);
   let touchStart = null;
