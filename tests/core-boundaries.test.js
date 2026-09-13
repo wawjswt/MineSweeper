@@ -82,7 +82,7 @@ test("legacy game seams identify remaining UI adapters explicitly", () => {
   });
   assert.deepEqual(getRogueCoreStatus(), {
     game: "rogue",
-    status: "bridge",
+    status: "extracted",
     uiSource: "src/rogue-ui.js",
   });
 });

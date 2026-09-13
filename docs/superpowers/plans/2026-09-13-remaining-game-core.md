@@ -160,29 +160,29 @@
 - The old `src/rogue-*.js` files re-export the canonical core files for current tests and Web adapters.
 - `src/app.js` creates an application registry and registers `sweep`, `rogue`, and `2048` descriptors without moving DOM rendering into the registry.
 
-- [ ] **Step 1: Add failing canonical-path and registry integration tests**
+- [x] **Step 1: Add failing canonical-path and registry integration tests**
 
   Import Rogue functions from `src/core/games/rogue`, assert the first-click safety and one representative action result, assert all core Rogue files have no browser globals, and assert `app.js` can register descriptors through the pure registry contract without importing UI modules into `src/application`.
 
-- [ ] **Step 2: Run the focused test and verify the expected missing canonical-file failure**
+- [x] **Step 2: Run the focused test and verify the expected missing canonical-file failure**
 
   Run: `node --test tests/rogue-core-boundaries.test.js tests/application-registry.test.js`
   Expected: FAIL because the canonical Rogue implementation files are not present under `src/core/games/rogue`.
 
-- [ ] **Step 3: Move Rogue implementations and preserve old imports**
+- [x] **Step 3: Move Rogue implementations and preserve old imports**
 
   Copy each pure module to the core directory, update relative imports to local core paths, change the core index from a bridge to local exports, and turn the old files into one-line compatibility re-exports.
 
-- [ ] **Step 4: Register application domains in the Web composition root**
+- [x] **Step 4: Register application domains in the Web composition root**
 
   Instantiate `createGameRegistry({ initialGame: "sweep" })`, register the existing game handlers with `getState`/`dispatch` closures, and leave the current `game-tabs` DOM coordinator and UI render functions responsible for presentation.
 
-- [ ] **Step 5: Run Rogue and application regression tests**
+- [x] **Step 5: Run Rogue and application regression tests**
 
   Run: `node --test tests/rogue-core-boundaries.test.js tests/application-registry.test.js tests/rogue-minesweeper.test.js tests/rogue-task1.test.js tests/rogue-task3.test.js tests/rogue-task4.test.js`.
   Expected: all tests PASS and the canonical core scan reports no browser globals.
 
-- [ ] **Step 6: Commit the Rogue and registry integration**
+- [x] **Step 6: Commit the Rogue and registry integration**
 
   Run: `git add src/core/games/rogue src/rogue-contracts.js src/rogue-items.js src/rogue-level.js src/rogue-sectors.js src/rogue-state.js src/rogue-game.js src/application/game-registry.js src/app.js tests/rogue-core-boundaries.test.js tests/application-registry.test.js` and commit with `refactor: move rogue domain into core`.
 

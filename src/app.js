@@ -8,6 +8,7 @@ import {
   THEMES,
 } from "./config.js";
 import { makeState } from "./core/games/minesweeper/state.js";
+import { createGameRegistry } from "./application/game-registry.js";
 import { createGameLogic } from "./game.js";
 import { createUI } from "./ui.js";
 import { createRogueGame } from "./core/games/rogue/index.js";
@@ -108,6 +109,7 @@ const elements = {
 
 const webStorage = createWebStorage();
 const webClock = createWebClock();
+const gameRegistry = createGameRegistry({ initialGame: "sweep" });
 const storage = loadSettings(webStorage);
 const validModes = Object.keys(MODES);
 let modeKey = validModes.includes(storage.modeKey) ? storage.modeKey : "classic";
@@ -507,6 +509,59 @@ const rogueHandlers = {
   onChooseReward: (upgradeId) => rogueGame.chooseReward(upgradeId),
   onAction: () => renderRogue(),
 };
+
+gameRegistry.register("sweep", {
+  getState: () => state,
+  dispatch: (action) => {
+    if (action?.type === "reset") resetGame();
+    else if (action?.type === "reveal") handleReveal(action.row, action.col);
+    else if (action?.type === "chord") handleChord(action.row, action.col);
+    else if (action?.type === "mark") handleCycleMark(action.row, action.col);
+    else if (action?.type === "hint") handleHint();
+    else return "invalid";
+    return state;
+  },
+});
+
+gameRegistry.register("rogue", {
+  getState: () => rogueGame.getState(),
+  dispatch: (action) => {
+    const result = action?.type === "reset"
+      ? rogueHandlers.onReset()
+      : action?.type === "reveal"
+        ? rogueHandlers.onReveal(action.row, action.col)
+        : action?.type === "chord"
+          ? rogueHandlers.onChord(action.row, action.col)
+          : action?.type === "mark"
+            ? rogueHandlers.onCycleMark(action.row, action.col)
+            : action?.type === "select-contract"
+              ? rogueHandlers.onSelectContract(action.contractId)
+              : action?.type === "select-tool"
+                ? rogueHandlers.onSelectTool(action.toolKey)
+                : action?.type === "use-tool"
+                  ? rogueHandlers.onUseTool(action.row, action.col)
+                  : action?.type === "cancel-tool"
+                    ? rogueHandlers.onCancelTool()
+                    : action?.type === "choose-reward"
+                      ? rogueHandlers.onChooseReward(action.upgradeId)
+                      : "invalid";
+    return result === "invalid" ? result : rogueGame.getState();
+  },
+});
+
+gameRegistry.register("2048", {
+  getState: () => game2048UI.getState(),
+  dispatch: (action) => {
+    if (action?.type === "move") return game2048UI.move(action.direction);
+    if (action?.type === "reset") {
+      game2048UI.reset();
+      return game2048UI.getState();
+    }
+    return "invalid";
+  },
+});
+
+window.__GAME_REGISTRY__ = gameRegistry;
 
 ui.bindHandlers({
   onReset: resetGame,
