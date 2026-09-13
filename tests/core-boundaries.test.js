@@ -8,6 +8,7 @@ import { generateClassicBoard } from "../src/core/games/minesweeper/generator.js
 import { analyzePosition } from "../src/core/games/minesweeper/solver.js";
 import { makeState } from "../src/core/games/minesweeper/state.js";
 import { generateSudokuMines, getSudokuCoreStatus } from "../src/core/games/sudoku/index.js";
+import { makePuzzle as makeSudokuPuzzle } from "../src/core/games/sudoku/engine.js";
 import {
   LLK_LEVELS,
   cloneLayout,
@@ -70,7 +71,7 @@ test("Minesweeper core keeps the first-click neighborhood safe", () => {
 test("legacy game seams identify remaining UI adapters explicitly", () => {
   assert.deepEqual(getSudokuCoreStatus(), {
     game: "sudoku",
-    status: "partial",
+    status: "extracted",
     uiSource: "src/sudoku-game.js",
   });
   assert.deepEqual(getLianliankanCoreStatus(), {
@@ -90,4 +91,11 @@ test("partial game cores expose pure data and generators", () => {
   assert.equal(sudoku.mines.length, 9);
   assert.equal(LLK_LEVELS.length, 5);
   assert.equal(cloneLayout(1).length, LLK_LEVELS[0].rows * LLK_LEVELS[0].cols);
+});
+
+test("Sudoku core source is independent from browser globals", () => {
+  const source = fs.readFileSync(path.join(projectRoot, "src", "core", "games", "sudoku", "engine.js"), "utf8");
+  assert.doesNotMatch(source, /\b(?:document|window|localStorage|performance|setInterval|setTimeout|requestAnimationFrame)\b/);
+  const result = makeSudokuPuzzle(0, { rng: () => 0.25, now: () => 0 });
+  assert.equal(result.removed, 0);
 });

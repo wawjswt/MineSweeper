@@ -1,13 +1,8 @@
 /* 独立数独(sudoku-game.js)逻辑校验
- * 通过 VM 注入最小 DOM 桩加载脚本,再调用 window.__SUDOKU__ 暴露的纯逻辑。
+ * 通过全局最小 DOM 桩动态加载 Web 适配器,再调用其兼容入口。
  * 运行:node tests/classic-sudoku.test.js
  */
-const fs = require("fs");
-const path = require("path");
-const vm = require("vm");
 const nodeAssert = require("assert");
-
-const source = fs.readFileSync(path.join(__dirname, "..", "src", "sudoku-game.js"), "utf8");
 
 function createElementStub() {
   const classes = new Set();
@@ -140,11 +135,17 @@ sandbox.dispatchEvent = (event) => {
   (documentListeners.get(`window:${event.type}`) || []).forEach((handler) => handler.call(sandbox, event));
 };
 
-vm.createContext(sandbox);
-vm.runInContext(source, sandbox, { filename: "sudoku-game.js" });
+for (const key of [
+  "document", "localStorage", "console", "performance", "location",
+  "setTimeout", "clearTimeout", "setInterval", "clearInterval",
+  "confirm", "addEventListener", "dispatchEvent",
+]) globalThis[key] = sandbox[key];
+globalThis.window = sandbox;
 
-const SUDOKU = sandbox.__SUDOKU__;
-if (!SUDOKU) throw new Error("window.__SUDOKU__ not exposed (script early-returned?)");
+async function main() {
+  await import("../src/sudoku-game.js");
+  const SUDOKU = sandbox.__SUDOKU__;
+  if (!SUDOKU) throw new Error("window.__SUDOKU__ not exposed (adapter early-returned?)");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -507,3 +508,9 @@ nodeAssert.strictEqual(SUDOKU.getState().canRedo, false, "a new operation should
 console.log("classic sudoku: notes, history, hints, persistence, and digit count passed");
 
 console.log("ALL CLASSIC SUDOKU CHECKS PASSED");
+}
+
+main().catch((error) => {
+  console.error(error.stack || error);
+  process.exitCode = 1;
+});
