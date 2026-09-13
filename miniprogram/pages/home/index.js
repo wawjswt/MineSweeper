@@ -89,8 +89,25 @@ Page({
     this.dispatch({ type: event.currentTarget.dataset.action }, "sudoku");
   },
 
+  onLianliankanSelect(event) {
+    this.dispatch({ type: "select", index: Number(event.detail.index) }, "lianliankan");
+  },
+
+  onLianliankanHint() {
+    this.dispatch({ type: "hint" }, "lianliankan");
+  },
+
+  onLianliankanReshuffle() {
+    this.dispatch({ type: "reshuffle" }, "lianliankan");
+  },
+
+  onLianliankanNew() {
+    this.dispatch({ type: "new" }, "lianliankan");
+  },
+
   onNewGame() {
-    this.dispatch({ type: "reset" });
+    const game = this.runtime?.currentGame();
+    this.dispatch({ type: game === "lianliankan" ? "new" : "reset" });
   },
 
   onTouchStart(event) {

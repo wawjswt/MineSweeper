@@ -1,0 +1,25 @@
+.llk-board {
+  display: grid;
+  gap: 6rpx;
+  padding: 12rpx;
+  border-radius: 20rpx;
+  background: #101827;
+}
+
+.llk-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 12rpx;
+  color: #f4f7fb;
+  background: #26334a;
+  font-size: 30rpx;
+}
+
+.llk-cell.is-empty { color: transparent; background: #182235; }
+.llk-cell.is-blocked { background: #0c1220; }
+.llk-cell.is-selected { box-shadow: inset 0 0 0 5rpx #8ee3c2; }
+.llk-cell.is-path { background: #4f6d91; }
+.llk-cell.is-hinted { box-shadow: inset 0 0 0 5rpx #f6d365; }

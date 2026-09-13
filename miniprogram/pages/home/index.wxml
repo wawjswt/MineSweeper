@@ -94,6 +94,26 @@
         <button class="primary-button" bindtap="onNewGame">重置</button>
       </view>
     </view>
+
+    <view wx:elif="{{activeGame === 'lianliankan' && game}}" class="game-card llk-card">
+      <view class="score-row">
+        <view><text class="score-label">TIME</text><text class="score-value">{{game.timer}}</text></view>
+        <view><text class="score-label">LEFT</text><text class="score-value">{{game.remaining}}</text></view>
+        <view><text class="score-label">SCORE</text><text class="score-value">{{game.score}}</text></view>
+        <view><text class="score-label">COMBO</text><text class="score-value">×{{game.combo}}</text></view>
+      </view>
+      <lianliankan-board
+        cells="{{game.cells}}"
+        cols="{{game.cols}}"
+        bind:select="onLianliankanSelect"
+      />
+      <text wx:if="{{game.notice}}" class="notice">{{game.notice}}</text>
+      <view class="actions">
+        <button class="primary-button" bindtap="onLianliankanNew">新局</button>
+        <button class="secondary-button" bindtap="onLianliankanHint">提示</button>
+        <button class="secondary-button" bindtap="onLianliankanReshuffle">重排</button>
+      </view>
+    </view>
   </view>
   <view wx:else class="empty-state">
     <text class="title">正在加载</text>

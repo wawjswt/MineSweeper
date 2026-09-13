@@ -312,7 +312,7 @@
 
   Verify reload restores a saved puzzle, page hide pauses timing, and a page restart does not mutate the stored puzzle unexpectedly.
 
-- [ ] **Step 5: Commit the Sudoku slice**
+- [x] **Step 5: Commit the Sudoku slice**
 
   ```bash
   git add src/application/games/sudoku-session.js src/adapters/miniprogram miniprogram src/sudoku-game.js tests/sudoku-session.test.js
@@ -339,15 +339,15 @@
 - The first delivery supports `classic`, `levels`, and `challenge` 2D modes using existing `findPath`, `makeBoard`, `makeDropPlan`, `reshuffle`, and level-progress helpers.
 - `toLianliankanViewModel(state)` returns a flat tile array, selected indexes, path segments, score/time/status text, and level/challenge resources without Canvas or DOM nodes.
 
-- [ ] **Step 1: Add session tests against existing pure rules**
+- [x] **Step 1: Add session tests against existing pure rules**
 
   Assert valid pair removal, two-turn path selection, failed-pair feedback, reshuffle preserving pairs and guaranteeing a move, level completion, challenge resource consumption, and injected-clock countdown behavior.
 
-- [ ] **Step 2: Extract the 2D flow controller**
+- [x] **Step 2: Extract the 2D flow controller**
 
   Move mode state, selection state, scoring, timer transitions, and level progress into the session. Keep Canvas/DOM animation in the Web controller until the session view model is stable.
 
-- [ ] **Step 3: Implement the WXML board**
+- [x] **Step 3: Implement the WXML board**
 
   Render tiles with `wx:for`; selection and path are CSS classes driven by view state. Cell taps dispatch one `select` action. Do not implement path search or pair validation in the component.
 

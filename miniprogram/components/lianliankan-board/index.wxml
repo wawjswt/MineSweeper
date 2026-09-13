@@ -1,0 +1,9 @@
+<view class="llk-board" style="grid-template-columns: repeat({{cols}}, minmax(0, 1fr));">
+  <view
+    wx:for="{{cells}}"
+    wx:key="index"
+    class="llk-cell {{item.blocked ? 'is-blocked' : ''}} {{item.empty ? 'is-empty' : ''}} {{item.selected ? 'is-selected' : ''}} {{item.path ? 'is-path' : ''}} {{item.hinted ? 'is-hinted' : ''}}"
+    data-index="{{item.index}}"
+    bindtap="onCellTap"
+  >{{item.emoji}}</view>
+</view>
