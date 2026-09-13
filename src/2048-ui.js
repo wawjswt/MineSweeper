@@ -1,4 +1,4 @@
-import { create2048Game } from "./2048-game.js";
+import { create2048Game } from "./core/games/2048/engine.js";
 import { createWebStorage } from "./platform/web/storage.js";
 
 const KEY_TO_DIRECTION_2048 = {
