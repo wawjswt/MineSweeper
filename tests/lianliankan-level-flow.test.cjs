@@ -2,9 +2,8 @@
  * 运行: node tests/lianliankan-level-flow.test.js
  */
 const assert = require("assert");
-const fs = require("fs");
 const path = require("path");
-const vm = require("vm");
+const { pathToFileURL } = require("url");
 
 function element() {
   const classes = new Set();
@@ -61,6 +60,7 @@ function element() {
   return elementValue;
 }
 
+async function main() {
 const elements = new Map();
 for (const id of [
   "lianliankanShell", "llkBoard", "llkTimer", "llkStatus", "llkLeft", "llkDifficulty",
@@ -78,39 +78,36 @@ elements.get("llkBoard").parentElement = { clientWidth: 720, getBoundingClientRe
 elements.get("llkPathLayer").parentElement = elements.get("llkBoard").parentElement;
 const intervalCallbacks = [];
 let virtualNow = 0;
-const sandbox = {
-  document, console, Math, Date, Number, String, Array, Set, Map, Infinity,
-  location: { hash: "" }, performance: { now: () => virtualNow },
-  requestAnimationFrame(callback) { animationFrames.push(callback); }, addEventListener() {},
-  setTimeout(callback, delay) {
-    const timer = { callback, delay };
-    animationTimers.push(timer);
-    return timer;
-  },
-  clearTimeout(timer) {
-    const index = animationTimers.indexOf(timer);
-    if (index >= 0) animationTimers.splice(index, 1);
-  },
-  setInterval(callback, delay) {
-    const timer = { callback, delay };
-    intervalCallbacks.push(timer);
-    return timer;
-  },
-  clearInterval(timer) {
-    const index = intervalCallbacks.indexOf(timer);
-    if (index >= 0) intervalCallbacks.splice(index, 1);
-  },
-};
 const animationFrames = [];
 const animationTimers = [];
-sandbox.window = sandbox;
-vm.createContext(sandbox);
-for (const file of ["lianliankan-levels.js", "lianliankan-game.js"]) {
-  const source = fs.readFileSync(path.join(__dirname, "..", "src", file), "utf8");
-  vm.runInContext(source, sandbox, { filename: file });
-}
+globalThis.document = document;
+globalThis.console = console;
+globalThis.location = { hash: "" };
+globalThis.performance = { now: () => virtualNow };
+globalThis.requestAnimationFrame = (callback) => animationFrames.push(callback);
+globalThis.addEventListener = () => {};
+globalThis.setTimeout = (callback, delay) => {
+  const timer = { callback, delay };
+  animationTimers.push(timer);
+  return timer;
+};
+globalThis.clearTimeout = (timer) => {
+  const index = animationTimers.indexOf(timer);
+  if (index >= 0) animationTimers.splice(index, 1);
+};
+globalThis.setInterval = (callback, delay) => {
+  const timer = { callback, delay };
+  intervalCallbacks.push(timer);
+  return timer;
+};
+globalThis.clearInterval = (timer) => {
+  const index = intervalCallbacks.indexOf(timer);
+  if (index >= 0) intervalCallbacks.splice(index, 1);
+};
+globalThis.window = globalThis;
+await import(pathToFileURL(path.join(__dirname, "..", "src", "lianliankan-game.js")).href + "?test=flow");
 
-const LLK = sandbox.__LLK__;
+const LLK = globalThis.__LLK__;
 assert(LLK.levelFlow, "level flow helpers should be exposed for integration tests");
 const flow = LLK.levelFlow;
 const plain = (value) => JSON.parse(JSON.stringify(value));
@@ -190,7 +187,7 @@ assert.deepStrictEqual(plain(flow.challengeRating({ timeLimitSeconds: 90, elapse
   label: "未完成",
 });
 assert.deepStrictEqual(
-  plain(sandbox.__LLK_LEVELS__.levels.map((level) => level.challenge)),
+  plain(globalThis.__LLK_LEVELS__.levels.map((level) => level.challenge)),
   [
     { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 0 },
     { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 0 },
@@ -401,10 +398,16 @@ const deadGrid = [
   9, 0, 0, -1, 0,
 ];
 assert.strictEqual(LLK.findAnyPair(deadGrid, 5, 5), null, "fixture must start as a dead board");
-const resolved = flow.ensureSolvable(deadGrid, 5, 5, sandbox.__LLK_LEVELS__, LLK.findAnyPair, () => 0);
+const resolved = flow.ensureSolvable(deadGrid, 5, 5, globalThis.__LLK_LEVELS__, LLK.findAnyPair, () => 0);
 assert.strictEqual(resolved.autoReshuffled, true);
 assert.deepStrictEqual(plain(resolved.grid.filter((value) => value === -1)), deadGrid.filter((value) => value === -1));
 assert.deepStrictEqual(plain(resolved.grid.filter((value) => value > 0).sort()), deadGrid.filter((value) => value > 0).sort());
 assert(LLK.findAnyPair(resolved.grid, 5, 5), "automatic reshuffle must restore a playable pair");
 
 console.log("ALL LIANLIANKAN LEVEL FLOW CHECKS PASSED");
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -33,25 +33,25 @@
 - `select(name)` returns `{ ok: true, game: name, previous }` or `{ ok: false, game: current, previous: current }` without invoking UI code.
 - `dispatch(action, gameName = current)` returns `{ handled: false, game: gameName, result: null }` for missing handlers and otherwise returns `{ handled: true, game: gameName, result }`.
 
-- [ ] **Step 1: Write the failing registry tests**
+- [x] **Step 1: Write the failing registry tests**
 
   Cover registration/listing, replacement of a named handler, selection of an unknown name without changing current state, dispatch to the selected game, explicit dispatch to another game, and rejection of invalid action handlers.
 
-- [ ] **Step 2: Run the focused test and verify the expected missing-module failure**
+- [x] **Step 2: Run the focused test and verify the expected missing-module failure**
 
   Run: `node --test tests/application-registry.test.js`
   Expected: FAIL because `src/application/game-registry.js` does not exist.
 
-- [ ] **Step 3: Implement the smallest pure registry**
+- [x] **Step 3: Implement the smallest pure registry**
 
   Use a private `Map`; clone only the public game-name list; do not import any platform or UI module. Validate `register` inputs and keep `dispatch` synchronous.
 
-- [ ] **Step 4: Run the focused test and verify it passes**
+- [x] **Step 4: Run the focused test and verify it passes**
 
   Run: `node --test tests/application-registry.test.js`
   Expected: all registry tests PASS.
 
-- [ ] **Step 5: Commit the application boundary**
+- [x] **Step 5: Commit the application boundary**
 
   Run: `git add src/application/game-registry.js tests/application-registry.test.js` and commit with `refactor: add application game registry`.
 
@@ -72,29 +72,29 @@
 - `makePuzzle` defaults to `Math.random` and `Date.now`; the defaults preserve current behavior while tests can inject deterministic sources.
 - `sudoku-game.js` imports the pure exports, imports `createWebClock()`/`createWebStorage()`, and keeps DOM rendering, keyboard handling and lifecycle registration in the Web adapter. It no longer declares the pure solver/generator block or a second peer-set implementation.
 
-- [ ] **Step 1: Add failing pure-core and boundary tests**
+- [x] **Step 1: Add failing pure-core and boundary tests**
 
   Import `makePuzzle`, `countSolutions`, `getCandidates`, `findBasicHint`, and `PEER_SETS` from `../src/core/games/sudoku/engine.js`; assert a valid unique puzzle, known candidates/hint output, deterministic generation with injected `rng`/`now`, and no browser-global names in the Sudoku core source.
 
-- [ ] **Step 2: Run the focused test and verify the expected missing-module failure**
+- [x] **Step 2: Run the focused test and verify the expected missing-module failure**
 
   Run: `node --test tests/sudoku-core.test.js tests/core-boundaries.test.js`
   Expected: FAIL at the new Sudoku engine import.
 
-- [ ] **Step 3: Move the pure Sudoku implementation without changing rules**
+- [x] **Step 3: Move the pure Sudoku implementation without changing rules**
 
   Move the existing generator, solver, hint/rating, save validation and peer-set logic into `engine.js`; replace the old pure block in `sudoku-game.js` with named imports. Keep `window.__SUDOKU__` out of the core; if an old Web test needs it, expose only a compatibility object assembled from imported functions in the adapter.
 
-- [ ] **Step 4: Inject Web storage and clock into the Sudoku adapter**
+- [x] **Step 4: Inject Web storage and clock into the Sudoku adapter**
 
   Replace direct `localStorage`, `performance`, `setInterval`, `clearInterval` and generation `setTimeout` uses in `sudoku-game.js` with one Web storage port and one Web clock port. Preserve the `sudoku-classic-*-v1` keys and the existing timer/persistence behavior.
 
-- [ ] **Step 5: Run the focused Sudoku and legacy checks**
+- [x] **Step 5: Run the focused Sudoku and legacy checks**
 
   Run: `node --test tests/sudoku-core.test.js tests/core-boundaries.test.js` and `node tests/classic-sudoku.test.cjs`.
   Expected: core tests PASS, legacy Sudoku behavior checks PASS, and the core scan reports no browser-global references.
 
-- [ ] **Step 6: Commit the Sudoku extraction**
+- [x] **Step 6: Commit the Sudoku extraction**
 
   Run: `git add src/core/games/sudoku src/sudoku-game.js src/platform/web/clock.js src/platform/web/storage.js tests/sudoku-core.test.js tests/core-boundaries.test.js tests/classic-sudoku.test.cjs` and commit with `refactor: extract sudoku core and web adapter`.
 
@@ -116,33 +116,33 @@
 - `lianliankan-game.js` imports the core and `LLK_LEVELS`; DOM/SVG/Canvas rendering, event listeners, animation scheduling and tab lifecycle remain in the Web adapter.
 - `lianliankan-levels.js` becomes a compatibility wrapper or is removed from the HTML entry; the canonical level data lives in `src/core/games/lianliankan/levels.js`.
 
-- [ ] **Step 1: Add failing core import and behavior tests**
+- [x] **Step 1: Add failing core import and behavior tests**
 
   Cover 2D board validity/path rules, challenge resource immutability, level flow scoring/drop plans, 3D board validity/path expansion, and the no-browser-global scan for every file under `src/core/games/lianliankan`.
 
-- [ ] **Step 2: Run the focused test and verify the expected missing-module failure**
+- [x] **Step 2: Run the focused test and verify the expected missing-module failure**
 
   Run: `node --test tests/lianliankan-core.test.js tests/core-boundaries.test.js`
   Expected: FAIL because the canonical Link-Link engine module is missing.
 
-- [ ] **Step 3: Move 2D, level-flow and 3D pure functions into the core engine**
+- [x] **Step 3: Move 2D, level-flow and 3D pure functions into the core engine**
 
   Copy the existing behavior into the new module, parameterize randomness where the current code uses `Math.random`, and export only functions/data that do not need DOM state. Do not move any render or event function.
 
-- [ ] **Step 4: Connect the Web controller to the canonical engine**
+- [x] **Step 4: Connect the Web controller to the canonical engine**
 
   Replace the duplicated pure declarations in `lianliankan-game.js` with imports, replace the level global lookup with imported `LLK_LEVELS`/helpers, and route timer/animation calls through Web clock methods. Keep a thin adapter-only compatibility surface for current Web integration checks while ensuring the rules come from `core`.
 
-- [ ] **Step 5: Update the level compatibility entry and test runners**
+- [x] **Step 5: Update the level compatibility entry and test runners**
 
   Make `src/lianliankan-levels.js` re-export or proxy the canonical data for old consumers, update the ESM-aware test entry points, and keep the existing 2D, 3D, level, and level-flow assertions.
 
-- [ ] **Step 6: Run the focused Link-Link regression suite**
+- [x] **Step 6: Run the focused Link-Link regression suite**
 
   Run: `node --test tests/lianliankan-core.test.js tests/core-boundaries.test.js` plus the existing Link-Link test commands from `package.json`.
   Expected: all path, level, 3D, animation-flow and compatibility checks PASS.
 
-- [ ] **Step 7: Commit the Link-Link extraction**
+- [x] **Step 7: Commit the Link-Link extraction**
 
   Run: `git add src/core/games/lianliankan src/lianliankan-game.js src/lianliankan-levels.js tests/lianliankan-core.test.js tests/core-boundaries.test.js tests/lianliankan.test.cjs tests/lianliankan3d.test.cjs tests/lianliankan-levels.test.cjs tests/lianliankan-level-flow.test.cjs` and commit with `refactor: extract lianliankan core and web adapter`.
 
@@ -226,4 +226,3 @@
 - [ ] **Step 6: Inspect the diff and commit the second phase**
 
   Run: `git diff --stat`, `git diff --check`, and `git status --short --untracked-files=all`; keep only intentional source, test, documentation, and generated bundle changes. Commit with `refactor: complete remaining game core extraction`.
-

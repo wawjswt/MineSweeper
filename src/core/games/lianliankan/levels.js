@@ -1,3 +1,5 @@
+import { countRemaining as countGridRemaining, reshuffleLevel } from "./engine.js";
+
 function makeLayout(rows, cols, obstacleIndexes, emptyIndexes, kinds, anchorIndexes) {
   const layout = new Array(rows * cols).fill(0);
   for (const index of obstacleIndexes) layout[index] = -1;
@@ -101,7 +103,7 @@ export function cloneLayout(levelOrId) {
 }
 
 export function countRemaining(grid) {
-  return grid.reduce((count, value) => count + (value > 0 ? 1 : 0), 0);
+  return countGridRemaining(grid);
 }
 
 export function collapseColumns(grid, rows, cols) {
@@ -127,36 +129,5 @@ export function collapseColumns(grid, rows, cols) {
 }
 
 export function reshuffle(input, rows, cols, findPair, random) {
-  const source = input.slice();
-  if (typeof findPair !== "function") throw new TypeError("reshuffle requires a pair finder");
-  const rng = random || Math.random;
-  const slots = source.map((value, index) => value === -1 ? -1 : index).filter((index) => index >= 0);
-  const tiles = source.filter((value) => value > 0);
-  const tileCounts = new Map();
-  for (const tile of tiles) tileCounts.set(tile, (tileCounts.get(tile) || 0) + 1);
-  for (let attempt = 0; attempt < 80; attempt++) {
-    const next = source.slice();
-    for (const index of slots) next[index] = 0;
-    for (let index = tiles.length - 1; index > 0; index--) {
-      const swapIndex = Math.floor(rng() * (index + 1));
-      [tiles[index], tiles[swapIndex]] = [tiles[swapIndex], tiles[index]];
-    }
-    for (let index = 0; index < tiles.length; index++) next[slots[index]] = tiles[index];
-    if (findPair(next, rows, cols)) return { ok: true, grid: next };
-  }
-  for (const [kind, count] of tileCounts) if (count >= 2) {
-    for (let first = 0; first < slots.length; first++) for (let second = first + 1; second < slots.length; second++) {
-      const next = source.slice();
-      for (const index of slots) next[index] = 0;
-      next[slots[first]] = kind;
-      next[slots[second]] = kind;
-      const rest = tiles.slice();
-      rest.splice(rest.indexOf(kind), 1);
-      rest.splice(rest.indexOf(kind), 1);
-      let cursor = 0;
-      for (let index = 0; index < slots.length && cursor < rest.length; index++) if (index !== first && index !== second) next[slots[index]] = rest[cursor++];
-      if (findPair(next, rows, cols)) return { ok: true, grid: next };
-    }
-  }
-  return { ok: false, grid: source };
+  return reshuffleLevel(input, rows, cols, findPair, random);
 }

@@ -15,6 +15,7 @@ import {
   getLianliankanCoreStatus,
 } from "../src/core/games/lianliankan/index.js";
 import { getRogueCoreStatus } from "../src/core/games/rogue/index.js";
+import { getLianliankanEngineStatus } from "../src/core/games/lianliankan/index.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -76,7 +77,7 @@ test("legacy game seams identify remaining UI adapters explicitly", () => {
   });
   assert.deepEqual(getLianliankanCoreStatus(), {
     game: "lianliankan",
-    status: "partial",
+    status: "extracted",
     uiSource: "src/lianliankan-game.js",
   });
   assert.deepEqual(getRogueCoreStatus(), {
@@ -98,4 +99,10 @@ test("Sudoku core source is independent from browser globals", () => {
   assert.doesNotMatch(source, /\b(?:document|window|localStorage|performance|setInterval|setTimeout|requestAnimationFrame)\b/);
   const result = makeSudokuPuzzle(0, { rng: () => 0.25, now: () => 0 });
   assert.equal(result.removed, 0);
+});
+
+test("Link-Link core source is independent from browser globals", () => {
+  const source = fs.readFileSync(path.join(projectRoot, "src", "core", "games", "lianliankan", "engine.js"), "utf8");
+  assert.doesNotMatch(source, /\b(?:document|window|localStorage|performance|setInterval|setTimeout|requestAnimationFrame)\b/);
+  assert.deepEqual(getLianliankanEngineStatus(), { game: "lianliankan", status: "extracted" });
 });

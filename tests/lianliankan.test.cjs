@@ -3,11 +3,8 @@
  * 运行:node tests/lianliankan.test.js
  */
 const assert = require("assert");
-const fs = require("fs");
 const path = require("path");
-const vm = require("vm");
-
-const source = fs.readFileSync(path.join(__dirname, "..", "src", "lianliankan-game.js"), "utf8");
+const { pathToFileURL } = require("url");
 
 function createElementStub() {
   const classes = new Set();
@@ -57,6 +54,7 @@ function createElementStub() {
   return element;
 }
 
+async function main() {
 const IDs = [
   "lianliankanShell", "llkBoard", "llkTimer", "llkStatus", "llkLeft",
   "llkDifficulty", "llkNew", "llkShuffle", "llkPathLayer",
@@ -115,21 +113,12 @@ const sandbox = {
     if (index >= 0) scheduledIntervals.splice(index, 1);
   },
   __GAME_TABS__: llkCoordinator,
-  Math,
-  Date,
-  Number,
-  String,
-  Array,
-  Set,
-  Map,
-  Infinity,
 };
-sandbox.window = sandbox;
+Object.assign(globalThis, sandbox);
+globalThis.window = globalThis;
+await import(pathToFileURL(path.join(__dirname, "..", "src", "lianliankan-game.js")).href + "?test=classic");
 
-vm.createContext(sandbox);
-vm.runInContext(source, sandbox, { filename: "lianliankan-game.js" });
-
-const LLK = sandbox.__LLK__;
+const LLK = globalThis.__LLK__;
 if (!LLK) throw new Error("window.__LLK__ not exposed (script early-returned?)");
 
 assert(typeof LLK.computePathPoints === "function", "computePathPoints should be exposed for geometry regression coverage");
@@ -396,3 +385,9 @@ for (const key of Object.keys(LLK.DIFFICULTIES)) {
 }
 
 console.log("ALL LIANLIANKAN CHECKS PASSED");
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

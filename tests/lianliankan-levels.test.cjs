@@ -1,80 +1,18 @@
 const assert = require("assert");
-const fs = require("fs");
 const path = require("path");
-const vm = require("vm");
+const { pathToFileURL } = require("url");
 
-function loadScript(file, sandbox) {
-  vm.createContext(sandbox);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "src", file), "utf8"), sandbox, { filename: file });
-}
-
-function createGameSandbox(random) {
-  function element() {
-    const classes = new Set();
-    return {
-      textContent: "",
-      hidden: false,
-      value: "medium",
-      dataset: {},
-      style: { setProperty() {} },
-      children: [],
-      classList: {
-        add(...names) { names.forEach((name) => classes.add(name)); },
-        remove(...names) { names.forEach((name) => classes.delete(name)); },
-        toggle(name, force) { if (force === undefined) force = !classes.has(name); if (force) classes.add(name); else classes.delete(name); return force; },
-        contains(name) { return classes.has(name); },
-      },
-      addEventListener() {},
-      appendChild(child) { this.children.push(child); return child; },
-      setAttribute() {},
-      removeAttribute() {},
-    };
-  }
-  const ids = [
-    "lianliankanShell", "llkBoard", "llkTimer", "llkStatus", "llkLeft",
-    "llkDifficulty", "llkNew", "llkShuffle", "llkPathLayer", "llkMode",
-    "llk3dStage", "llk3dCanvas", "llk3dToast", "llkTagline", "llkHint",
-  ];
-  const elements = new Map(ids.map((id) => [id, element()]));
-  const document = {
-    getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
-    createElement() { return element(); },
-    addEventListener() {},
+async function main() {
+  const engine = await import(pathToFileURL(path.join(__dirname, "..", "src", "core", "games", "lianliankan", "engine.js")).href);
+  globalThis.window = globalThis;
+  await import(pathToFileURL(path.join(__dirname, "..", "src", "lianliankan-levels.js")).href + "?test=levels");
+  const LLK = {
+    findAnyPair: engine.findAnyPair,
+    findPath: engine.findPath,
+    reshuffle: engine.reshuffle,
   };
-  const fixedMath = Object.create(Math);
-  fixedMath.random = random;
-  const sandbox = {
-    document,
-    console,
-    location: { hash: "" },
-    performance: { now: () => Date.now() },
-    requestAnimationFrame(callback) { callback(); },
-    addEventListener() {},
-    setTimeout,
-    clearTimeout,
-    setInterval,
-    clearInterval,
-    Math: fixedMath,
-    Date,
-    Number,
-    String,
-    Array,
-    Set,
-    Map,
-    Infinity,
-  };
-  sandbox.window = sandbox;
-  return sandbox;
-}
-
-const sharedSandbox = createGameSandbox(() => 0);
-loadScript("lianliankan-game.js", sharedSandbox);
-const LLK = sharedSandbox.__LLK__;
-const levelSandbox = { console, Math, Array, Set, Map, Number, String };
-levelSandbox.window = levelSandbox;
-loadScript("lianliankan-levels.js", levelSandbox);
-const levels = levelSandbox.__LLK_LEVELS__;
-assert(levels, "level script should expose window.__LLK_LEVELS__");
+  const levels = globalThis.__LLK_LEVELS__;
+  assert(levels, "level script should expose window.__LLK_LEVELS__");
 
 const expected = [
   [6, 6, 4, 4, 7],
@@ -203,3 +141,9 @@ assert.strictEqual(typeof levels.findPath, "undefined", "level data must use sha
 assert.strictEqual(typeof levels.findAnyPair, "undefined", "level data must use injected shared pair finder");
 
 console.log("ALL LIANLIANKAN LEVEL LOGIC CHECKS PASSED");
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

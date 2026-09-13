@@ -2,11 +2,8 @@
  * 通过 VM 注入最小 DOM 桩加载 lianliankan-game.js,再调用 window.__LLK__.llk3d。
  * 运行:node tests/lianliankan3d.test.js
  */
-const fs = require("fs");
 const path = require("path");
-const vm = require("vm");
-
-const source = fs.readFileSync(path.join(__dirname, "..", "src", "lianliankan-game.js"), "utf8");
+const { pathToFileURL } = require("url");
 
 function createElementStub() {
   const classes = new Set();
@@ -38,6 +35,7 @@ function createElementStub() {
   };
 }
 
+async function main() {
 const IDs = [
   "lianliankanShell", "llkBoard", "llkTimer", "llkStatus", "llkLeft",
   "llkDifficulty", "llkNew", "llkShuffle", "llkPathLayer",
@@ -69,21 +67,12 @@ const sandbox = {
   clearTimeout,
   setInterval,
   clearInterval,
-  Math,
-  Date,
-  Number,
-  String,
-  Array,
-  Set,
-  Map,
-  Infinity,
 };
-sandbox.window = sandbox;
+Object.assign(globalThis, sandbox);
+globalThis.window = globalThis;
+await import(pathToFileURL(path.join(__dirname, "..", "src", "lianliankan-game.js")).href + "?test=3d");
 
-vm.createContext(sandbox);
-vm.runInContext(source, sandbox, { filename: "lianliankan-game.js" });
-
-const LLK = sandbox.__LLK__;
+const LLK = globalThis.__LLK__;
 if (!LLK) throw new Error("window.__LLK__ not exposed");
 const L3 = LLK.llk3d;
 if (!L3) throw new Error("__LLK__.llk3d not exposed");
@@ -258,3 +247,9 @@ function emptyCube(n) {
 }
 
 console.log("ALL LLK3D LOGIC CHECKS PASSED");
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
