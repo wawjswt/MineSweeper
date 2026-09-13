@@ -125,7 +125,7 @@
 - `npm run build:miniprogram` writes the deterministic CommonJS-compatible `miniprogram/generated/runtime.js` from `src/adapters/miniprogram/runtime.js`.
 - The native page calls only `runtime.select(name)`, `runtime.dispatch(action)`, `runtime.getState()`, `runtime.pause()`, and `runtime.resume()`.
 
-- [ ] **Step 1: Write failing runtime contract tests**
+- [x] **Step 1: Write failing runtime contract tests**
 
   Test a fake session through the runtime:
 
@@ -145,23 +145,23 @@
 
   Assert unknown games do not replace the selected game, lifecycle methods are optional, and the returned view state contains only serializable data.
 
-- [ ] **Step 2: Run the focused tests and verify the expected failure**
+- [x] **Step 2: Run the focused tests and verify the expected failure**
 
   Run `node --test tests/miniprogram-runtime.test.js`; it must fail before `game-runtime.js` exists.
 
-- [ ] **Step 3: Implement the runtime and reuse the existing registry**
+- [x] **Step 3: Implement the runtime and reuse the existing registry**
 
   Wrap `createGameRegistry` instead of creating a second registry implementation. `dispatch` must preserve the existing `{ handled, game, result }` shape and add a current serializable state only at the runtime boundary.
 
-- [ ] **Step 4: Add the native shell and generated bundle target**
+- [x] **Step 4: Add the native shell and generated bundle target**
 
   `miniprogram/app.json` declares one `pages/home/index` page. The home page starts with a static loading state and no game-specific rule code. The builder must expose the runtime through `module.exports` so the page can use `require("../../generated/runtime.js")`.
 
-- [ ] **Step 5: Test the generated artifact**
+- [x] **Step 5: Test the generated artifact**
 
   `tests/miniprogram-bundle.test.js` must run `npm run build:miniprogram`, require the generated file in Node, assert it exports `createMiniProgramRuntime`, and assert the generated dependency graph contains no `document`, `window`, `localStorage`, or independent Web controller entry.
 
-- [ ] **Step 6: Run the Web and Mini Program checks**
+- [x] **Step 6: Run the Web and Mini Program checks**
 
   ```bash
   npm run build:miniprogram
@@ -169,7 +169,7 @@
   node --test tests/miniprogram-runtime.test.js tests/miniprogram-bundle.test.js
   ```
 
-- [ ] **Step 7: Commit the runtime and project shell**
+- [x] **Step 7: Commit the runtime and project shell**
 
   ```bash
   git add src/application/game-runtime.js src/adapters/miniprogram tools/build-miniprogram.mjs tests/miniprogram-runtime.test.js tests/miniprogram-bundle.test.js miniprogram package.json

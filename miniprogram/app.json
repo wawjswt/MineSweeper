@@ -1,0 +1,13 @@
+{
+  "pages": [
+    "pages/home/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "Puzzle Arcade",
+    "navigationBarBackgroundColor": "#101522",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#101522"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

@@ -1,0 +1,9 @@
+<view class="page-shell">
+  <view wx:if="{{ready}}" class="empty-state">
+    <text class="title">Puzzle Arcade</text>
+    <text class="subtitle">运行包已加载，下一步接入游戏页面。</text>
+  </view>
+  <view wx:else class="empty-state">
+    <text class="title">正在加载</text>
+  </view>
+</view>
