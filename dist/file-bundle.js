@@ -727,48 +727,10 @@
     }
     exports.generateSudokuMines = generateSudokuMines;
   };
-  moduleFactories["src/core/shared/clock.js"] = function (exports, __require) {
-    function requireFunction(name, value) {
-      if (typeof value !== "function") {
-        throw new TypeError(`clock.${name} must be a function`);
-      }
-      return value;
-    }
-
-    function createClock({ now, setInterval, clearInterval, setTimeout, clearTimeout } = {}) {
-      return Object.freeze({
-        now: requireFunction("now", now),
-        setInterval: requireFunction("setInterval", setInterval),
-        clearInterval: requireFunction("clearInterval", clearInterval),
-        setTimeout: requireFunction("setTimeout", setTimeout),
-        clearTimeout: requireFunction("clearTimeout", clearTimeout),
-      });
-    }
-    exports.createClock = createClock;
-  };
-  moduleFactories["src/platform/web/clock.js"] = function (exports, __require) {
-    const { createClock: createClock } = __require("src/core/shared/clock.js");
-
-    function readNow() {
-      return globalThis.performance?.now?.() ?? Date.now();
-    }
-
-    function createWebClock() {
-      return createClock({
-        now: readNow,
-        setInterval: (...args) => globalThis.setInterval(...args),
-        clearInterval: (...args) => globalThis.clearInterval(...args),
-        setTimeout: (...args) => globalThis.setTimeout(...args),
-        clearTimeout: (...args) => globalThis.clearTimeout(...args),
-      });
-    }
-    exports.createWebClock = createWebClock;
-  };
-  moduleFactories["src/game.js"] = function (exports, __require) {
+  moduleFactories["src/core/games/minesweeper/game.js"] = function (exports, __require) {
     const { generateClassicBoard: generateClassicBoard } = __require("src/core/games/minesweeper/generator.js");
     const { analyzePosition: analyzePosition } = __require("src/core/games/minesweeper/solver.js");
     const { generateSudokuMines: generateSudokuMines } = __require("src/core/games/sudoku/minesweeper.js");
-    const { createWebClock: createWebClock } = __require("src/platform/web/clock.js");
 
     function shuffle(list, rng) {
       for (let index = list.length - 1; index > 0; index--) {
@@ -797,8 +759,9 @@
       getDifficultySpec,
       getGenerationMode = () => "standard",
       rng = Math.random,
-      clock = createWebClock(),
+      clock,
     }) {
+      if (!clock) throw new TypeError("clock is required");
       let timerId = null;
       let timerStartAt = null;
 
@@ -1047,6 +1010,21 @@
         timerStartAt = null;
       }
 
+      function pauseTimer(onTick = () => {}) {
+        if (timerId === null) return;
+        const current = state();
+        if (timerStartAt !== null) {
+          current.timer = Math.min(999, (clock.now() - timerStartAt) / 1000);
+        }
+        stopTimer();
+        onTick();
+      }
+
+      function resumeTimer(onTick = () => {}) {
+        const current = state();
+        if (current.started && !current.ended) startTimer(onTick);
+      }
+
       function reveal(row, col, onTick) {
         const current = state();
         if (current.ended) return;
@@ -1144,8 +1122,57 @@
         cycleMark,
         getHint,
         prepareSudoku,
+        pauseTimer,
+        resumeTimer,
         resetTimer: stopTimer,
       };
+    }
+    exports.createGameLogic = createGameLogic;
+  };
+  moduleFactories["src/core/shared/clock.js"] = function (exports, __require) {
+    function requireFunction(name, value) {
+      if (typeof value !== "function") {
+        throw new TypeError(`clock.${name} must be a function`);
+      }
+      return value;
+    }
+
+    function createClock({ now, setInterval, clearInterval, setTimeout, clearTimeout } = {}) {
+      return Object.freeze({
+        now: requireFunction("now", now),
+        setInterval: requireFunction("setInterval", setInterval),
+        clearInterval: requireFunction("clearInterval", clearInterval),
+        setTimeout: requireFunction("setTimeout", setTimeout),
+        clearTimeout: requireFunction("clearTimeout", clearTimeout),
+      });
+    }
+    exports.createClock = createClock;
+  };
+  moduleFactories["src/platform/web/clock.js"] = function (exports, __require) {
+    const { createClock: createClock } = __require("src/core/shared/clock.js");
+
+    function readNow() {
+      return globalThis.performance?.now?.() ?? Date.now();
+    }
+
+    function createWebClock() {
+      return createClock({
+        now: readNow,
+        setInterval: (...args) => globalThis.setInterval(...args),
+        clearInterval: (...args) => globalThis.clearInterval(...args),
+        setTimeout: (...args) => globalThis.setTimeout(...args),
+        clearTimeout: (...args) => globalThis.clearTimeout(...args),
+      });
+    }
+    exports.createWebClock = createWebClock;
+  };
+  moduleFactories["src/game.js"] = function (exports, __require) {
+    const { createGameLogic: createCoreGameLogic } = __require("src/core/games/minesweeper/game.js");
+    const { createWebClock: createWebClock } = __require("src/platform/web/clock.js");
+
+    function createGameLogic(options = {}) {
+      const { clock = createWebClock(), ...coreOptions } = options;
+      return createCoreGameLogic({ ...coreOptions, clock });
     }
     exports.createGameLogic = createGameLogic;
   };

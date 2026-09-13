@@ -247,15 +247,15 @@
 - `createMinesweeperSession({ modeKey, difficultyKey, generationMode, rng, clock, storage })` implements actions `{ type: "reset" }`, `{ type: "reveal", row, col }`, `{ type: "chord", row, col }`, `{ type: "mark", row, col }`, `{ type: "hint" }`, and `{ type: "configure", ... }`.
 - `toMinesweeperViewModel(state)` returns rows/cells with only render fields: `revealed`, `flagged`, `questioned`, `crossed`, `mine`, `count`, `region`, `ariaLabel`, and stable row/column indexes.
 
-- [ ] **Step 1: Add the core-boundary and session regression tests**
+- [x] **Step 1: Add the core-boundary and session regression tests**
 
   Import `createGameLogic` from the core path with an injected fake clock, assert first-click safety, mark-cycle behavior, deterministic hints, and assert the core file has no Web or Mini Program globals.
 
-- [ ] **Step 2: Move the rule controller behind the core path**
+- [x] **Step 2: Move the rule controller behind the core path**
 
   Move only the state/action logic from `src/game.js` into the core file. Keep the Web wrapper and existing UI callbacks working. The core must receive `clock`, `rng`, `getState`, `getDifficultySpec`, and `getGenerationMode` explicitly.
 
-- [ ] **Step 3: Build the Mini Program session and board view model**
+- [x] **Step 3: Build the Mini Program session and board view model**
 
   The session owns the mutable state and configuration; the board component only emits `reveal`, `chord`, and `mark` events. A normal tap reveals; a long press enters mark mode for the tapped cell; the explicit mark button remains available for devices where long press is inconvenient.
 

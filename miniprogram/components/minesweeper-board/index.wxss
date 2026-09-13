@@ -1,0 +1,23 @@
+.board {
+  display: grid;
+  gap: 6rpx;
+  width: 100%;
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 8rpx;
+  color: #f4f7fb;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.is-hidden { background: #2b3b55; }
+.is-revealed { background: #111b2c; }
+.is-flagged { color: #ff9c9c; }
+.is-questioned { color: #f6d365; }
+.is-exploded { color: #101522; background: #ff6b6b; }

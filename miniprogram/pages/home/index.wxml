@@ -15,7 +15,7 @@
       >{{item}}</button>
     </view>
 
-    <view wx:if="{{game}}" class="game-card">
+    <view wx:if="{{activeGame === '2048' && game}}" class="game-card">
       <view class="score-row">
         <view><text class="score-label">SCORE</text><text class="score-value">{{game.score}}</text></view>
         <view><text class="score-label">BEST</text><text class="score-value">{{game.bestScore}}</text></view>
@@ -44,6 +44,26 @@
         <button class="direction-button" data-direction="right" bindtap="onTapMove">→</button>
       </view>
       <text class="hint">滑动棋盘或点击方向按钮移动方块。</text>
+    </view>
+
+    <view wx:elif="{{activeGame === 'sweep' && game}}" class="game-card sweep-card">
+      <view class="score-row">
+        <view><text class="score-label">MINES</text><text class="score-value">{{game.mines}}</text></view>
+        <view><text class="score-label">TIME</text><text class="score-value">{{game.timer}}</text></view>
+        <view><text class="score-label">STATUS</text><text class="score-value">{{game.win ? '胜利' : (game.ended ? '结束' : '进行中')}}</text></view>
+      </view>
+      <minesweeper-board
+        cells="{{game.cells}}"
+        cols="{{game.cols}}"
+        bind:reveal="onSweepReveal"
+        bind:mark="onSweepMark"
+      />
+      <text wx:if="{{game.notice}}" class="notice">{{game.notice}}</text>
+      <text wx:if="{{game.hint}}" class="notice">{{game.hint.message}}</text>
+      <view class="actions">
+        <button class="primary-button" bindtap="onNewGame">新局</button>
+        <button class="secondary-button" bindtap="onSweepHint">提示</button>
+      </view>
     </view>
   </view>
   <view wx:else class="empty-state">

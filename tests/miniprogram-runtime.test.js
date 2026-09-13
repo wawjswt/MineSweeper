@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createMiniProgramRuntime } from "../src/adapters/miniprogram/runtime.js";
 import { createGameRuntime } from "../src/application/game-runtime.js";
 
 test("game runtime selects a session and dispatches actions", () => {
@@ -61,4 +62,51 @@ test("game runtime invokes optional lifecycle hooks for all sessions", () => {
   runtime.pause();
   runtime.resume();
   assert.deepEqual(calls, ["2048:pause", "sweep:pause", "2048:resume", "sweep:resume"]);
+});
+
+test("Mini Program runtime registers view-model-backed game sessions", () => {
+  const runtime = createMiniProgramRuntime({
+    wxApi: {
+      getStorageSync: () => "",
+      setStorageSync: () => {},
+      removeStorageSync: () => {},
+    },
+    rng: () => 0,
+    timers: {
+      setInterval: () => "interval",
+      clearInterval: () => {},
+      setTimeout: () => "timeout",
+      clearTimeout: () => {},
+    },
+  });
+
+  assert.deepEqual(runtime.listGames(), ["2048", "sweep"]);
+  assert.equal(runtime.currentGame(), "2048");
+  assert.equal(runtime.getState().cells.length, 16);
+  assert.equal(runtime.dispatch({ type: "reset" }).state.cells.length, 16);
+});
+
+test("game runtime forwards session updates through view models", () => {
+  const listeners = [];
+  const runtime = createGameRuntime({
+    initialGame: "sweep",
+    games: {
+      sweep: {
+        getState: () => ({ timer: 0 }),
+        subscribe: (listener) => {
+          listeners.push(listener);
+          return () => {};
+        },
+      },
+    },
+    viewModels: {
+      sweep: (state) => ({ timer: state.timer + 1 }),
+    },
+  });
+  const updates = [];
+
+  runtime.subscribe((update) => updates.push(update));
+  listeners[0]({ timer: 2 });
+
+  assert.deepEqual(updates, [{ game: "sweep", state: { timer: 3 } }]);
 });

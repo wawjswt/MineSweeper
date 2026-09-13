@@ -129,12 +129,30 @@ moduleFactories["src/application/game-runtime.js"] = function (exports, __requir
       }
     }
 
+    function subscribe(listener) {
+      if (typeof listener !== "function") throw new TypeError("listener must be a function");
+      const unsubscribers = [];
+      for (const name of registry.list()) {
+        const session = registry.get(name);
+        if (typeof session?.subscribe !== "function") continue;
+        unsubscribers.push(session.subscribe((state) => {
+          const viewModel = viewModels?.[name];
+          listener({
+            game: name,
+            state: typeof viewModel === "function" ? viewModel(state) : state,
+          });
+        }));
+      }
+      return () => unsubscribers.forEach((unsubscribe) => unsubscribe?.());
+    }
+
     return Object.freeze({
       listGames: () => registry.list(),
       currentGame: () => registry.current(),
       select: (name) => registry.select(name),
       getState,
       dispatch,
+      subscribe,
       pause: () => callLifecycle("pause"),
       resume: () => callLifecycle("resume"),
     });
@@ -437,6 +455,1057 @@ moduleFactories["src/application/games/2048-session.js"] = function (exports, __
   }
   exports.create2048Session = create2048Session;
 };
+moduleFactories["src/core/games/minesweeper/solver.js"] = function (exports, __require) {
+  function key(row, col) {
+    return `${row},${col}`;
+  }
+
+  function pointFromKey(value) {
+    return value.split(",").map(Number);
+  }
+
+  function inBounds(row, col, rows, cols) {
+    return row >= 0 && row < rows && col >= 0 && col < cols;
+  }
+
+  function neighbors(row, col, rows, cols) {
+    const result = [];
+    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+      for (let colOffset = -1; colOffset <= 1; colOffset++) {
+        if (rowOffset === 0 && colOffset === 0) continue;
+        const nextRow = row + rowOffset;
+        const nextCol = col + colOffset;
+        if (inBounds(nextRow, nextCol, rows, cols)) result.push([nextRow, nextCol]);
+      }
+    }
+    return result;
+  }
+
+  function comparePoints([rowA, colA], [rowB, colB]) {
+    return rowA - rowB || colA - colB;
+  }
+
+  function sortedUnknowns(values) {
+    return [...values].map(pointFromKey).sort(comparePoints);
+  }
+
+  function result(kind, target, related, message) {
+    return { kind, target, related, message };
+  }
+
+  function candidateResult(kind, candidates, relatedByKey, messageFor) {
+    const target = sortedUnknowns(candidates)[0];
+    if (!target) return null;
+    const targetKey = key(...target);
+    const related = [...(relatedByKey.get(targetKey) || [])].sort(comparePoints);
+    return result(kind, target, related, messageFor(target, related));
+  }
+
+  function analyzePosition({ board, rows = board.length, cols = board[0]?.length || 0, totalMines = 0 }) {
+    const constraints = [];
+    const safeCandidates = new Set();
+    const mineCandidates = new Set();
+    const safeRelated = new Map();
+    const mineRelated = new Map();
+
+    const addRelated = (map, cellKey, related) => {
+      if (!map.has(cellKey)) map.set(cellKey, []);
+      const values = map.get(cellKey);
+      if (!values.some(([row, col]) => row === related[0] && col === related[1])) values.push(related);
+    };
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const current = board[row]?.[col];
+        if (!current?.revealed || current.mine) continue;
+
+        const unknown = [];
+        let flagged = 0;
+        for (const [neighborRow, neighborCol] of neighbors(row, col, rows, cols)) {
+          const neighbor = board[neighborRow][neighborCol];
+          if (neighbor.flagged) flagged++;
+          else if (!neighbor.revealed) unknown.push(key(neighborRow, neighborCol));
+        }
+
+        const remaining = Number(current.count) - flagged;
+        if (remaining < 0 || remaining > unknown.length) {
+          return result(
+            "inconsistent",
+            null,
+            [[row, col]],
+            "当前标记与数字线索矛盾，请检查旗帜。",
+          );
+        }
+        if (!unknown.length) continue;
+
+        const constraint = {
+          cells: new Set(unknown),
+          remaining,
+          source: [row, col],
+        };
+        constraints.push(constraint);
+
+        if (remaining === 0) {
+          for (const cellKey of unknown) {
+            safeCandidates.add(cellKey);
+            addRelated(safeRelated, cellKey, [row, col]);
+          }
+        } else if (remaining === unknown.length) {
+          for (const cellKey of unknown) {
+            mineCandidates.add(cellKey);
+            addRelated(mineRelated, cellKey, [row, col]);
+          }
+        }
+      }
+    }
+
+    if (safeCandidates.size && mineCandidates.size) {
+      const conflict = [...safeCandidates].find((cellKey) => mineCandidates.has(cellKey));
+      if (conflict) {
+        return result("inconsistent", null, [...(safeRelated.get(conflict) || []), ...(mineRelated.get(conflict) || [])], "当前标记与数字线索矛盾，请检查旗帜。");
+      }
+    }
+
+    for (const first of constraints) {
+      for (const second of constraints) {
+        if (first === second || first.cells.size >= second.cells.size) continue;
+        const isSubset = [...first.cells].every((cellKey) => second.cells.has(cellKey));
+        if (!isSubset) continue;
+
+        const difference = [...second.cells].filter((cellKey) => !first.cells.has(cellKey));
+        const remainingDifference = second.remaining - first.remaining;
+        if (remainingDifference < 0 || remainingDifference > difference.length) {
+          return result("inconsistent", null, [first.source, second.source], "当前标记与数字线索矛盾，请检查旗帜。");
+        }
+        if (remainingDifference === 0) {
+          for (const cellKey of difference) {
+            safeCandidates.add(cellKey);
+            addRelated(safeRelated, cellKey, first.source);
+            addRelated(safeRelated, cellKey, second.source);
+          }
+        } else if (remainingDifference === difference.length) {
+          for (const cellKey of difference) {
+            mineCandidates.add(cellKey);
+            addRelated(mineRelated, cellKey, first.source);
+            addRelated(mineRelated, cellKey, second.source);
+          }
+        }
+      }
+    }
+
+    const safe = candidateResult(
+      "safe",
+      safeCandidates,
+      safeRelated,
+      ([row, col], related) => `确定安全：可根据 ${related.map(([sourceRow, sourceCol]) => `(${sourceRow + 1},${sourceCol + 1})`).join("、")} 的数字排除该格 (${row + 1},${col + 1})。`,
+    );
+    if (safe) return safe;
+
+    const mine = candidateResult(
+      "mine",
+      mineCandidates,
+      mineRelated,
+      ([row, col], related) => `确定为雷：可根据 ${related.map(([sourceRow, sourceCol]) => `(${sourceRow + 1},${sourceCol + 1})`).join("、")} 的数字确认该格 (${row + 1},${col + 1})。`,
+    );
+    if (mine) return mine;
+
+    void totalMines;
+    return result("none", null, [], "当前没有确定安全格或雷位，请继续自行推理。");
+  }
+  exports.analyzePosition = analyzePosition;
+};
+moduleFactories["src/core/games/minesweeper/generator.js"] = function (exports, __require) {
+  const { analyzePosition: analyzePosition } = __require("src/core/games/minesweeper/solver.js");
+
+  function inBounds(row, col, rows, cols) {
+    return row >= 0 && row < rows && col >= 0 && col < cols;
+  }
+
+  function neighbors(row, col, rows, cols) {
+    const result = [];
+    for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+      for (let colOffset = -1; colOffset <= 1; colOffset++) {
+        if (rowOffset === 0 && colOffset === 0) continue;
+        const nextRow = row + rowOffset;
+        const nextCol = col + colOffset;
+        if (inBounds(nextRow, nextCol, rows, cols)) result.push([nextRow, nextCol]);
+      }
+    }
+    return result;
+  }
+
+  function createBoard(rows, cols) {
+    return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({
+      mine: false,
+      revealed: false,
+      flagged: false,
+      questioned: false,
+      exploded: false,
+      count: 0,
+    })));
+  }
+
+  function shuffle(list, rng) {
+    for (let index = list.length - 1; index > 0; index--) {
+      const randomIndex = Math.floor(rng() * (index + 1));
+      [list[index], list[randomIndex]] = [list[randomIndex], list[index]];
+    }
+    return list;
+  }
+
+  function populateCounts(board, rows, cols) {
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        board[row][col].count = neighbors(row, col, rows, cols)
+          .reduce((total, [neighborRow, neighborCol]) => total + (board[neighborRow][neighborCol].mine ? 1 : 0), 0);
+      }
+    }
+  }
+
+  function createStandardBoard({ rows, cols, mines, safeRow, safeCol, rng }) {
+    const board = createBoard(rows, cols);
+    const forbidden = new Set([`${safeRow},${safeCol}`]);
+    for (const [neighborRow, neighborCol] of neighbors(safeRow, safeCol, rows, cols)) {
+      forbidden.add(`${neighborRow},${neighborCol}`);
+    }
+
+    const spots = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if (!forbidden.has(`${row},${col}`)) spots.push([row, col]);
+      }
+    }
+    shuffle(spots, rng);
+    for (let index = 0; index < mines && index < spots.length; index++) {
+      const [row, col] = spots[index];
+      board[row][col].mine = true;
+    }
+    populateCounts(board, rows, cols);
+    return board;
+  }
+
+  function revealFlood(board, row, col, rows, cols) {
+    const queue = [[row, col]];
+    let index = 0;
+    while (index < queue.length) {
+      const [currentRow, currentCol] = queue[index++];
+      const current = board[currentRow][currentCol];
+      if (current.revealed || current.flagged || current.mine) continue;
+      current.revealed = true;
+      if (current.count !== 0) continue;
+      for (const [neighborRow, neighborCol] of neighbors(currentRow, currentCol, rows, cols)) {
+        const neighbor = board[neighborRow][neighborCol];
+        if (!neighbor.revealed && !neighbor.flagged && !neighbor.mine) queue.push([neighborRow, neighborCol]);
+      }
+    }
+  }
+
+  function isSolved(board) {
+    return board.flat().every((current) => current.mine || current.revealed);
+  }
+
+  function canBeSolvedWithoutGuessing(board, rows, cols, mines, safeRow, safeCol) {
+    revealFlood(board, safeRow, safeCol, rows, cols);
+    let steps = 0;
+    const maxSteps = rows * cols * 4;
+    while (!isSolved(board) && steps++ < maxSteps) {
+      const hint = analyzePosition({ board, rows, cols, totalMines: mines });
+      if (hint.kind === "mine") {
+        const [mineRow, mineCol] = hint.target;
+        board[mineRow][mineCol].flagged = true;
+        continue;
+      }
+      if (hint.kind === "safe") {
+        const [safeTargetRow, safeTargetCol] = hint.target;
+        revealFlood(board, safeTargetRow, safeTargetCol, rows, cols);
+        continue;
+      }
+      return false;
+    }
+    return isSolved(board);
+  }
+
+  function generateClassicBoard({
+    rows,
+    cols,
+    mines,
+    safeRow,
+    safeCol,
+    rng = Math.random,
+    generationMode = "standard",
+    maxAttempts = 40,
+  }) {
+    const normalizedRows = Math.max(1, Math.floor(rows));
+    const normalizedCols = Math.max(1, Math.floor(cols));
+    const normalizedMines = Math.max(0, Math.min(Math.floor(mines), normalizedRows * normalizedCols));
+    const options = {
+      rows: normalizedRows,
+      cols: normalizedCols,
+      mines: normalizedMines,
+      safeRow: Math.max(0, Math.min(normalizedRows - 1, Math.floor(safeRow))),
+      safeCol: Math.max(0, Math.min(normalizedCols - 1, Math.floor(safeCol))),
+      rng,
+    };
+
+    if (generationMode === "no-guess") {
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const candidate = createStandardBoard(options);
+        const simulation = candidate.map((row) => row.map((current) => ({ ...current })));
+        if (canBeSolvedWithoutGuessing(simulation, normalizedRows, normalizedCols, normalizedMines, options.safeRow, options.safeCol)) {
+          return { board: candidate, generationMode: "no-guess", fallback: false };
+        }
+      }
+      return {
+        board: createStandardBoard(options),
+        generationMode: "standard",
+        fallback: true,
+      };
+    }
+
+    return {
+      board: createStandardBoard(options),
+      generationMode: "standard",
+      fallback: false,
+    };
+  }
+  exports.generateClassicBoard = generateClassicBoard;
+};
+moduleFactories["src/core/games/sudoku/minesweeper.js"] = function (exports, __require) {
+  function shuffle(list, rng = Math.random) {
+    for (let index = list.length - 1; index > 0; index--) {
+      const randomIndex = Math.floor(rng() * (index + 1));
+      [list[index], list[randomIndex]] = [list[randomIndex], list[index]];
+    }
+    return list;
+  }
+
+  function gcd(a, b) {
+    while (b !== 0) [a, b] = [b, a % b];
+    return Math.abs(a);
+  }
+
+  function adjacent([rowA, colA], [rowB, colB]) {
+    return Math.abs(rowA - rowB) <= 1 && Math.abs(colA - colB) <= 1;
+  }
+
+  function generateMineLayout(size, rng) {
+    const result = [];
+    const usedColumns = new Set();
+    const search = (row) => {
+      if (row === size) return true;
+      const columns = shuffle([...Array(size).keys()], rng);
+      for (const col of columns) {
+        const point = [row, col];
+        if (usedColumns.has(col) || result.some((mine) => adjacent(mine, point))) continue;
+        usedColumns.add(col);
+        result.push(point);
+        if (search(row + 1)) return true;
+        result.pop();
+        usedColumns.delete(col);
+      }
+      return false;
+    };
+    return search(0) ? result : null;
+  }
+
+  function countSolutions(regions, givenMine, rng = Math.random, nodeLimit = 100000) {
+    const size = regions.length;
+    const usedColumns = new Set();
+    const usedRegions = new Set();
+    const chosen = [];
+    let count = 0;
+    let nodes = 0;
+
+    const search = (row) => {
+      if (count > 1) return;
+      if (++nodes > nodeLimit) {
+        count = 2;
+        return;
+      }
+      if (row === size) {
+        count++;
+        return;
+      }
+      for (const col of shuffle([...Array(size).keys()], rng)) {
+        const point = [row, col];
+        if (
+          usedColumns.has(col) ||
+          usedRegions.has(regions[row][col]) ||
+          chosen.some((mine) => adjacent(mine, point)) ||
+          (givenMine && row === givenMine[0] && col !== givenMine[1])
+        ) continue;
+        usedColumns.add(col);
+        usedRegions.add(regions[row][col]);
+        chosen.push(point);
+        search(row + 1);
+        chosen.pop();
+        usedRegions.delete(regions[row][col]);
+        usedColumns.delete(col);
+        if (count > 1) return;
+      }
+    };
+
+    search(0);
+    return count;
+  }
+
+  function generateRegions(size, mines, rng = Math.random) {
+    if (!mines) return Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, col) => col));
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const regions = Array.from({ length: size }, () => Array(size).fill(-1));
+      const frontiers = mines.map(([row, col], region) => {
+        regions[row][col] = region;
+        return [[row, col]];
+      });
+      let remaining = size * size - size;
+      while (remaining) {
+        const available = frontiers.flatMap((frontier, region) => frontier.map(([row, col]) => [region, row, col]));
+        shuffle(available, rng);
+        let assigned = false;
+        for (const [region, row, col] of available) {
+          const directions = shuffle([[row - 1, col], [row + 1, col], [row, col - 1], [row, col + 1]], rng);
+          const [nextRow, nextCol] = directions.find(([candidateRow, candidateCol]) =>
+            candidateRow >= 0 && candidateRow < size && candidateCol >= 0 && candidateCol < size && regions[candidateRow][candidateCol] < 0,
+          ) || [];
+          if (nextRow === undefined) continue;
+          regions[nextRow][nextCol] = region;
+          frontiers[region].push([nextRow, nextCol]);
+          remaining--;
+          assigned = true;
+          break;
+        }
+        if (!assigned) break;
+      }
+      if (!remaining && frontiers[0].length >= 3 && frontiers[0].length <= 4) return regions;
+    }
+    return Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, col) => Math.min(size - 1, Math.floor((row * size + col) / size))));
+  }
+
+  function generateSudokuMines(size, { rng = Math.random, maxAttempts } = {}) {
+    const attempts = maxAttempts ?? (size <= 9 ? 600 : size <= 11 ? 120 : size <= 13 ? 30 : size <= 15 ? 15 : 8);
+    const fallbackSteps = [];
+    for (let step = 2; step < size; step++) {
+      if (gcd(step, size) === 1 && step !== size - 1) fallbackSteps.push(step);
+    }
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const mines = generateMineLayout(size, rng);
+      const regions = mines ? generateRegions(size, mines, rng) : null;
+      if (mines && countSolutions(regions, mines[0], rng) === 1) {
+        return { mines, regions, verified: true, strategy: "random", attempts: attempt + 1 };
+      }
+    }
+
+    for (const step of shuffle([...fallbackSteps], rng)) {
+      const mines = Array.from({ length: size }, (_, row) => [row, (row * step) % size]);
+      const regions = generateRegions(size, mines, rng);
+      if (countSolutions(regions, mines[0], rng) === 1) {
+        return { mines, regions, verified: true, strategy: "fallback-verified", fallbackStep: step, attempts };
+      }
+    }
+
+    const fallbackStep = fallbackSteps[Math.floor(rng() * fallbackSteps.length)] || 2;
+    const fallbackOffset = Math.floor(rng() * size);
+    const mines = Array.from({ length: size }, (_, row) => [row, (fallbackOffset + row * fallbackStep) % size]);
+    return {
+      mines,
+      regions: generateRegions(size, mines, rng),
+      verified: false,
+      strategy: "fallback-unverified",
+      fallbackStep,
+      fallbackOffset,
+      attempts,
+    };
+  }
+  exports.generateSudokuMines = generateSudokuMines;
+};
+moduleFactories["src/core/games/minesweeper/game.js"] = function (exports, __require) {
+  const { generateClassicBoard: generateClassicBoard } = __require("src/core/games/minesweeper/generator.js");
+  const { analyzePosition: analyzePosition } = __require("src/core/games/minesweeper/solver.js");
+  const { generateSudokuMines: generateSudokuMines } = __require("src/core/games/sudoku/minesweeper.js");
+
+  function shuffle(list, rng) {
+    for (let index = list.length - 1; index > 0; index--) {
+      const randomIndex = Math.floor(rng() * (index + 1));
+      [list[index], list[randomIndex]] = [list[randomIndex], list[index]];
+    }
+    return list;
+  }
+
+  function createEmptyBoard(rows, cols) {
+    return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({
+      mine: false,
+      revealed: false,
+      flagged: false,
+      questioned: false,
+      exploded: false,
+      crossed: false,
+      givenMine: false,
+      count: 0,
+      region: 0,
+    })));
+  }
+
+  function createGameLogic({
+    getState,
+    getDifficultySpec,
+    getGenerationMode = () => "standard",
+    rng = Math.random,
+    clock,
+  }) {
+    if (!clock) throw new TypeError("clock is required");
+    let timerId = null;
+    let timerStartAt = null;
+
+    function state() {
+      return getState();
+    }
+
+    function inBounds(row, col) {
+      const current = state();
+      return row >= 0 && row < current.rows && col >= 0 && col < current.cols;
+    }
+
+    function isSudokuMode() {
+      return state().modeKey === "sudoku";
+    }
+
+    function isHexMode() {
+      return state().modeKey === "hex";
+    }
+
+    function isRingMode() {
+      return state().modeKey === "ring";
+    }
+
+    function isOffsetMode() {
+      return state().modeKey === "offset";
+    }
+
+    function neighbors(row, col) {
+      const current = state();
+      if (isHexMode()) {
+        const q = col;
+        const cubeRow = row - Math.floor((col - (col & 1)) / 2);
+        const cubeCol = -q - cubeRow;
+        const directions = [
+          [1, -1, 0], [1, 0, -1], [0, 1, -1],
+          [-1, 1, 0], [-1, 0, 1], [0, -1, 1],
+        ];
+        return directions.map(([dq, dr, ds]) => {
+          const nextQ = q + dq;
+          const nextR = cubeRow + dr;
+          const nextS = cubeCol + ds;
+          void nextS;
+          return [nextR + Math.floor((nextQ - (nextQ & 1)) / 2), nextQ];
+        }).filter(([nextRow, nextCol]) => inBounds(nextRow, nextCol));
+      }
+
+      const result = [];
+      for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+        for (let colOffset = -1; colOffset <= 1; colOffset++) {
+          if (rowOffset === 0 && colOffset === 0) continue;
+          const nextRow = row + rowOffset;
+          let nextCol = col + colOffset;
+          if (isRingMode()) {
+            if (nextRow < 0 || nextRow >= current.rows) continue;
+            nextCol = (nextCol + current.cols) % current.cols;
+            if (nextRow === row && nextCol === col) continue;
+            result.push([nextRow, nextCol]);
+          } else if (inBounds(nextRow, nextCol)) {
+            result.push([nextRow, nextCol]);
+          }
+        }
+      }
+      return result;
+    }
+
+    function offsetNeighbors(row, col) {
+      const result = [];
+      for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+        for (let colOffset = -1; colOffset <= 1; colOffset++) {
+          const nextRow = row - 1 + rowOffset;
+          const nextCol = col + colOffset;
+          if (inBounds(nextRow, nextCol)) result.push([nextRow, nextCol]);
+        }
+      }
+      return result;
+    }
+
+    function countAround(board, row, col) {
+      const adjacent = isOffsetMode() ? offsetNeighbors(row, col) : neighbors(row, col);
+      return adjacent.reduce((total, [neighborRow, neighborCol]) => total + (board[neighborRow][neighborCol].mine ? 1 : 0), 0);
+    }
+
+    function resetCells(current) {
+      for (const row of current.board) {
+        for (const cell of row) {
+          cell.mine = false;
+          cell.revealed = false;
+          cell.flagged = false;
+          cell.questioned = false;
+          cell.exploded = false;
+          cell.crossed = false;
+          cell.givenMine = false;
+          cell.count = 0;
+          cell.region = 0;
+        }
+      }
+    }
+
+    function prepareSudoku() {
+      const current = state();
+      if (!isSudokuMode()) return;
+      const generated = generateSudokuMines(current.rows, { rng });
+      current.regions = generated.regions;
+      current.sudokuGeneration = generated;
+      current.mines = generated.mines.length;
+      resetCells(current);
+      for (const [row, col] of generated.mines) {
+        current.board[row][col].mine = true;
+      }
+      for (let row = 0; row < current.rows; row++) {
+        for (let col = 0; col < current.cols; col++) current.board[row][col].region = current.regions[row][col];
+      }
+      const [givenRow, givenCol] = generated.mines[0];
+      current.board[givenRow][givenCol].flagged = true;
+      current.board[givenRow][givenCol].givenMine = true;
+    }
+
+    function layMines(safeRow, safeCol) {
+      const current = state();
+      if (isSudokuMode()) {
+        prepareSudoku();
+        return;
+      }
+      if (current.modeKey === "classic") {
+        const generated = generateClassicBoard({
+          rows: current.rows,
+          cols: current.cols,
+          mines: current.mines,
+          safeRow,
+          safeCol,
+          rng,
+          generationMode: getGenerationMode(),
+        });
+        current.board = generated.board;
+        current.generationMode = generated.generationMode;
+        current.generationFallback = generated.fallback;
+        current.notice = generated.fallback ? "可推理棋盘生成失败，已使用标准随机棋盘。" : "";
+        return;
+      }
+
+      resetCells(current);
+      const forbidden = new Set([`${safeRow},${safeCol}`]);
+      for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
+        for (let colOffset = -1; colOffset <= 1; colOffset++) {
+          const row = safeRow + rowOffset;
+          const col = safeCol + colOffset;
+          if (inBounds(row, col)) forbidden.add(`${row},${col}`);
+        }
+      }
+      const spots = [];
+      for (let row = 0; row < current.rows; row++) {
+        for (let col = 0; col < current.cols; col++) {
+          if (!forbidden.has(`${row},${col}`)) spots.push([row, col]);
+        }
+      }
+      shuffle(spots, rng);
+      for (let index = 0; index < current.mines && index < spots.length; index++) {
+        const [row, col] = spots[index];
+        current.board[row][col].mine = true;
+      }
+      for (let row = 0; row < current.rows; row++) {
+        for (let col = 0; col < current.cols; col++) current.board[row][col].count = countAround(current.board, row, col);
+      }
+    }
+
+    function floodReveal(row, col) {
+      const current = state();
+      const queue = [[row, col]];
+      let index = 0;
+      while (index < queue.length) {
+        const [currentRow, currentCol] = queue[index++];
+        const cell = current.board[currentRow][currentCol];
+        if (cell.revealed || cell.flagged || cell.mine) continue;
+        cell.revealed = true;
+        if (cell.count !== 0) continue;
+        for (const [neighborRow, neighborCol] of neighbors(currentRow, currentCol)) {
+          const neighbor = current.board[neighborRow][neighborCol];
+          if (!neighbor.revealed && !neighbor.flagged && !neighbor.mine) queue.push([neighborRow, neighborCol]);
+        }
+      }
+    }
+
+    function revealAllMines(exploded) {
+      const current = state();
+      for (let row = 0; row < current.rows; row++) {
+        for (let col = 0; col < current.cols; col++) {
+          const cell = current.board[row][col];
+          if (cell.mine) cell.revealed = true;
+          if (exploded && exploded[0] === row && exploded[1] === col) cell.exploded = true;
+        }
+      }
+    }
+
+    function markSudokuFailure() {
+      const current = state();
+      current.ended = true;
+      current.win = false;
+      stopTimer();
+      for (const row of current.board) {
+        for (const cell of row) {
+          if (cell.mine) cell.revealed = true;
+          if (cell.flagged && !cell.mine) cell.exploded = true;
+        }
+      }
+    }
+
+    function checkWin() {
+      const current = state();
+      if (isSudokuMode()) {
+        if (current.board.flat().every((cell) => !cell.mine || cell.flagged)) {
+          current.ended = true;
+          current.win = true;
+          stopTimer();
+          return true;
+        }
+        return false;
+      }
+      if (current.board.flat().every((cell) => cell.mine || cell.revealed)) {
+        current.ended = true;
+        current.win = true;
+        stopTimer();
+        for (const row of current.board) for (const cell of row) if (cell.mine) cell.flagged = true;
+        return true;
+      }
+      return false;
+    }
+
+    function startTimer(onTick = () => {}) {
+      if (timerId !== null) return;
+      const now = clock.now();
+      timerStartAt = now - state().timer * 1000;
+      timerId = clock.setInterval(() => {
+        const current = state();
+        if (current.started && !current.ended && timerStartAt !== null) {
+          const timestamp = clock.now();
+          current.timer = Math.min(999, (timestamp - timerStartAt) / 1000);
+          onTick();
+        }
+      }, 100);
+    }
+
+    function stopTimer() {
+      if (timerId !== null) clock.clearInterval(timerId);
+      timerId = null;
+      timerStartAt = null;
+    }
+
+    function pauseTimer(onTick = () => {}) {
+      if (timerId === null) return;
+      const current = state();
+      if (timerStartAt !== null) {
+        current.timer = Math.min(999, (clock.now() - timerStartAt) / 1000);
+      }
+      stopTimer();
+      onTick();
+    }
+
+    function resumeTimer(onTick = () => {}) {
+      const current = state();
+      if (current.started && !current.ended) startTimer(onTick);
+    }
+
+    function reveal(row, col, onTick) {
+      const current = state();
+      if (current.ended) return;
+      if (isSudokuMode()) {
+        if (!current.started) {
+          current.started = true;
+          startTimer(onTick);
+        }
+        const cell = current.board[row][col];
+        if (!cell.givenMine && !cell.revealed) cell.crossed = !cell.crossed;
+        if (checkWin()) return "win";
+        return "continue";
+      }
+      if (!current.started) {
+        current.started = true;
+        layMines(row, col);
+        startTimer(onTick);
+      }
+      const cell = current.board[row][col];
+      if (cell.revealed || cell.flagged) return;
+      current.hint = null;
+      current.notice = "";
+      if (cell.mine) {
+        cell.revealed = true;
+        current.ended = true;
+        stopTimer();
+        revealAllMines([row, col]);
+        return "lose";
+      }
+      floodReveal(row, col);
+      if (checkWin()) return "win";
+      return "continue";
+    }
+
+    function chord(row, col, onTick) {
+      const current = state();
+      if (current.ended || isSudokuMode()) return;
+      const cell = current.board[row][col];
+      if (!cell.revealed || !cell.count) return;
+      const adjacent = isOffsetMode() ? offsetNeighbors(row, col) : neighbors(row, col);
+      const flagged = adjacent.reduce((total, [neighborRow, neighborCol]) => total + (current.board[neighborRow][neighborCol].flagged ? 1 : 0), 0);
+      if (flagged !== cell.count) return;
+      current.hint = null;
+      for (const [neighborRow, neighborCol] of adjacent) {
+        const neighbor = current.board[neighborRow][neighborCol];
+        if (!neighbor.revealed && !neighbor.flagged) {
+          const result = reveal(neighborRow, neighborCol, onTick);
+          if (result === "lose") return "lose";
+        }
+      }
+      if (checkWin()) return "win";
+      return "continue";
+    }
+
+    function cycleMark(row, col) {
+      const current = state();
+      if (current.ended) return "continue";
+      const cell = current.board[row][col];
+      current.hint = null;
+      current.notice = "";
+      if (isSudokuMode()) {
+        if (cell.givenMine || cell.revealed) return "continue";
+        if (cell.flagged) {
+          cell.flagged = false;
+          cell.crossed = false;
+          return "continue";
+        }
+        if (!cell.mine) {
+          cell.flagged = true;
+          markSudokuFailure();
+          return "lose";
+        }
+        cell.flagged = true;
+        cell.crossed = false;
+        return checkWin() ? "win" : "continue";
+      }
+      if (cell.revealed) return "continue";
+      if (!cell.flagged && !cell.questioned) cell.flagged = true;
+      else if (cell.flagged) {
+        cell.flagged = false;
+        cell.questioned = true;
+      } else cell.questioned = false;
+      return "continue";
+    }
+
+    function getHint() {
+      const current = state();
+      if (current.modeKey !== "classic") return { kind: "none", target: null, related: [], message: "提示仅适用于经典扫雷。" };
+      return analyzePosition({ board: current.board, rows: current.rows, cols: current.cols, totalMines: current.mines });
+    }
+
+    return {
+      reveal,
+      chord,
+      cycleMark,
+      getHint,
+      prepareSudoku,
+      pauseTimer,
+      resumeTimer,
+      resetTimer: stopTimer,
+    };
+  }
+  exports.createGameLogic = createGameLogic;
+};
+moduleFactories["src/core/games/minesweeper/config.js"] = function (exports, __require) {
+  const DIFFICULTIES = {
+    easy: { name: "简单", rows: 7, cols: 7, mines: 7 },
+    normal: { name: "普通", rows: 9, cols: 9, mines: 10 },
+    hard: { name: "困难", rows: 16, cols: 16, mines: 40 },
+    extreme: { name: "极致", rows: 16, cols: 30, mines: 99 },
+  };
+
+  const SUDOKU_DIFFICULTIES = {
+    easy: { name: "基础", rows: 9, cols: 9, mines: 9 },
+    normal: { name: "进阶", rows: 11, cols: 11, mines: 11 },
+    hard: { name: "困难", rows: 13, cols: 13, mines: 13 },
+    extreme: { name: "挑战", rows: 15, cols: 15, mines: 15 },
+    expert: { name: "宗师", rows: 19, cols: 19, mines: 19 },
+  };
+
+  const HEX_DIFFICULTIES = {
+    easy: { name: "简单", rows: 8, cols: 8, mines: 10 },
+    normal: { name: "普通", rows: 11, cols: 11, mines: 18 },
+    hard: { name: "困难", rows: 14, cols: 14, mines: 35 },
+    extreme: { name: "极致", rows: 18, cols: 18, mines: 70 },
+  };
+
+  const RING_DIFFICULTIES = {
+    easy: { name: "简单", rows: 6, cols: 24, mines: 14 },
+    normal: { name: "普通", rows: 7, cols: 30, mines: 24 },
+    hard: { name: "困难", rows: 8, cols: 36, mines: 38 },
+    extreme: { name: "极致", rows: 9, cols: 42, mines: 56 },
+  };
+  exports.DIFFICULTIES = DIFFICULTIES;
+  exports.SUDOKU_DIFFICULTIES = SUDOKU_DIFFICULTIES;
+  exports.HEX_DIFFICULTIES = HEX_DIFFICULTIES;
+  exports.RING_DIFFICULTIES = RING_DIFFICULTIES;
+};
+moduleFactories["src/core/games/minesweeper/state.js"] = function (exports, __require) {
+  const { DIFFICULTIES: DIFFICULTIES, HEX_DIFFICULTIES: HEX_DIFFICULTIES, RING_DIFFICULTIES: RING_DIFFICULTIES, SUDOKU_DIFFICULTIES: SUDOKU_DIFFICULTIES } = __require("src/core/games/minesweeper/config.js");
+
+  function getCatalog(modeKey) {
+    if (modeKey === "sudoku") return SUDOKU_DIFFICULTIES;
+    if (modeKey === "hex") return HEX_DIFFICULTIES;
+    if (modeKey === "ring") return RING_DIFFICULTIES;
+    return DIFFICULTIES;
+  }
+
+  function resolveSpec(difficultyOrSpec, modeKey) {
+    if (typeof difficultyOrSpec === "object") return difficultyOrSpec;
+    const catalog = getCatalog(modeKey);
+    return catalog[difficultyOrSpec] || catalog.normal || catalog.easy;
+  }
+
+  function makeState(difficultyOrSpec = "normal", modeKey = "classic") {
+    const { rows, cols, mines } = resolveSpec(difficultyOrSpec, modeKey);
+    return {
+      rows,
+      cols,
+      mines,
+      modeKey,
+      started: false,
+      ended: false,
+      win: false,
+      timer: 0,
+      regions: null,
+      generationMode: "standard",
+      generationFallback: false,
+      hint: null,
+      notice: "",
+      board: Array.from({ length: rows }, () =>
+        Array.from({ length: cols }, () => ({
+          mine: false,
+          revealed: false,
+          flagged: false,
+          questioned: false,
+          exploded: false,
+          crossed: false,
+          givenMine: false,
+          count: 0,
+          region: 0,
+        })),
+      ),
+    };
+  }
+  exports.makeState = makeState;
+};
+moduleFactories["src/application/games/minesweeper-session.js"] = function (exports, __require) {
+  const { createGameLogic: createGameLogic } = __require("src/core/games/minesweeper/game.js");
+  const { makeState: makeState } = __require("src/core/games/minesweeper/state.js");
+
+  function cloneState(state) {
+    return JSON.parse(JSON.stringify(state));
+  }
+
+  function createMinesweeperSession({
+    difficultySpec = "normal",
+    modeKey = "classic",
+    generationMode = "standard",
+    rng = Math.random,
+    clock,
+  } = {}) {
+    let currentDifficulty = difficultySpec;
+    let currentMode = modeKey;
+    let currentGenerationMode = generationMode;
+    let state = makeState(currentDifficulty, currentMode);
+    let listeners = new Set();
+    let logic;
+
+    function getState() {
+      return cloneState(state);
+    }
+
+    function notify() {
+      const next = getState();
+      for (const listener of listeners) listener(next);
+    }
+
+    function createLogic() {
+      return createGameLogic({
+        getState: () => state,
+        getDifficultySpec: () => currentDifficulty,
+        getGenerationMode: () => currentGenerationMode,
+        rng,
+        clock,
+      });
+    }
+
+    function reset(next = {}) {
+      logic?.resetTimer();
+      if ("difficultySpec" in next) currentDifficulty = next.difficultySpec;
+      if ("modeKey" in next) currentMode = next.modeKey;
+      if ("generationMode" in next) currentGenerationMode = next.generationMode;
+      state = makeState(currentDifficulty, currentMode);
+      logic = createLogic();
+      notify();
+    }
+
+    function dispatch(action = {}) {
+      let result = "continue";
+      if (action.type === "reset") reset();
+      else if (action.type === "configure") {
+        reset({
+          difficultySpec: action.difficultySpec ?? currentDifficulty,
+          modeKey: action.modeKey ?? currentMode,
+          generationMode: action.generationMode ?? currentGenerationMode,
+        });
+      } else if (action.type === "reveal") {
+        result = logic.reveal(action.row, action.col, notify);
+        notify();
+      } else if (action.type === "chord") {
+        result = logic.chord(action.row, action.col, notify);
+        notify();
+      } else if (action.type === "mark") {
+        result = logic.cycleMark(action.row, action.col);
+        notify();
+      } else if (action.type === "hint") {
+        state.hint = logic.getHint();
+        notify();
+      } else return { handled: false, state: getState() };
+
+      return { handled: true, result, state: getState() };
+    }
+
+    function subscribe(listener) {
+      if (typeof listener !== "function") throw new TypeError("listener must be a function");
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    }
+
+    function pause() {
+      logic.pauseTimer(notify);
+    }
+
+    function resume() {
+      logic.resumeTimer(notify);
+    }
+
+    logic = createLogic();
+    return {
+      getState: () => cloneState(state),
+      dispatch,
+      subscribe,
+      pause,
+      resume,
+    };
+  }
+  exports.createMinesweeperSession = createMinesweeperSession;
+};
 moduleFactories["src/adapters/miniprogram/view-models/2048.js"] = function (exports, __require) {
   function to2048ViewModel(state) {
     const board = Array.isArray(state?.board) ? state.board : [];
@@ -457,6 +1526,54 @@ moduleFactories["src/adapters/miniprogram/view-models/2048.js"] = function (expo
     };
   }
   exports.to2048ViewModel = to2048ViewModel;
+};
+moduleFactories["src/adapters/miniprogram/view-models/minesweeper.js"] = function (exports, __require) {
+  function getCellLabel(cell, row, column) {
+    const coordinate = `第${row + 1}行第${column + 1}列`;
+    if (cell.revealed && cell.mine) return `${coordinate}，地雷`;
+    if (cell.revealed) return `${coordinate}，${cell.count ? `${cell.count} 个相邻地雷` : "空白"}`;
+    if (cell.flagged) return `${coordinate}，标记为地雷`;
+    if (cell.questioned) return `${coordinate}，待确认`;
+    return `${coordinate}，未翻开`;
+  }
+
+  function toMinesweeperViewModel(state) {
+    const rows = Number(state?.rows) || 0;
+    const cols = Number(state?.cols) || 0;
+    const cells = [];
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < cols; column += 1) {
+        const cell = state.board?.[row]?.[column] || {};
+        cells.push({
+          row,
+          column,
+          revealed: cell.revealed === true,
+          flagged: cell.flagged === true,
+          questioned: cell.questioned === true,
+          exploded: cell.exploded === true,
+          crossed: cell.crossed === true,
+          mine: cell.mine === true && cell.revealed === true,
+          count: Number(cell.count) || 0,
+          region: Number(cell.region) || 0,
+          ariaLabel: getCellLabel(cell, row, column),
+        });
+      }
+    }
+    return {
+      rows,
+      cols,
+      mines: Number(state?.mines) || 0,
+      modeKey: state?.modeKey || "classic",
+      started: state?.started === true,
+      ended: state?.ended === true,
+      win: state?.win === true,
+      timer: Number(state?.timer) || 0,
+      hint: state?.hint || null,
+      notice: state?.notice || "",
+      cells,
+    };
+  }
+  exports.toMinesweeperViewModel = toMinesweeperViewModel;
 };
 moduleFactories["src/core/shared/clock.js"] = function (exports, __require) {
   function requireFunction(name, value) {
@@ -567,7 +1684,9 @@ moduleFactories["src/platform/wechat/storage.js"] = function (exports, __require
 moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __require) {
   const { createGameRuntime: createGameRuntime } = __require("src/application/game-runtime.js");
   const { create2048Session: create2048Session } = __require("src/application/games/2048-session.js");
+  const { createMinesweeperSession: createMinesweeperSession } = __require("src/application/games/minesweeper-session.js");
   const { to2048ViewModel: to2048ViewModel } = __require("src/adapters/miniprogram/view-models/2048.js");
+  const { toMinesweeperViewModel: toMinesweeperViewModel } = __require("src/adapters/miniprogram/view-models/minesweeper.js");
   const { createWechatClock: createWechatClock } = __require("src/platform/wechat/clock.js");
   const { createWechatRandom: createWechatRandom } = __require("src/platform/wechat/random.js");
   const { createWechatStorage: createWechatStorage } = __require("src/platform/wechat/storage.js");
@@ -581,9 +1700,11 @@ moduleFactories["src/adapters/miniprogram/runtime.js"] = function (exports, __re
       initialGame: "2048",
       games: {
         "2048": create2048Session({ storage, rng: random }),
+        sweep: createMinesweeperSession({ rng: random, clock }),
       },
       viewModels: {
         "2048": to2048ViewModel,
+        sweep: toMinesweeperViewModel,
       },
     });
   }

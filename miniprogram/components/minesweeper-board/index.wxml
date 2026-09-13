@@ -1,0 +1,16 @@
+<view class="board" style="grid-template-columns: repeat({{cols}}, 1fr);">
+  <view
+    wx:for="{{cells}}"
+    wx:key="index"
+    class="cell {{item.revealed ? 'is-revealed' : 'is-hidden'}} {{item.flagged ? 'is-flagged' : ''}} {{item.questioned ? 'is-questioned' : ''}} {{item.exploded ? 'is-exploded' : ''}}"
+    data-row="{{item.row}}"
+    data-column="{{item.column}}"
+    bindtap="onTapCell"
+    bindlongpress="onLongPressCell"
+  >
+    <text wx:if="{{item.revealed && item.mine}}">✹</text>
+    <text wx:elif="{{item.revealed && item.count > 0}}">{{item.count}}</text>
+    <text wx:elif="{{item.flagged}}">⚑</text>
+    <text wx:elif="{{item.questioned}}">?</text>
+  </view>
+</view>

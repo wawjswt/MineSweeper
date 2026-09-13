@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { create2048Game } from "../src/core/games/2048/engine.js";
+import { createGameLogic } from "../src/core/games/minesweeper/game.js";
 import { generateClassicBoard } from "../src/core/games/minesweeper/generator.js";
 import { analyzePosition } from "../src/core/games/minesweeper/solver.js";
 import { makeState } from "../src/core/games/minesweeper/state.js";
@@ -67,6 +68,27 @@ test("Minesweeper core keeps the first-click neighborhood safe", () => {
     }
   }
   assert.equal(analyzePosition({ board: state.board, rows: 9, cols: 9, totalMines: 10 }).kind, "none");
+});
+
+test("Minesweeper game core accepts an injected clock without Web globals", () => {
+  const clock = {
+    now: () => 0,
+    setInterval: () => "timer",
+    clearInterval: () => {},
+    setTimeout: () => "timeout",
+    clearTimeout: () => {},
+  };
+  const state = makeState({ rows: 5, cols: 5, mines: 3 }, "classic");
+  const game = createGameLogic({
+    getState: () => state,
+    getDifficultySpec: () => ({ rows: 5, cols: 5, mines: 3 }),
+    getGenerationMode: () => "standard",
+    rng: () => 0.25,
+    clock,
+  });
+
+  assert.equal(game.reveal(2, 2), "continue");
+  assert.equal(state.board[2][2].mine, false);
 });
 
 test("legacy game seams identify remaining UI adapters explicitly", () => {

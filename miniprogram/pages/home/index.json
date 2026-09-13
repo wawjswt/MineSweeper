@@ -1,0 +1,5 @@
+{
+  "usingComponents": {
+    "minesweeper-board": "/components/minesweeper-board/index"
+  }
+}

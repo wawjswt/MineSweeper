@@ -10,6 +10,10 @@ Page({
 
   onLoad() {
     this.runtime = createMiniProgramRuntime();
+    this.unsubscribe = this.runtime.subscribe((update) => {
+      if (update.game !== this.runtime.currentGame()) return;
+      this.setData({ game: update.state });
+    });
     this.syncView();
   },
 
@@ -24,7 +28,10 @@ Page({
 
   onUnload() {
     this.runtime?.pause();
+    this.unsubscribe?.();
     this.runtime = null;
+    this.touchStart = null;
+    this.unsubscribe = null;
     this.touchStart = null;
   },
 
@@ -38,9 +45,9 @@ Page({
     });
   },
 
-  dispatch(action) {
+  dispatch(action, gameName = this.runtime?.currentGame()) {
     if (!this.runtime) return;
-    const result = this.runtime.dispatch(action);
+    const result = this.runtime.dispatch(action, gameName);
     if (result.handled) this.syncView();
   },
 
@@ -55,6 +62,18 @@ Page({
 
   onContinue() {
     this.dispatch({ type: "continue" });
+  },
+
+  onSweepReveal(event) {
+    this.dispatch({ type: "reveal", row: event.detail.row, col: event.detail.col }, "sweep");
+  },
+
+  onSweepMark(event) {
+    this.dispatch({ type: "mark", row: event.detail.row, col: event.detail.col }, "sweep");
+  },
+
+  onSweepHint() {
+    this.dispatch({ type: "hint" }, "sweep");
   },
 
   onNewGame() {

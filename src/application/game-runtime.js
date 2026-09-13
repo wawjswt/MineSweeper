@@ -35,12 +35,30 @@ export function createGameRuntime({ initialGame = null, games = {}, viewModels =
     }
   }
 
+  function subscribe(listener) {
+    if (typeof listener !== "function") throw new TypeError("listener must be a function");
+    const unsubscribers = [];
+    for (const name of registry.list()) {
+      const session = registry.get(name);
+      if (typeof session?.subscribe !== "function") continue;
+      unsubscribers.push(session.subscribe((state) => {
+        const viewModel = viewModels?.[name];
+        listener({
+          game: name,
+          state: typeof viewModel === "function" ? viewModel(state) : state,
+        });
+      }));
+    }
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe?.());
+  }
+
   return Object.freeze({
     listGames: () => registry.list(),
     currentGame: () => registry.current(),
     select: (name) => registry.select(name),
     getState,
     dispatch,
+    subscribe,
     pause: () => callLifecycle("pause"),
     resume: () => callLifecycle("resume"),
   });
