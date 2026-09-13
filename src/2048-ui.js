@@ -1,5 +1,6 @@
 import { create2048Game } from "./core/games/2048/engine.js";
 import { createWebStorage } from "./platform/web/storage.js";
+import { createWebMergeSound } from "./platform/web/sound.js";
 
 const KEY_TO_DIRECTION_2048 = {
   ArrowUp: "up",
@@ -83,6 +84,7 @@ function setTileMovement2048(tile, from, to) {
 export function create2048UI(elements, options = {}) {
   const game = options.game || create2048Game();
   const storage = options.storage || createWebStorage();
+  const sound = options.sound === undefined ? createWebMergeSound() : options.sound;
   const isActive = options.isActive || (() => true);
   let bestScore = readBestScore2048(storage);
   let touchStart = null;
@@ -272,6 +274,13 @@ export function create2048UI(elements, options = {}) {
   function move(direction) {
     if (isAnimating) return game.getState();
     const state = game.move(direction);
+    if (state.lastMove?.transitions?.some((transition) => transition.merged)) {
+      try {
+        sound?.playMerge?.();
+      } catch (_error) {
+        // Sound is an optional enhancement and must never block a move.
+      }
+    }
     renderHud(state);
     if (state.lastMove) {
       renderOverlay(state, true);

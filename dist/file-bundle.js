@@ -4125,9 +4125,54 @@
     }
     exports.createWebStorage = createWebStorage;
   };
+  moduleFactories["src/platform/web/sound.js"] = function (exports, __require) {
+    function createDefaultAudioContext() {
+      const AudioContextConstructor = globalThis.AudioContext || globalThis.webkitAudioContext;
+      return typeof AudioContextConstructor === "function"
+        ? new AudioContextConstructor()
+        : null;
+    }
+
+    function createWebMergeSound({ createAudioContext = createDefaultAudioContext } = {}) {
+      let audioContext = null;
+
+      function playMerge() {
+        try {
+          audioContext ||= createAudioContext();
+          if (!audioContext) return false;
+
+          const resumeResult = audioContext.state === "suspended"
+            ? audioContext.resume?.()
+            : null;
+          resumeResult?.catch?.(() => {});
+
+          const now = audioContext.currentTime;
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(520, now);
+          oscillator.frequency.exponentialRampToValueAtTime(760, now + 0.08);
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(0.12, now + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+          oscillator.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.start(now);
+          oscillator.stop(now + 0.12);
+          return true;
+        } catch (_error) {
+          return false;
+        }
+      }
+
+      return Object.freeze({ playMerge });
+    }
+    exports.createWebMergeSound = createWebMergeSound;
+  };
   moduleFactories["src/2048-ui.js"] = function (exports, __require) {
     const { create2048Game: create2048Game } = __require("src/core/games/2048/engine.js");
     const { createWebStorage: createWebStorage } = __require("src/platform/web/storage.js");
+    const { createWebMergeSound: createWebMergeSound } = __require("src/platform/web/sound.js");
 
     const KEY_TO_DIRECTION_2048 = {
       ArrowUp: "up",
@@ -4211,6 +4256,7 @@
     function create2048UI(elements, options = {}) {
       const game = options.game || create2048Game();
       const storage = options.storage || createWebStorage();
+      const sound = options.sound === undefined ? createWebMergeSound() : options.sound;
       const isActive = options.isActive || (() => true);
       let bestScore = readBestScore2048(storage);
       let touchStart = null;
@@ -4400,6 +4446,13 @@
       function move(direction) {
         if (isAnimating) return game.getState();
         const state = game.move(direction);
+        if (state.lastMove?.transitions?.some((transition) => transition.merged)) {
+          try {
+            sound?.playMerge?.();
+          } catch (_error) {
+            // Sound is an optional enhancement and must never block a move.
+          }
+        }
         renderHud(state);
         if (state.lastMove) {
           renderOverlay(state, true);

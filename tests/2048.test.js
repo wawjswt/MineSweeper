@@ -7,6 +7,7 @@ import {
   spawnTile2048,
 } from "../src/2048-game.js";
 import { create2048UI } from "../src/2048-ui.js";
+import { createWebMergeSound } from "../src/platform/web/sound.js";
 
 const EMPTY_BOARD = Array(16).fill(0);
 
@@ -175,4 +176,191 @@ test("starting a new game does not force focus onto the board", () => {
     globalThis.document = previousDocument;
     globalThis.window = previousWindow;
   }
+});
+
+test("plays one injected sound for a move with one or more merges", () => {
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  const createElement = () => {
+    const listeners = new Map();
+    return {
+      addEventListener(type, handler) {
+        listeners.set(type, handler);
+      },
+      appendChild(child) {
+        this.children.push(child);
+      },
+      children: [],
+      classList: { toggle() {} },
+      dataset: {},
+      listeners,
+      replaceChildren() {
+        this.children = [];
+      },
+      setAttribute() {},
+      style: { setProperty() {} },
+      textContent: "",
+    };
+  };
+  const elements = {
+    root: createElement(),
+    board: createElement(),
+    score: createElement(),
+    best: createElement(),
+    status: createElement(),
+    overlay: createElement(),
+    overlayTitle: createElement(),
+    overlayText: createElement(),
+    continueButton: createElement(),
+    newButton: createElement(),
+    overlayNewButton: createElement(),
+    upButton: createElement(),
+    downButton: createElement(),
+    leftButton: createElement(),
+    rightButton: createElement(),
+  };
+  const sound = {
+    mergeCalls: 0,
+    playMerge() {
+      this.mergeCalls += 1;
+    },
+  };
+
+  globalThis.document = { createElement };
+  globalThis.window = { addEventListener() {} };
+  try {
+    const game = create2048Game({
+      initialBoard: [2, 2, 2, 2, ...EMPTY_BOARD.slice(4)],
+      rng: () => 0,
+    });
+    const ui = create2048UI(elements, {
+      game,
+      sound,
+      storage: { getItem: () => null, setItem() {} },
+      reducedMotion: true,
+    });
+
+    ui.move("left");
+    assert.equal(sound.mergeCalls, 1);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+  }
+});
+
+test("does not play merge sound for a move without a merge", () => {
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  const createElement = () => {
+    const listeners = new Map();
+    return {
+      addEventListener(type, handler) {
+        listeners.set(type, handler);
+      },
+      appendChild(child) {
+        this.children.push(child);
+      },
+      children: [],
+      classList: { toggle() {} },
+      dataset: {},
+      listeners,
+      replaceChildren() {
+        this.children = [];
+      },
+      setAttribute() {},
+      style: { setProperty() {} },
+      textContent: "",
+    };
+  };
+  const elements = {
+    root: createElement(),
+    board: createElement(),
+    score: createElement(),
+    best: createElement(),
+    status: createElement(),
+    overlay: createElement(),
+    overlayTitle: createElement(),
+    overlayText: createElement(),
+    continueButton: createElement(),
+    newButton: createElement(),
+    overlayNewButton: createElement(),
+    upButton: createElement(),
+    downButton: createElement(),
+    leftButton: createElement(),
+    rightButton: createElement(),
+  };
+  const sound = {
+    mergeCalls: 0,
+    playMerge() {
+      this.mergeCalls += 1;
+    },
+  };
+
+  globalThis.document = { createElement };
+  globalThis.window = { addEventListener() {} };
+  try {
+    const game = create2048Game({
+      initialBoard: [0, 2, ...EMPTY_BOARD.slice(2)],
+      rng: () => 0,
+    });
+    const ui = create2048UI(elements, {
+      game,
+      sound,
+      storage: { getItem: () => null, setItem() {} },
+      reducedMotion: true,
+    });
+
+    ui.move("left");
+    assert.equal(sound.mergeCalls, 0);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+  }
+});
+
+test("web merge sound creates the audio context lazily and reuses it", () => {
+  let contextCreations = 0;
+  const calls = [];
+  const audioContext = {
+    currentTime: 1,
+    destination: {},
+    createGain() {
+      return {
+        connect() {},
+        gain: {
+          setValueAtTime(...args) { calls.push(["gain.set", ...args]); },
+          exponentialRampToValueAtTime(...args) { calls.push(["gain.ramp", ...args]); },
+        },
+      };
+    },
+    createOscillator() {
+      return {
+        connect() {},
+        frequency: {
+          setValueAtTime(...args) { calls.push(["frequency.set", ...args]); },
+          exponentialRampToValueAtTime(...args) { calls.push(["frequency.ramp", ...args]); },
+        },
+        start(...args) { calls.push(["start", ...args]); },
+        stop(...args) { calls.push(["stop", ...args]); },
+      };
+    },
+  };
+  const sound = createWebMergeSound({
+    createAudioContext: () => {
+      contextCreations += 1;
+      return audioContext;
+    },
+  });
+
+  assert.equal(contextCreations, 0);
+  assert.equal(sound.playMerge(), true);
+  assert.equal(sound.playMerge(), true);
+  assert.equal(contextCreations, 1);
+  assert.equal(calls.filter(([type]) => type === "start").length, 2);
+});
+
+test("web merge sound quietly skips unsupported audio environments", () => {
+  const sound = createWebMergeSound({ createAudioContext: () => null });
+
+  assert.equal(sound.playMerge(), false);
 });
