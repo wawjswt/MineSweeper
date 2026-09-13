@@ -1,6 +1,6 @@
 import { BOARD_METRICS } from "./config.js";
-import { getRewardOptions, getToolDefinition, getUpgradeDefinition } from "./rogue-items.js";
-import { getContractDefinition } from "./rogue-contracts.js";
+import { getRewardOptions, getToolDefinition, getUpgradeDefinition } from "./core/games/rogue/items.js";
+import { getContractDefinition } from "./core/games/rogue/contracts.js";
 
 function getSectorForCell(cell, col, sectors) {
   if (!Array.isArray(sectors)) return null;

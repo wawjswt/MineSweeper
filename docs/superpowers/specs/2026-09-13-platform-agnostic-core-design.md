@@ -1,7 +1,7 @@
 # Platform-Agnostic Game Core Design
 
 **日期：** 2026-09-13  
-**状态：** 已确认；第一阶段已实现
+**状态：** 已确认；第二阶段已实现
 **目标平台：** 现有 Web + 后续微信小程序
 
 ## 目标
@@ -107,6 +107,15 @@ Web 实现先落在 `platform/web/`；小程序实现后续落在 `platform/wech
 4. 将连连看纯规则和关卡数据与 DOM/Canvas 控制器分离，至少完成显式模块入口。
 5. 为新边界补充测试，继续运行现有全量测试。
 6. 输出后续数独、战术扫雷和小程序页面迁移的明确接缝，但不在第一阶段重写所有 UI。
+
+## 第二阶段交付范围
+
+1. 数独的生成、求解、提示、评分和存档校验已归入 `src/core/games/sudoku`，`src/sudoku-game.js` 只保留 Web DOM/键盘适配。
+2. 连连看的 2D 路径、关卡/挑战流程、下落计划和 3D 表面几何已归入 `src/core/games/lianliankan`，旧关卡入口保留为兼容 wrapper。
+3. Rogue 的契约、道具、战区、楼层、状态和游戏动作已归入 `src/core/games/rogue`，旧 `src/rogue-*.js` 路径只负责兼容 re-export。
+4. 新增 `src/application/game-registry.js`，Web composition root 注册 `sweep`、`rogue` 和 `2048`，为后续小程序动作分发提供统一边界。
+5. `index.html` 只保留一个业务入口：HTTP 使用 `src/app.js` ESM，`file:` 使用包含相同依赖图的 `dist/file-bundle.js`。
+6. bundle 构建器现在支持 named import、side-effect import 和 named re-export；下一阶段再实现 `platform/wechat` 与 WXML/WXSS 适配，不在本阶段复制或重写规则。
 
 ## 非目标
 

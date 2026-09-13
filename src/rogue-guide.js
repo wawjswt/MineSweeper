@@ -1,7 +1,7 @@
-import { getContractCatalog } from "./rogue-contracts.js";
-import { ROGUE_LEVELS } from "./rogue-level.js";
-import { TOOL_DEFINITIONS, UPGRADE_DEFINITIONS } from "./rogue-items.js";
-import { createRogueRunState } from "./rogue-state.js";
+import { getContractCatalog } from "./core/games/rogue/contracts.js";
+import { ROGUE_LEVELS } from "./core/games/rogue/level.js";
+import { TOOL_DEFINITIONS, UPGRADE_DEFINITIONS } from "./core/games/rogue/items.js";
+import { createRogueRunState } from "./core/games/rogue/state.js";
 
 const TOOL_GUIDANCE = {
   scoutPulse: "怎么用：先选中它，再点一个没有翻开的格子。效果：告诉你这个格子周围 3×3 范围里有几颗雷，但不会替你翻开格子，也不会告诉你每颗雷的具体位置。只有你点中的情报点会被收集。",

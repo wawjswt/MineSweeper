@@ -58,9 +58,8 @@ import { createWebStorage } from "./platform/web/storage.js";
 /* 独立连连看小游戏(与扫雷、数独相互独立,同页第三个 Tab)
  *
  * 设计约束:
- * 1. 本文件为普通 <script>(非 ES module),与 src/app.js(扫雷)、
- *    sudoku-game.js 同页加载,共享全局词法环境,故整体包裹在 IIFE 中,
- *    所有顶层变量不外泄(仅暴露 window.__LLK__ 纯逻辑供测试)。
+ * 1. 本文件是由 src/app.js 导入的 Web ESM 适配器；IIFE 只用于隔离 DOM
+ *    控制器状态，所有顶层变量不外泄(仅暴露 window.__LLK__ 兼容入口供测试)。
  * 2. 规则:棋盘上每类图案成对出现;依次点选两个相同图案,若两者可用
  *    "不超过两次转弯"的路径连通(路径不得穿过其它图案,允许绕棋盘
  *    外侧的虚拟通道),则消除;全部消除即通关。

@@ -183,6 +183,86 @@
     }
     exports.makeState = makeState;
   };
+  moduleFactories["src/application/game-registry.js"] = function (exports, __require) {
+    function assertGameName(name) {
+      if (typeof name !== "string" || name.trim() === "") {
+        throw new TypeError("game name must be a non-empty string");
+      }
+    }
+
+    function assertHandler(handler) {
+      if (!handler || typeof handler !== "object") {
+        throw new TypeError("game handler must be an object");
+      }
+      if ("getState" in handler && typeof handler.getState !== "function") {
+        throw new TypeError("game handler getState must be a function");
+      }
+      if ("dispatch" in handler && typeof handler.dispatch !== "function") {
+        throw new TypeError("game handler dispatch must be a function");
+      }
+    }
+
+    function createGameRegistry({ initialGame = null } = {}) {
+      if (initialGame !== null) assertGameName(initialGame);
+
+      const handlers = new Map();
+      let currentGame = initialGame;
+
+      function register(name, handler) {
+        assertGameName(name);
+        assertHandler(handler);
+        handlers.set(name, handler);
+        return handler;
+      }
+
+      function unregister(name) {
+        assertGameName(name);
+        const removed = handlers.delete(name);
+        if (removed && currentGame === name) currentGame = null;
+        return removed;
+      }
+
+      function has(name) {
+        return handlers.has(name);
+      }
+
+      function get(name) {
+        return handlers.get(name) || null;
+      }
+
+      function list() {
+        return Array.from(handlers.keys());
+      }
+
+      function select(name) {
+        const previous = currentGame;
+        if (!handlers.has(name)) {
+          return { ok: false, game: currentGame, previous };
+        }
+        currentGame = name;
+        return { ok: true, game: currentGame, previous };
+      }
+
+      function current() {
+        return currentGame;
+      }
+
+      function dispatch(action, gameName = currentGame) {
+        const handler = handlers.get(gameName);
+        if (!handler || typeof handler.dispatch !== "function") {
+          return { handled: false, game: gameName, result: null };
+        }
+        return {
+          handled: true,
+          game: gameName,
+          result: handler.dispatch(action),
+        };
+      }
+
+      return Object.freeze({ register, unregister, has, get, list, select, current, dispatch });
+    }
+    exports.createGameRegistry = createGameRegistry;
+  };
   moduleFactories["src/core/games/minesweeper/solver.js"] = function (exports, __require) {
     function key(row, col) {
       return `${row},${col}`;
@@ -1436,7 +1516,7 @@
     exports.buildCellAriaLabel = buildCellAriaLabel;
     exports.createUI = createUI;
   };
-  moduleFactories["src/rogue-state.js"] = function (exports, __require) {
+  moduleFactories["src/core/games/rogue/state.js"] = function (exports, __require) {
     const TOOL_KEYS = ["scoutPulse", "defusalKit", "reactionShield"];
 
     function createRogueEmptyCell() {
@@ -1525,11 +1605,7 @@
     exports.createRogueEmptyCell = createRogueEmptyCell;
     exports.createRogueRunState = createRogueRunState;
   };
-  moduleFactories["src/minesweeper-generator.js"] = function (exports, __require) {
-    const { generateClassicBoard: generateClassicBoard } = __require("src/core/games/minesweeper/generator.js"); exports.generateClassicBoard = generateClassicBoard;
-
-  };
-  moduleFactories["src/rogue-sectors.js"] = function (exports, __require) {
+  moduleFactories["src/core/games/rogue/sectors.js"] = function (exports, __require) {
     const ROGUE_SECTOR_COUNT = 3;
     const MIN_SECTOR_WIDTH = 2;
     const MIN_BOARD_COLS = ROGUE_SECTOR_COUNT * MIN_SECTOR_WIDTH;
@@ -1625,10 +1701,10 @@
     exports.assignRogueSectorIds = assignRogueSectorIds;
     exports.calculateRogueSectorStats = calculateRogueSectorStats;
   };
-  moduleFactories["src/rogue-level.js"] = function (exports, __require) {
-    const { generateClassicBoard: generateClassicBoard } = __require("src/minesweeper-generator.js");
-    const { createRogueEmptyCell: createRogueEmptyCell } = __require("src/rogue-state.js");
-    const { assignRogueSectorIds: assignRogueSectorIds, calculateRogueSectorStats: calculateRogueSectorStats, createRogueSectors: createRogueSectors } = __require("src/rogue-sectors.js");
+  moduleFactories["src/core/games/rogue/level.js"] = function (exports, __require) {
+    const { generateClassicBoard: generateClassicBoard } = __require("src/core/games/minesweeper/generator.js");
+    const { createRogueEmptyCell: createRogueEmptyCell } = __require("src/core/games/rogue/state.js");
+    const { assignRogueSectorIds: assignRogueSectorIds, calculateRogueSectorStats: calculateRogueSectorStats, createRogueSectors: createRogueSectors } = __require("src/core/games/rogue/sectors.js");
 
     const ROGUE_LEVELS = Object.freeze([
       { floor: 1, rows: 7, cols: 7, mines: 8, label: "教学层" },
@@ -1878,7 +1954,7 @@
     exports.refreshRogueSectorStats = refreshRogueSectorStats;
     exports.revealRogueFlood = revealRogueFlood;
   };
-  moduleFactories["src/rogue-items.js"] = function (exports, __require) {
+  moduleFactories["src/core/games/rogue/items.js"] = function (exports, __require) {
     const TOOL_DEFINITIONS = Object.freeze({
       scoutPulse: Object.freeze({
         id: "scoutPulse",
@@ -1942,7 +2018,7 @@
     exports.getUpgradeDefinition = getUpgradeDefinition;
     exports.getRewardOptions = getRewardOptions;
   };
-  moduleFactories["src/rogue-contracts.js"] = function (exports, __require) {
+  moduleFactories["src/core/games/rogue/contracts.js"] = function (exports, __require) {
     const CONTRACT_DEFINITIONS = Object.freeze([
       Object.freeze({
         id: "noDamage",
@@ -2076,11 +2152,11 @@
     exports.getContractOptions = getContractOptions;
     exports.getContractReward = getContractReward;
   };
-  moduleFactories["src/rogue-game.js"] = function (exports, __require) {
-    const { createRogueRunState: createRogueRunState } = __require("src/rogue-state.js");
-    const { createRogueLevel: createRogueLevel, getRogueNeighbors: getRogueNeighbors, refreshRogueSectorStats: refreshRogueSectorStats, revealRogueFlood: revealRogueFlood } = __require("src/rogue-level.js");
-    const { getRewardOptions: getRewardOptions, getToolDefinition: getToolDefinition, getUpgradeDefinition: getUpgradeDefinition } = __require("src/rogue-items.js");
-    const { getContractDefinition: getContractDefinition, getContractOptions: getContractOptions, getContractReward: getContractReward } = __require("src/rogue-contracts.js");
+  moduleFactories["src/core/games/rogue/game.js"] = function (exports, __require) {
+    const { createRogueRunState: createRogueRunState } = __require("src/core/games/rogue/state.js");
+    const { createRogueLevel: createRogueLevel, getRogueNeighbors: getRogueNeighbors, refreshRogueSectorStats: refreshRogueSectorStats, revealRogueFlood: revealRogueFlood } = __require("src/core/games/rogue/level.js");
+    const { getRewardOptions: getRewardOptions, getToolDefinition: getToolDefinition, getUpgradeDefinition: getUpgradeDefinition } = __require("src/core/games/rogue/items.js");
+    const { getContractDefinition: getContractDefinition, getContractOptions: getContractOptions, getContractReward: getContractReward } = __require("src/core/games/rogue/contracts.js");
 
     const TOOL_KEYS = ["scoutPulse", "defusalKit", "reactionShield"];
 
@@ -2690,39 +2766,45 @@
     exports.createRogueGame = createRogueGame;
   };
   moduleFactories["src/core/games/rogue/index.js"] = function (exports, __require) {
-    const { createRogueGame: createRogueGame } = __require("src/rogue-game.js"); exports.createRogueGame = createRogueGame;
-    const { createRogueRunState: createRogueRunState } = __require("src/rogue-state.js"); exports.createRogueRunState = createRogueRunState;
-    const { createRogueLevel: createRogueLevel } = __require("src/rogue-level.js"); exports.createRogueLevel = createRogueLevel;
-    const { getRogueLevelSpec: getRogueLevelSpec } = __require("src/rogue-level.js"); exports.getRogueLevelSpec = getRogueLevelSpec;
-    const { getRogueNeighbors: getRogueNeighbors } = __require("src/rogue-level.js"); exports.getRogueNeighbors = getRogueNeighbors;
-    const { refreshRogueSectorStats: refreshRogueSectorStats } = __require("src/rogue-level.js"); exports.refreshRogueSectorStats = refreshRogueSectorStats;
-    const { revealRogueFlood: revealRogueFlood } = __require("src/rogue-level.js"); exports.revealRogueFlood = revealRogueFlood;
-    const { getContractDefinition: getContractDefinition } = __require("src/rogue-contracts.js"); exports.getContractDefinition = getContractDefinition;
-    const { getContractOptions: getContractOptions } = __require("src/rogue-contracts.js"); exports.getContractOptions = getContractOptions;
-    const { getContractReward: getContractReward } = __require("src/rogue-contracts.js"); exports.getContractReward = getContractReward;
-    const { getRewardOptions: getRewardOptions } = __require("src/rogue-items.js"); exports.getRewardOptions = getRewardOptions;
-    const { getToolDefinition: getToolDefinition } = __require("src/rogue-items.js"); exports.getToolDefinition = getToolDefinition;
-    const { getUpgradeDefinition: getUpgradeDefinition } = __require("src/rogue-items.js"); exports.getUpgradeDefinition = getUpgradeDefinition;
-    const { assignRogueSectorIds: assignRogueSectorIds } = __require("src/rogue-sectors.js"); exports.assignRogueSectorIds = assignRogueSectorIds;
-    const { calculateRogueSectorStats: calculateRogueSectorStats } = __require("src/rogue-sectors.js"); exports.calculateRogueSectorStats = calculateRogueSectorStats;
-    const { createRogueSectors: createRogueSectors } = __require("src/rogue-sectors.js"); exports.createRogueSectors = createRogueSectors;
-    const { getRogueSectorForColumn: getRogueSectorForColumn } = __require("src/rogue-sectors.js"); exports.getRogueSectorForColumn = getRogueSectorForColumn;
-    const { getRogueSectorId: getRogueSectorId } = __require("src/rogue-sectors.js"); exports.getRogueSectorId = getRogueSectorId;
+    const { createRogueGame: createRogueGame } = __require("src/core/games/rogue/game.js"); exports.createRogueGame = createRogueGame;
+    const { createRogueEmptyCell: createRogueEmptyCell } = __require("src/core/games/rogue/state.js"); exports.createRogueEmptyCell = createRogueEmptyCell;
+    const { createRogueRunState: createRogueRunState } = __require("src/core/games/rogue/state.js"); exports.createRogueRunState = createRogueRunState;
+    const { ROGUE_LEVELS: ROGUE_LEVELS } = __require("src/core/games/rogue/level.js"); exports.ROGUE_LEVELS = ROGUE_LEVELS;
+    const { createRogueLevel: createRogueLevel } = __require("src/core/games/rogue/level.js"); exports.createRogueLevel = createRogueLevel;
+    const { getRogueLevelSpec: getRogueLevelSpec } = __require("src/core/games/rogue/level.js"); exports.getRogueLevelSpec = getRogueLevelSpec;
+    const { getRogueNeighbors: getRogueNeighbors } = __require("src/core/games/rogue/level.js"); exports.getRogueNeighbors = getRogueNeighbors;
+    const { placeRogueSpecialCells: placeRogueSpecialCells } = __require("src/core/games/rogue/level.js"); exports.placeRogueSpecialCells = placeRogueSpecialCells;
+    const { refreshRogueSectorStats: refreshRogueSectorStats } = __require("src/core/games/rogue/level.js"); exports.refreshRogueSectorStats = refreshRogueSectorStats;
+    const { revealRogueFlood: revealRogueFlood } = __require("src/core/games/rogue/level.js"); exports.revealRogueFlood = revealRogueFlood;
+    const { getContractDefinition: getContractDefinition } = __require("src/core/games/rogue/contracts.js"); exports.getContractDefinition = getContractDefinition;
+    const { getContractCatalog: getContractCatalog } = __require("src/core/games/rogue/contracts.js"); exports.getContractCatalog = getContractCatalog;
+    const { getContractOptions: getContractOptions } = __require("src/core/games/rogue/contracts.js"); exports.getContractOptions = getContractOptions;
+    const { getContractReward: getContractReward } = __require("src/core/games/rogue/contracts.js"); exports.getContractReward = getContractReward;
+    const { TOOL_DEFINITIONS: TOOL_DEFINITIONS } = __require("src/core/games/rogue/items.js"); exports.TOOL_DEFINITIONS = TOOL_DEFINITIONS;
+    const { UPGRADE_DEFINITIONS: UPGRADE_DEFINITIONS } = __require("src/core/games/rogue/items.js"); exports.UPGRADE_DEFINITIONS = UPGRADE_DEFINITIONS;
+    const { getRewardOptions: getRewardOptions } = __require("src/core/games/rogue/items.js"); exports.getRewardOptions = getRewardOptions;
+    const { getToolDefinition: getToolDefinition } = __require("src/core/games/rogue/items.js"); exports.getToolDefinition = getToolDefinition;
+    const { getUpgradeDefinition: getUpgradeDefinition } = __require("src/core/games/rogue/items.js"); exports.getUpgradeDefinition = getUpgradeDefinition;
+    const { assignRogueSectorIds: assignRogueSectorIds } = __require("src/core/games/rogue/sectors.js"); exports.assignRogueSectorIds = assignRogueSectorIds;
+    const { calculateRogueSectorStats: calculateRogueSectorStats } = __require("src/core/games/rogue/sectors.js"); exports.calculateRogueSectorStats = calculateRogueSectorStats;
+    const { createRogueSectors: createRogueSectors } = __require("src/core/games/rogue/sectors.js"); exports.createRogueSectors = createRogueSectors;
+    const { getRogueSectorForColumn: getRogueSectorForColumn } = __require("src/core/games/rogue/sectors.js"); exports.getRogueSectorForColumn = getRogueSectorForColumn;
+    const { getRogueSectorId: getRogueSectorId } = __require("src/core/games/rogue/sectors.js"); exports.getRogueSectorId = getRogueSectorId;
 
     function getRogueCoreStatus() {
       return {
         game: "rogue",
-        status: "bridge",
+        status: "extracted",
         uiSource: "src/rogue-ui.js",
       };
     }
     exports.getRogueCoreStatus = getRogueCoreStatus;
   };
   moduleFactories["src/rogue-guide.js"] = function (exports, __require) {
-    const { getContractCatalog: getContractCatalog } = __require("src/rogue-contracts.js");
-    const { ROGUE_LEVELS: ROGUE_LEVELS } = __require("src/rogue-level.js");
-    const { TOOL_DEFINITIONS: TOOL_DEFINITIONS, UPGRADE_DEFINITIONS: UPGRADE_DEFINITIONS } = __require("src/rogue-items.js");
-    const { createRogueRunState: createRogueRunState } = __require("src/rogue-state.js");
+    const { getContractCatalog: getContractCatalog } = __require("src/core/games/rogue/contracts.js");
+    const { ROGUE_LEVELS: ROGUE_LEVELS } = __require("src/core/games/rogue/level.js");
+    const { TOOL_DEFINITIONS: TOOL_DEFINITIONS, UPGRADE_DEFINITIONS: UPGRADE_DEFINITIONS } = __require("src/core/games/rogue/items.js");
+    const { createRogueRunState: createRogueRunState } = __require("src/core/games/rogue/state.js");
 
     const TOOL_GUIDANCE = {
       scoutPulse: "怎么用：先选中它，再点一个没有翻开的格子。效果：告诉你这个格子周围 3×3 范围里有几颗雷，但不会替你翻开格子，也不会告诉你每颗雷的具体位置。只有你点中的情报点会被收集。",
@@ -3134,8 +3216,8 @@
   };
   moduleFactories["src/rogue-ui.js"] = function (exports, __require) {
     const { BOARD_METRICS: BOARD_METRICS } = __require("src/config.js");
-    const { getRewardOptions: getRewardOptions, getToolDefinition: getToolDefinition, getUpgradeDefinition: getUpgradeDefinition } = __require("src/rogue-items.js");
-    const { getContractDefinition: getContractDefinition } = __require("src/rogue-contracts.js");
+    const { getRewardOptions: getRewardOptions, getToolDefinition: getToolDefinition, getUpgradeDefinition: getUpgradeDefinition } = __require("src/core/games/rogue/items.js");
+    const { getContractDefinition: getContractDefinition } = __require("src/core/games/rogue/contracts.js");
 
     function getSectorForCell(cell, col, sectors) {
       if (!Array.isArray(sectors)) return null;
@@ -4465,9 +4547,4846 @@
     exports.saveModeKey = saveModeKey;
     exports.saveGenerationMode = saveGenerationMode;
   };
+  moduleFactories["src/game-tabs.js"] = function (exports, __require) {
+    /* 游戏 Tab 协调器(扫雷 / 数独 / 连连看 / 2048)
+     *
+     * 背景:四款游戏同页共用一个顶部 Tab 栏。Tab 高亮与各游戏面板(壳)的显隐
+     * 必须由唯一权威统一管理,否则新增游戏时各脚本各自维护会导致状态冲突。
+     *
+     * 职责:
+     *  1. 为页面上所有 [data-game] 的 .game-tab 绑定点击;
+     *  2. 切换时:更新全部 Tab 高亮 + 切换对应 .*-shell 的 hidden;
+     *  3. 通过 register(game, { onActivate, onDeactivate }) 让各游戏脚本注册
+     *     生命周期回调(如"切走自动暂停、切回恢复"),本文件不感知游戏内部;
+     *  4. 支持 #sweep / #sudoku / #lianliankan / #2048 锚点直达(默认 sweep)。
+     *
+     * 加载顺序:与 sudoku-game.js / lianliankan-game.js / app.js 同页加载。
+     * 协调器不触碰扫雷模块的全局词法(无顶层声明外泄)。
+     */
+    (function () {
+      "use strict";
+
+      /* 各游戏壳的 id。键即 Tab data-game 值。 */
+      var SHELL_BY_GAME = {
+        sweep: "sweepShell",
+        sudoku: "sudokuShell",
+        lianliankan: "lianliankanShell",
+        "2048": "game2048Shell",
+      };
+
+      var handlers = {}; // game -> { onActivate, onDeactivate }
+      var currentGame = "sweep";
+      var initialized = false;
+
+      function forEachTab(fn) {
+        var tabs = document.querySelectorAll(".game-tab");
+        for (var i = 0; i < tabs.length; i++) fn(tabs[i]);
+      }
+
+      function setTabState(tab, active) {
+        tab.classList.toggle("is-active", active);
+        tab.setAttribute("aria-selected", String(active));
+        tab.tabIndex = active ? 0 : -1;
+      }
+
+      function setShellVisible(game, visible) {
+        var id = SHELL_BY_GAME[game];
+        if (!id) return;
+        var el = document.getElementById(id);
+        if (el) el.hidden = !visible;
+      }
+
+      function activate(gameName, opts) {
+        opts = opts || {};
+        if (!Object.prototype.hasOwnProperty.call(SHELL_BY_GAME, gameName)) return;
+        if (gameName === currentGame) {
+          // 幂等:已是目标游戏时仅确保 UI 状态正确(如 hash 直达重复触发)
+          syncUi();
+          return;
+        }
+
+        var previous = currentGame;
+        var prevHandler = handlers[previous];
+        var nextHandler = handlers[gameName];
+
+        if (prevHandler && prevHandler.onDeactivate) {
+          try {
+            prevHandler.onDeactivate();
+          } catch (err) {
+            if (typeof console !== "undefined") console.error("[game-tabs] onDeactivate error:", err);
+          }
+        }
+
+        currentGame = gameName;
+        syncUi();
+
+        if (nextHandler && nextHandler.onActivate) {
+          try {
+            nextHandler.onActivate();
+          } catch (err) {
+            if (typeof console !== "undefined") console.error("[game-tabs] onActivate error:", err);
+          }
+        }
+
+        if (opts.onChanged) opts.onChanged(previous, gameName);
+      }
+
+      /* 让当前激活状态与 DOM 同步(Tab 高亮 + 壳显隐) */
+      function syncUi() {
+        forEachTab(function (tab) {
+          var game = tab.getAttribute("data-game");
+          setTabState(tab, game === currentGame);
+        });
+        var keys = Object.keys(SHELL_BY_GAME);
+        for (var i = 0; i < keys.length; i++) {
+          setShellVisible(keys[i], keys[i] === currentGame);
+        }
+      }
+
+      function register(gameName, handler) {
+        handlers[gameName] = handler;
+      }
+
+      function getCurrent() {
+        return currentGame;
+      }
+
+      /* 锚点直达:URL 末尾 #sudoku / #lianliankan / #2048 / #sweep */
+      function resolveInitialGame() {
+        var hash = "";
+        try {
+          hash = window.location.hash || "";
+        } catch (err) {
+          hash = "";
+        }
+        if (hash.indexOf("lianliankan") !== -1) return "lianliankan";
+        if (hash.indexOf("2048") !== -1) return "2048";
+        if (hash.indexOf("sudoku") !== -1) return "sudoku";
+        if (hash.indexOf("sweep") !== -1) return "sweep";
+        return "sweep"; // 默认与改造前一致:打开即扫雷
+      }
+
+      function init() {
+        if (initialized) return;
+        initialized = true;
+
+        forEachTab(function (tab) {
+          tab.addEventListener("click", function () {
+            activate(tab.getAttribute("data-game"));
+          });
+        });
+
+        // 首屏渲染(所有脚本已注册完毕再激活,保证 onActivate 能被调用)
+        currentGame = "sweep";
+        syncUi();
+        var initial = resolveInitialGame();
+        if (initial !== "sweep") {
+          activate(initial);
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+
+      /* 暴露最小 API;协调器自身不向页面添加多余全局名 */
+      if (typeof window !== "undefined") {
+        window.__GAME_TABS__ = {
+          activate: activate,
+          register: register,
+          getCurrent: getCurrent,
+        };
+      }
+    })();
+
+  };
+  moduleFactories["src/core/games/sudoku/engine.js"] = function (exports, __require) {
+    /* Platform-agnostic classic Sudoku rules, generation, hints, and save validation. */
+    const SIZE = 9;
+    const TOTAL = SIZE * SIZE;
+    const DANGER_LIMIT_MS = 1000; // 挖洞时间预算,防止困难档阻塞过久
+
+    const DIFFICULTIES = {
+      easy: { name: "简单", blanks: 36 },
+      medium: { name: "中等", blanks: 48 },
+      hard: { name: "困难", blanks: 53 },
+    };
+
+    /* ----------------------------- 纯逻辑:生成与求解 ----------------------------- */
+
+    function shuffle(list, rng = Math.random) {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        const tmp = list[i];
+        list[i] = list[j];
+        list[j] = tmp;
+      }
+      return list;
+    }
+
+    function rowOf(index) {
+      return Math.floor(index / SIZE);
+    }
+
+    function colOf(index) {
+      return index % SIZE;
+    }
+
+    function canPlace(board, index, value) {
+      const r = rowOf(index);
+      const c = colOf(index);
+      for (let k = 0; k < SIZE; k++) {
+        if (board[r * SIZE + k] === value) return false;
+        if (board[k * SIZE + c] === value) return false;
+      }
+      const br = Math.floor(r / 3) * 3;
+      const bc = Math.floor(c / 3) * 3;
+      for (let dr = 0; dr < 3; dr++) {
+        for (let dc = 0; dc < 3; dc++) {
+          if (board[(br + dr) * SIZE + bc + dc] === value) return false;
+        }
+      }
+      return true;
+    }
+
+    function firstEmpty(board) {
+      for (let i = 0; i < TOTAL; i++) {
+        if (board[i] === 0) return i;
+      }
+      return -1;
+    }
+
+    /* 生成一个完整的随机解(回溯 + 随机候选序)。返回是否成功。 */
+    function solveOnce(board, rng = Math.random) {
+      const index = firstEmpty(board);
+      if (index === -1) return true;
+      const digits = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9], rng);
+      for (let d = 0; d < digits.length; d++) {
+        const value = digits[d];
+        if (canPlace(board, index, value)) {
+          board[index] = value;
+          if (solveOnce(board, rng)) return true;
+          board[index] = 0;
+        }
+      }
+      return false;
+    }
+
+    /* 统计解的数量,最多数到 limit 即返回(剪枝)。用于唯一解校验。 */
+    function countSolutions(board, limit) {
+      let found = 0;
+      const search = () => {
+        if (found >= limit) return;
+        const index = firstEmpty(board);
+        if (index === -1) {
+          found += 1;
+          return;
+        }
+        for (let value = 1; value <= SIZE && found < limit; value++) {
+          if (canPlace(board, index, value)) {
+            board[index] = value;
+            search();
+            board[index] = 0;
+          }
+        }
+      };
+      search();
+      return found;
+    }
+
+    function isBoardArray(board) {
+      return Array.isArray(board) && board.length === TOTAL;
+    }
+
+    function getCandidates(board, index) {
+      if (!isBoardArray(board) || index < 0 || index >= TOTAL || board[index] !== 0) return [];
+      const candidates = [];
+      for (let value = 1; value <= SIZE; value++) {
+        if (canPlace(board, index, value)) candidates.push(value);
+      }
+      return candidates;
+    }
+
+    const DIGIT_MASK = (digit) => 1 << (digit - 1);
+    const ALL_DIGITS_MASK = (1 << SIZE) - 1;
+    const STRATEGY_WEIGHTS = {
+      "naked-single": 10,
+      "hidden-single": 20,
+      "locked-candidates": 40,
+      "naked-pair": 80,
+    };
+    const STRATEGY_RANKS = {
+      "naked-single": 1,
+      "hidden-single": 2,
+      "locked-candidates": 3,
+      "naked-pair": 4,
+    };
+
+    function makeUnits() {
+      const units = [];
+      for (let row = 0; row < SIZE; row++) {
+        units.push({
+          type: "row",
+          index: row,
+          cells: Array.from({ length: SIZE }, (_, col) => row * SIZE + col),
+        });
+      }
+      for (let col = 0; col < SIZE; col++) {
+        units.push({
+          type: "column",
+          index: col,
+          cells: Array.from({ length: SIZE }, (_, row) => row * SIZE + col),
+        });
+      }
+      for (let box = 0; box < SIZE; box++) {
+        const br = Math.floor(box / 3) * 3;
+        const bc = (box % 3) * 3;
+        const cells = [];
+        for (let dr = 0; dr < 3; dr++) {
+          for (let dc = 0; dc < 3; dc++) cells.push((br + dr) * SIZE + bc + dc);
+        }
+        units.push({ type: "box", index: box, cells });
+      }
+      return units;
+    }
+
+    const LOGIC_UNITS = makeUnits();
+
+    function makePeerSets() {
+      const peers = new Array(TOTAL);
+      for (let index = 0; index < TOTAL; index++) {
+        const row = rowOf(index);
+        const col = colOf(index);
+        const br = Math.floor(row / 3) * 3;
+        const bc = Math.floor(col / 3) * 3;
+        const set = new Set();
+        for (let offset = 0; offset < SIZE; offset++) {
+          set.add(row * SIZE + offset);
+          set.add(offset * SIZE + col);
+        }
+        for (let dr = 0; dr < 3; dr++) {
+          for (let dc = 0; dc < 3; dc++) set.add((br + dr) * SIZE + bc + dc);
+        }
+        set.delete(index);
+        peers[index] = set;
+      }
+      return peers;
+    }
+
+    const PEER_SETS = makePeerSets();
+
+    function bitCount(mask) {
+      let count = 0;
+      for (let rest = mask; rest; rest &= rest - 1) count += 1;
+      return count;
+    }
+
+    function digitsFromMask(mask) {
+      const digits = [];
+      for (let digit = 1; digit <= SIZE; digit++) {
+        if (mask & DIGIT_MASK(digit)) digits.push(digit);
+      }
+      return digits;
+    }
+
+    function makeCandidateState(board) {
+      if (!isNumberArray(board, 0, SIZE)) return null;
+      for (let index = 0; index < TOTAL; index++) {
+        const value = board[index];
+        if (value === 0) continue;
+        for (const peer of PEER_SETS[index]) {
+          if (board[peer] === value) return null;
+        }
+      }
+      const masks = new Array(TOTAL).fill(0);
+      for (let index = 0; index < TOTAL; index++) {
+        if (board[index] !== 0) continue;
+        let mask = ALL_DIGITS_MASK;
+        for (const peer of PEER_SETS[index]) {
+          if (board[peer] !== 0) mask &= ~DIGIT_MASK(board[peer]);
+        }
+        if (mask === 0) return null;
+        masks[index] = mask;
+      }
+      return { values: board.slice(), masks };
+    }
+
+    function makeHint(strategy, index, digit, unitType, unitIndex, targetCells, affectedCells, eliminations) {
+      let explanation = "高亮格的候选数只剩一个，可以直接完成这一格。";
+      if (strategy === "hidden-single") {
+        const unitName = unitType === "row" ? "这一行" : unitType === "column" ? "这一列" : "这一宫";
+        explanation = "在" + unitName + "中，高亮格是某个数字唯一可以放置的位置。";
+      } else if (strategy === "locked-candidates") {
+        explanation = "高亮区域中的候选被限制在同一行或同一列,其余高亮位置可以排除该候选。";
+      } else if (strategy === "naked-pair") {
+        explanation = "高亮的两个格子共享同一组候选,同一单元中的其他格子可以排除这组候选。";
+      }
+      return {
+        strategy,
+        index,
+        digit,
+        unitType,
+        unitIndex,
+        targetCells: targetCells.slice().sort((left, right) => left - right),
+        affectedCells: affectedCells.slice().sort((left, right) => left - right),
+        eliminations: eliminations
+          .map((item) => ({ index: item.index, digits: item.digits.slice().sort((left, right) => left - right) }))
+          .sort((left, right) => left.index - right.index),
+        explanation,
+      };
+    }
+
+    function findNakedSingle(state) {
+      for (let index = 0; index < TOTAL; index++) {
+        if (bitCount(state.masks[index]) === 1) {
+          return makeHint("naked-single", index, digitsFromMask(state.masks[index])[0], null, null, [index], [], []);
+        }
+      }
+      return null;
+    }
+
+    function findHiddenSingle(state) {
+      for (const unit of LOGIC_UNITS) {
+        for (let digit = 1; digit <= SIZE; digit++) {
+          const mask = DIGIT_MASK(digit);
+          const possibleCells = unit.cells.filter(
+            (index) => state.values[index] === 0 && (state.masks[index] & mask) !== 0,
+          );
+          if (possibleCells.length === 1) {
+            return makeHint("hidden-single", possibleCells[0], digit, unit.type, unit.index, [possibleCells[0]], [], []);
+          }
+        }
+      }
+      return null;
+    }
+
+    function makeEliminationHint(strategy, unit, targetCells, eliminations, digit) {
+      const affectedCells = eliminations.map((item) => item.index);
+      return makeHint(
+        strategy,
+        targetCells[0],
+        digit,
+        unit.type,
+        unit.index,
+        targetCells,
+        affectedCells,
+        eliminations,
+      );
+    }
+
+    function findLockedCandidates(state) {
+      // 宫指向行/列
+      for (let box = 0; box < SIZE; box++) {
+        const unit = LOGIC_UNITS[18 + box];
+        for (let digit = 1; digit <= SIZE; digit++) {
+          const mask = DIGIT_MASK(digit);
+          const sourceCells = unit.cells.filter(
+            (index) => state.values[index] === 0 && (state.masks[index] & mask) !== 0,
+          );
+          if (sourceCells.length < 2) continue;
+          const rows = new Set(sourceCells.map(rowOf));
+          const cols = new Set(sourceCells.map(colOf));
+          if (rows.size === 1) {
+            const rowUnit = LOGIC_UNITS[sourceCells[0] >= 0 ? rowOf(sourceCells[0]) : 0];
+            const eliminations = rowUnit.cells
+              .filter(
+                (index) =>
+                  state.values[index] === 0 &&
+                  !unit.cells.includes(index) &&
+                  (state.masks[index] & mask) !== 0,
+              )
+              .map((index) => ({ index, digits: [digit] }));
+            if (eliminations.length > 0) return makeEliminationHint("locked-candidates", unit, sourceCells, eliminations, digit);
+          }
+          if (cols.size === 1) {
+            const colUnit = LOGIC_UNITS[9 + colOf(sourceCells[0])];
+            const eliminations = colUnit.cells
+              .filter(
+                (index) =>
+                  state.values[index] === 0 &&
+                  !unit.cells.includes(index) &&
+                  (state.masks[index] & mask) !== 0,
+              )
+              .map((index) => ({ index, digits: [digit] }));
+            if (eliminations.length > 0) return makeEliminationHint("locked-candidates", unit, sourceCells, eliminations, digit);
+          }
+        }
+      }
+
+      // 行/列归属宫
+      for (let line = 0; line < 18; line++) {
+        const unit = LOGIC_UNITS[line];
+        for (let digit = 1; digit <= SIZE; digit++) {
+          const mask = DIGIT_MASK(digit);
+          const sourceCells = unit.cells.filter(
+            (index) => state.values[index] === 0 && (state.masks[index] & mask) !== 0,
+          );
+          if (sourceCells.length < 2) continue;
+          const boxes = new Set(sourceCells.map((index) => Math.floor(rowOf(index) / 3) * 3 + Math.floor(colOf(index) / 3)));
+          if (boxes.size !== 1) continue;
+          const box = Array.from(boxes)[0];
+          const boxUnit = LOGIC_UNITS[18 + box];
+          const eliminations = boxUnit.cells
+            .filter(
+              (index) =>
+                state.values[index] === 0 &&
+                !unit.cells.includes(index) &&
+                (state.masks[index] & mask) !== 0,
+            )
+            .map((index) => ({ index, digits: [digit] }));
+          if (eliminations.length > 0) return makeEliminationHint("locked-candidates", unit, sourceCells, eliminations, digit);
+        }
+      }
+      return null;
+    }
+
+    function findNakedPair(state) {
+      for (const unit of LOGIC_UNITS) {
+        for (let left = 0; left < unit.cells.length; left++) {
+          const first = unit.cells[left];
+          if (state.values[first] !== 0 || bitCount(state.masks[first]) !== 2) continue;
+          for (let right = left + 1; right < unit.cells.length; right++) {
+            const second = unit.cells[right];
+            if (
+              state.values[second] !== 0 ||
+              state.masks[second] !== state.masks[first] ||
+              bitCount(state.masks[second]) !== 2
+            ) continue;
+            const matchingCells = unit.cells.filter(
+              (index) => state.values[index] === 0 && state.masks[index] === state.masks[first],
+            );
+            if (matchingCells.length !== 2) continue;
+            const eliminations = unit.cells
+              .filter(
+                (index) =>
+                  index !== first &&
+                  index !== second &&
+                  state.values[index] === 0 &&
+                  (state.masks[index] & state.masks[first]) !== 0,
+              )
+              .map((index) => ({ index, digits: digitsFromMask(state.masks[index] & state.masks[first]) }));
+            if (eliminations.length > 0) {
+              const pairDigits = digitsFromMask(state.masks[first]);
+              return makeEliminationHint("naked-pair", unit, [first, second], eliminations, pairDigits[0]);
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    function findHintFromState(state) {
+      return findNakedSingle(state) || findHiddenSingle(state) || findLockedCandidates(state) || findNakedPair(state);
+    }
+
+    function findHint(board) {
+      const state = makeCandidateState(board);
+      return state ? findHintFromState(state) : null;
+    }
+
+    function findBasicHint(board) {
+      return findHint(board);
+    }
+
+    function applyHintToState(state, hint) {
+      if (hint.strategy === "naked-single" || hint.strategy === "hidden-single") {
+        const index = hint.index;
+        const bit = DIGIT_MASK(hint.digit);
+        if (state.values[index] !== 0 || (state.masks[index] & bit) === 0) return false;
+        state.values[index] = hint.digit;
+        state.masks[index] = 0;
+        for (const peer of PEER_SETS[index]) {
+          if (state.values[peer] !== 0) continue;
+          state.masks[peer] &= ~bit;
+          if (state.masks[peer] === 0) return false;
+        }
+        return true;
+      }
+      for (const elimination of hint.eliminations) {
+        let removeMask = 0;
+        for (const digit of elimination.digits) removeMask |= DIGIT_MASK(digit);
+        state.masks[elimination.index] &= ~removeMask;
+        if (state.masks[elimination.index] === 0) return false;
+      }
+      return true;
+    }
+
+    function ratePuzzle(puzzle) {
+      const state = makeCandidateState(puzzle);
+      if (!state) return null;
+      const counts = {
+        "naked-single": 0,
+        "hidden-single": 0,
+        "locked-candidates": 0,
+        "naked-pair": 0,
+      };
+      let steps = 0;
+      let maxRank = 0;
+      let stoppedReason = null;
+      while (state.values.some((value) => value === 0)) {
+        if (steps >= 500) {
+          stoppedReason = "step-limit";
+          break;
+        }
+        const hint = findHintFromState(state);
+        if (!hint) {
+          stoppedReason = "no-logical-step";
+          break;
+        }
+        if (!applyHintToState(state, hint)) {
+          stoppedReason = "no-logical-step";
+          break;
+        }
+        counts[hint.strategy] += 1;
+        steps += 1;
+        maxRank = Math.max(maxRank, STRATEGY_RANKS[hint.strategy]);
+      }
+      const solvedByLogic = !state.values.some((value) => value === 0);
+      const requiresGuess = !solvedByLogic;
+      if (!stoppedReason && !solvedByLogic) stoppedReason = "no-logical-step";
+      const score = Object.keys(counts).reduce((sum, strategy) => sum + counts[strategy] * STRATEGY_WEIGHTS[strategy], 0) + (requiresGuess ? 1000 : 0);
+      const maxStrategy = maxRank === 0 ? "none" : Object.keys(STRATEGY_RANKS).find((strategy) => STRATEGY_RANKS[strategy] === maxRank);
+      const level = requiresGuess
+        ? "expert"
+        : maxRank === 4
+          ? "hard"
+          : maxRank === 3
+            ? "medium"
+            : maxRank === 2
+              ? "easy"
+              : "basic";
+      return { score, level, maxStrategy, steps, counts, solvedByLogic, requiresGuess, stoppedReason };
+    }
+
+    function countRemaining(solution, values, digit) {
+      if (!isBoardArray(solution) || !isBoardArray(values) || !Number.isInteger(digit)) return 0;
+      let remaining = 0;
+      for (let index = 0; index < TOTAL; index++) {
+        if (solution[index] === digit && values[index] === 0) remaining += 1;
+      }
+      return remaining;
+    }
+
+    function isNumberArray(value, min, max) {
+      return (
+        Array.isArray(value) &&
+        value.length === TOTAL &&
+        value.every((item) => Number.isInteger(item) && item >= min && item <= max)
+      );
+    }
+
+    function isValidSolution(board) {
+      if (!isNumberArray(board, 1, SIZE)) return false;
+      for (let row = 0; row < SIZE; row++) {
+        const rowValues = new Set();
+        const colValues = new Set();
+        for (let offset = 0; offset < SIZE; offset++) {
+          rowValues.add(board[row * SIZE + offset]);
+          colValues.add(board[offset * SIZE + row]);
+        }
+        if (rowValues.size !== SIZE || colValues.size !== SIZE) return false;
+      }
+      for (let box = 0; box < SIZE; box++) {
+        const br = Math.floor(box / 3) * 3;
+        const bc = (box % 3) * 3;
+        const values = new Set();
+        for (let dr = 0; dr < 3; dr++) {
+          for (let dc = 0; dc < 3; dc++) values.add(board[(br + dr) * SIZE + bc + dc]);
+        }
+        if (values.size !== SIZE) return false;
+      }
+      return true;
+    }
+
+    function serializeSave(record) {
+      return JSON.stringify({ ...record, version: 1 });
+    }
+
+    function deserializeSave(raw, difficulty) {
+      try {
+        const record = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (!DIFFICULTIES[difficulty] || !record || record.version !== 1 || record.difficulty !== difficulty) return null;
+        if (!isNumberArray(record.puzzle, 0, SIZE)) return null;
+        if (!isValidSolution(record.solution)) return null;
+        if (!isNumberArray(record.values, 0, SIZE)) return null;
+        if (!isNumberArray(record.notes, 0, 511)) return null;
+        if (!Number.isFinite(record.elapsedMs) || record.elapsedMs < 0) return null;
+        if (typeof record.started !== "boolean" || typeof record.ended !== "boolean") return null;
+        for (let index = 0; index < TOTAL; index++) {
+          if (record.puzzle[index] !== 0 && record.puzzle[index] !== record.solution[index]) return null;
+          if (record.puzzle[index] !== 0 && record.values[index] !== record.puzzle[index]) return null;
+        }
+        const restored = {
+          difficulty: record.difficulty,
+          puzzle: record.puzzle.slice(),
+          solution: record.solution.slice(),
+          values: record.values.slice(),
+          notes: record.notes.slice(),
+          elapsedMs: record.elapsedMs,
+          started: record.started,
+          ended: record.ended,
+        };
+        if (typeof record.paused === "boolean") restored.paused = record.paused;
+        return restored;
+      } catch {
+        return null;
+      }
+    }
+
+    /*
+     * 生成一道唯一解题目。
+     * 返回值: { solution, puzzle, removed, rating }
+     *  - solution: 完整解(81)
+     *  - puzzle:   题目(81,0 表示空格)
+     *  - removed:  实际挖掉的数量(困难档可能受时间预算限制而略少)
+     */
+    function makePuzzle(blankTarget, options = {}) {
+      const rng = typeof options.rng === "function" ? options.rng : Math.random;
+      const now = typeof options.now === "function" ? options.now : Date.now;
+      const solution = new Array(TOTAL).fill(0);
+      if (!solveOnce(solution, rng)) {
+        // 理论不可达;兜底重试一次
+        solution.fill(0);
+        solveOnce(solution, rng);
+      }
+
+      const puzzle = solution.slice();
+      const order = shuffle(Array.from({ length: TOTAL }, (_, i) => i), rng);
+      const deadline = now() + DANGER_LIMIT_MS;
+      let removed = 0;
+
+      for (let i = 0; i < order.length; i++) {
+        if (removed >= blankTarget) break;
+        if (now() > deadline) break;
+        const index = order[i];
+        const backup = puzzle[index];
+        puzzle[index] = 0;
+        if (countSolutions(puzzle.slice(), 2) !== 1) {
+          puzzle[index] = backup;
+        } else {
+          removed += 1;
+        }
+      }
+      return { solution, puzzle, removed, rating: ratePuzzle(puzzle) };
+    }
+    exports.SIZE = SIZE;
+    exports.TOTAL = TOTAL;
+    exports.DIFFICULTIES = DIFFICULTIES;
+    exports.shuffle = shuffle;
+    exports.rowOf = rowOf;
+    exports.colOf = colOf;
+    exports.solveOnce = solveOnce;
+    exports.countSolutions = countSolutions;
+    exports.getCandidates = getCandidates;
+    exports.PEER_SETS = PEER_SETS;
+    exports.findHint = findHint;
+    exports.findBasicHint = findBasicHint;
+    exports.ratePuzzle = ratePuzzle;
+    exports.countRemaining = countRemaining;
+    exports.isValidSolution = isValidSolution;
+    exports.serializeSave = serializeSave;
+    exports.deserializeSave = deserializeSave;
+    exports.makePuzzle = makePuzzle;
+  };
+  moduleFactories["src/sudoku-game.js"] = function (exports, __require) {
+    const { DIFFICULTIES: DIFFICULTIES, PEER_SETS: PEER_SETS, SIZE: SIZE, TOTAL: TOTAL, countRemaining: countRemaining, countSolutions: countSolutions, colOf: colOf, deserializeSave: deserializeSave, findBasicHint: findBasicHint, findHint: findHint, getCandidates: getCandidates, makePuzzle: makePuzzle, ratePuzzle: ratePuzzle, rowOf: rowOf, serializeSave: serializeSave, shuffle: shuffle, solveOnce: solveOnce } = __require("src/core/games/sudoku/engine.js");
+    const { createWebClock: createWebClock } = __require("src/platform/web/clock.js");
+    const { createWebStorage: createWebStorage } = __require("src/platform/web/storage.js");
+
+    /* 独立标准数独小游戏(与传统扫雷、数独扫雷相互独立)
+     *
+     * 设计约束:
+     * 1. 本文件是由 src/app.js 导入的 Web ESM 适配器；IIFE 只用于隔离 DOM
+     *    控制器状态，任何顶层变量都不外泄。
+     * 2. 题目由程序实时生成:随机完整解 + 按难度挖洞,并用解数计数保证唯一解。
+     * 3. 与扫雷通过页面顶部「游戏类型」Tab 同页切换;数独激活时在捕获阶段
+     *    拦截 R 键,避免误触扫雷的"重开"快捷键。
+     */
+    (function () {
+      "use strict";
+      const sudokuClock = createWebClock();
+      const sudokuStorage = createWebStorage();
+
+     /* ----------------------------- 渲染与游戏状态 ----------------------------- */
+
+      const shell = document.getElementById("sudokuShell");
+      const boardEl = document.getElementById("sudokuBoard");
+      const padEl = document.getElementById("sudokuPad");
+      const timerEl = document.getElementById("sudokuTimer");
+      const statusEl = document.getElementById("sudokuStatus");
+      const errorsEl = document.getElementById("sudokuErrors");
+      const difficultyEl = document.getElementById("sudokuDifficulty");
+      const newBtn = document.getElementById("sudokuNew");
+      const checkBtn = document.getElementById("sudokuCheck");
+      const pauseBtn = document.getElementById("sudokuPause");
+      const resetBtn = document.getElementById("sudokuReset");
+      const notesToggleBtn = document.getElementById("sudokuNotesToggle");
+      const undoBtn = document.getElementById("sudokuUndo");
+      const redoBtn = document.getElementById("sudokuRedo");
+      const hintBtn = document.getElementById("sudokuHintButton");
+      const digitInfoEl = document.getElementById("sudokuDigitInfo");
+      const hintTextEl = document.getElementById("sudokuHintText");
+      const ratingEl = document.getElementById("sudokuRating");
+      const sweepShell = document.getElementById("sweepShell");
+      const fireworksLayer = document.getElementById("fireworksLayer");
+      const tabSweep = document.getElementById("gameTabSweep");
+      const tabSudoku = document.getElementById("gameTabSudoku");
+
+      if (!shell || !boardEl || !padEl || !timerEl || !statusEl || !errorsEl) return;
+
+     const game = {
+        difficulty: "medium",
+        solution: null, // 81 完整解
+        puzzle: null, // 81 题目(0=空)
+        values: null, // 81 用户当前值(0=空)
+        given: null, // 81 是否题目格
+        rating: null,
+        notes: new Array(TOTAL).fill(0), // 每格 9 位候选数位掩码
+        noteMode: false,
+        activeDigit: 0,
+        hintTarget: null,
+        hintedStates: new Set(),
+        past: [],
+        future: [],
+        started: false,
+        ended: false,
+        paused: false,
+        sel: -1,
+        baseMs: 0,
+        startAt: null,
+        timerId: null,
+        generating: false,
+        generationToken: 0,
+      };
+
+      const cells = []; // 81 个按钮
+      const padKeys = [];
+      let sudokuActive = false;
+      let lastSavedSecond = -1;
+      const SAVE_PREFIX = "sudoku-classic-";
+      const SAVE_VERSION_SUFFIX = "-v1";
+      const MAX_HISTORY = 200;
+
+      /* ----------------------------- 计时 ----------------------------- */
+
+      function nowMs() {
+        return sudokuClock.now();
+      }
+
+      function formatTime(totalSeconds) {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return minutes + ":" + String(seconds).padStart(2, "0");
+      }
+
+      function currentElapsedMs() {
+        const extra = game.startAt === null ? 0 : Math.max(0, nowMs() - game.startAt);
+        return Math.max(0, game.baseMs + extra);
+      }
+
+      function elapsedSeconds() {
+        return Math.floor(currentElapsedMs() / 1000);
+      }
+
+      function renderTimer() {
+        if (timerEl) timerEl.textContent = formatTime(elapsedSeconds());
+      }
+
+      function commitElapsed() {
+        if (game.startAt !== null) {
+          game.baseMs = currentElapsedMs();
+          game.startAt = null;
+        }
+      }
+
+      function startTimer() {
+        if (game.timerId !== null || game.ended || game.paused) return;
+        game.startAt = nowMs();
+        game.timerId = sudokuClock.setInterval(() => {
+          if (!game.started || game.ended || game.paused) return;
+          renderTimer();
+          const second = elapsedSeconds();
+          if (second !== lastSavedSecond) {
+            persistProgress();
+            lastSavedSecond = second;
+          }
+          if (second >= 5999) {
+            commitElapsed();
+            stopTimer();
+            persistProgress();
+          }
+        }, 250);
+      }
+
+      function stopTimer() {
+        if (game.timerId !== null) {
+          sudokuClock.clearInterval(game.timerId);
+          game.timerId = null;
+        }
+      }
+
+      /* ----------------------------- 存档与状态辅助 ----------------------------- */
+
+      function saveKey(difficulty) {
+        return SAVE_PREFIX + difficulty + SAVE_VERSION_SUFFIX;
+      }
+
+      function makeSaveRecord() {
+        if (!game.puzzle || !game.solution || !game.values) return null;
+        return {
+          difficulty: game.difficulty,
+          puzzle: game.puzzle.slice(),
+          solution: game.solution.slice(),
+          values: game.values.slice(),
+          notes: game.notes.slice(),
+          elapsedMs: currentElapsedMs(),
+          started: game.started,
+          ended: game.ended,
+          paused: game.paused,
+        };
+      }
+
+      function persistProgress() {
+        const record = makeSaveRecord();
+        if (!record) return;
+        try {
+          sudokuStorage.setItem(saveKey(game.difficulty), serializeSave(record));
+        } catch {
+          // 存储空间不足或隐私模式不可写时，不阻断数独本身。
+        }
+      }
+
+      function readSaved(difficulty) {
+        try {
+          return deserializeSave(sudokuStorage.getItem(saveKey(difficulty)), difficulty);
+        } catch {
+          return null;
+        }
+      }
+
+      function isFilled() {
+        for (let i = 0; i < TOTAL; i++) {
+          if (game.values[i] === 0) return false;
+        }
+        return true;
+      }
+
+      function countMistakes() {
+        if (!game.values || !game.solution) return 0;
+        let mistakes = 0;
+        for (let i = 0; i < TOTAL; i++) {
+          if (game.values[i] !== 0 && game.values[i] !== game.solution[i]) mistakes += 1;
+        }
+        return mistakes;
+      }
+
+      function hasDuplicate(index) {
+        const value = game.values[index];
+        if (value === 0) return false;
+        for (const peer of PEER_SETS[index]) {
+          if (game.values[peer] === value) return true;
+        }
+        return false;
+      }
+
+      function setStatus(text) {
+        if (statusEl) statusEl.textContent = text;
+      }
+
+      function setErrors(count) {
+        if (errorsEl) errorsEl.textContent = String(count);
+      }
+
+      function countEmpty() {
+        if (!game.values) return 0;
+        let empty = 0;
+        for (let i = 0; i < TOTAL; i++) {
+          if (game.values[i] === 0) empty += 1;
+        }
+        return empty;
+      }
+
+      function isProgressChanged() {
+        if (!game.puzzle || !game.values) return false;
+        if (game.started) return true;
+        for (let i = 0; i < TOTAL; i++) {
+          if (game.values[i] !== game.puzzle[i] || game.notes[i] !== 0) return true;
+        }
+        return false;
+      }
+
+      function snapshot() {
+        return { values: game.values.slice(), notes: game.notes.slice() };
+      }
+
+      function snapshotsEqual(left, right) {
+        for (let i = 0; i < TOTAL; i++) {
+          if (left.values[i] !== right.values[i] || left.notes[i] !== right.notes[i]) return false;
+        }
+        return true;
+      }
+
+      function pushHistory(item) {
+        game.past.push(item);
+        if (game.past.length > MAX_HISTORY) game.past.shift();
+        game.future.length = 0;
+      }
+
+      function clearHint() {
+        game.hintTarget = null;
+        if (hintTextEl) hintTextEl.textContent = "点击“提示”获取一步解题思路,提示只引导下一步,不会自动填数。";
+      }
+
+      function setDisabled(element, disabled) {
+        if (!element) return;
+        element.disabled = disabled;
+        element.setAttribute("aria-disabled", String(disabled));
+      }
+
+      function renderDigitInfo() {
+        if (!digitInfoEl) return;
+        if (game.activeDigit < 1 || game.activeDigit > SIZE || !game.solution || !game.values) {
+          digitInfoEl.textContent = "输入或选择数字后显示剩余位置";
+          return;
+        }
+        digitInfoEl.textContent =
+          "数字 " + game.activeDigit + "：还剩 " + countRemaining(game.solution, game.values, game.activeDigit) + " 个空位";
+      }
+
+      function renderRating() {
+        if (!ratingEl) return;
+        const levelNames = {
+          basic: "基础",
+          easy: "简单",
+          medium: "中等",
+          hard: "困难",
+          expert: "专家",
+        };
+        ratingEl.textContent = game.rating && levelNames[game.rating.level] ? levelNames[game.rating.level] : "--";
+      }
+
+      function updateControls() {
+        const inputLocked = game.ended || game.paused || game.generating;
+        setDisabled(notesToggleBtn, inputLocked);
+        setDisabled(hintBtn, inputLocked);
+        setDisabled(undoBtn, inputLocked || game.past.length === 0);
+        setDisabled(redoBtn, inputLocked || game.future.length === 0);
+        setDisabled(checkBtn, inputLocked || !game.started);
+        setDisabled(pauseBtn, game.generating || !game.started || game.ended);
+        setDisabled(resetBtn, game.generating || !game.puzzle);
+        setDisabled(newBtn, game.generating);
+        setDisabled(difficultyEl, game.generating);
+        padKeys.forEach((key) => setDisabled(key, inputLocked));
+        if (notesToggleBtn) {
+          notesToggleBtn.setAttribute("aria-pressed", String(game.noteMode));
+          notesToggleBtn.textContent = game.noteMode ? "笔记：开" : "笔记：关";
+        }
+        for (let value = 1; value <= SIZE; value++) {
+          if (padKeys[value - 1]) padKeys[value - 1].classList.toggle("is-active", game.activeDigit === value);
+        }
+        if (pauseBtn) pauseBtn.textContent = game.paused ? "继续" : "暂停";
+      }
+
+      /* ----------------------------- 视图更新 ----------------------------- */
+
+      function cellLabel(index) {
+        if (!game.values || !game.given) return "数独格子";
+        const value = game.values[index];
+        const parts = [];
+        if (game.given[index]) parts.push("题目格");
+        parts.push("第 " + (rowOf(index) + 1) + " 行");
+        parts.push("第 " + (colOf(index) + 1) + " 列");
+        if (value !== 0) parts.push("数字 " + value);
+        if (value === 0 && game.notes[index]) parts.push("有候选笔记");
+        return parts.join(",");
+      }
+
+      function updateCell(index) {
+        const btn = cells[index];
+        if (!btn || !game.values || !game.given) return;
+        const value = game.values[index];
+        const isGiven = game.given[index];
+        const hintIndex = game.hintTarget ? game.hintTarget.index : -1;
+        const targetCells = game.hintTarget && game.hintTarget.targetCells ? game.hintTarget.targetCells : [];
+        const affectedCells = game.hintTarget && game.hintTarget.affectedCells ? game.hintTarget.affectedCells : [];
+        const isHintTarget = targetCells.includes(index);
+        const isHintAffected = affectedCells.includes(index);
+        const inHintUnit =
+          isHintTarget ||
+          isHintAffected ||
+          (hintIndex >= 0 && (index === hintIndex || PEER_SETS[hintIndex].has(index)));
+
+        btn.classList.toggle("is-given", isGiven);
+        btn.classList.toggle("is-sel", index === game.sel);
+        btn.classList.toggle("is-peer", game.sel >= 0 && PEER_SETS[game.sel].has(index));
+        btn.classList.toggle(
+          "is-same",
+          value !== 0 && game.sel >= 0 && value === game.values[game.sel] && index !== game.sel,
+        );
+        btn.classList.toggle("is-err", !isGiven && value !== 0 && value !== game.solution[index]);
+        btn.classList.toggle("is-dup", value !== 0 && hasDuplicate(index));
+        btn.classList.toggle("is-hint-unit", inHintUnit);
+        btn.classList.toggle("is-hint-affected", isHintAffected);
+        btn.classList.toggle("is-hint-target", isHintTarget || (targetCells.length === 0 && index === hintIndex));
+
+        if (btn.valueEl) {
+          btn.valueEl.textContent = value === 0 ? "" : String(value);
+          btn.valueEl.hidden = value === 0;
+        }
+        if (btn.notesEl) {
+          btn.notesEl.hidden = value !== 0 || game.notes[index] === 0;
+          for (let digit = 1; digit <= SIZE; digit++) {
+            const note = btn.noteEls[digit - 1];
+            if (note) note.classList.toggle("is-visible", value === 0 && (game.notes[index] & (1 << (digit - 1))) !== 0);
+          }
+        }
+        btn.setAttribute("aria-label", cellLabel(index));
+      }
+
+      function updateAll() {
+        for (let i = 0; i < TOTAL; i++) updateCell(i);
+      }
+
+      function renderHud() {
+        renderTimer();
+        setErrors(countMistakes());
+        renderDigitInfo();
+        renderRating();
+        updateControls();
+      }
+
+      function render() {
+        updateAll();
+        renderHud();
+      }
+
+      /* ----------------------------- 胜负与操作 ----------------------------- */
+
+      function win() {
+        if (game.ended) return;
+        commitElapsed();
+        game.ended = true;
+        game.paused = false;
+        stopTimer();
+        renderTimer();
+        setStatus("胜利 🎉");
+        shell.classList.add("sd-won");
+        persistProgress();
+        renderHud();
+      }
+
+      function beginInput() {
+        if (!game.started) {
+          game.started = true;
+          startTimer();
+        }
+      }
+
+      function runMutation(mutator) {
+        if (!game.values || game.ended || game.paused || game.generating) return false;
+        const before = snapshot();
+        mutator();
+        if (snapshotsEqual(before, snapshot())) return false;
+        beginInput();
+        pushHistory(before);
+        clearHint();
+        setStatus("进行中");
+        render();
+        persistProgress();
+        lastSavedSecond = elapsedSeconds();
+        return true;
+      }
+
+      function setValueAt(index, value) {
+        if (index < 0 || index >= TOTAL || !Number.isInteger(value) || value < 0 || value > SIZE) return;
+        if (game.ended || game.paused || game.generating) return;
+        if (game.given[index]) {
+          setStatus("题目格不可修改");
+          return;
+        }
+        const changed = runMutation(() => {
+          game.values[index] = value;
+          game.notes[index] = 0;
+        });
+        if (changed && value !== 0 && isFilled() && countMistakes() === 0) win();
+      }
+
+      function toggleNoteAt(index, digit) {
+        if (index < 0 || index >= TOTAL || digit < 1 || digit > SIZE) return;
+        if (game.ended || game.paused || game.generating || game.given[index] || game.values[index] !== 0) return;
+        runMutation(() => {
+          game.notes[index] ^= 1 << (digit - 1);
+        });
+      }
+
+      function eraseAt(index) {
+        if (index < 0 || index >= TOTAL || game.ended || game.paused || game.generating) return;
+        if (game.given[index]) return;
+        runMutation(() => {
+          game.values[index] = 0;
+          game.notes[index] = 0;
+        });
+      }
+
+      function setActiveDigit(value) {
+        if (Number.isInteger(value) && value >= 1 && value <= SIZE) {
+          game.activeDigit = value;
+          renderDigitInfo();
+          updateControls();
+        }
+      }
+
+      function select(index) {
+        if (!game.values || index < 0 || index >= TOTAL) return;
+        game.sel = index;
+        if (game.values[index] !== 0) setActiveDigit(game.values[index]);
+        updateAll();
+      }
+
+      function setNoteMode(enabled) {
+        if (game.ended || game.paused || game.generating) return;
+        game.noteMode = Boolean(enabled);
+        updateControls();
+      }
+
+      function toggleNoteMode() {
+        setNoteMode(!game.noteMode);
+      }
+
+      function typeValue(value) {
+        if (game.ended || game.paused || game.generating) return;
+        setActiveDigit(value);
+        if (game.sel < 0) {
+          setStatus("请先选中一个格子");
+          return;
+        }
+        if (game.noteMode) toggleNoteAt(game.sel, value);
+        else setValueAt(game.sel, value);
+      }
+
+      function eraseSelected() {
+        if (game.sel >= 0) eraseAt(game.sel);
+      }
+
+      function moveSelection(dr, dc) {
+        let r;
+        let c;
+        if (game.sel < 0) {
+          r = 4;
+          c = 4;
+        } else {
+          r = rowOf(game.sel) + dr;
+          c = colOf(game.sel) + dc;
+          r = Math.max(0, Math.min(SIZE - 1, r));
+          c = Math.max(0, Math.min(SIZE - 1, c));
+        }
+        select(r * SIZE + c);
+      }
+
+      function restoreSnapshot(item) {
+        game.values = item.values.slice();
+        game.notes = item.notes.slice();
+      }
+
+      function undo() {
+        if (!game.values || game.ended || game.paused || game.generating || game.past.length === 0) return;
+        const current = snapshot();
+        const previous = game.past.pop();
+        game.future.push(current);
+        restoreSnapshot(previous);
+        clearHint();
+        setStatus("已撤销");
+        render();
+        persistProgress();
+        lastSavedSecond = elapsedSeconds();
+      }
+
+      function redo() {
+        if (!game.values || game.ended || game.paused || game.generating || game.future.length === 0) return;
+        const current = snapshot();
+        const next = game.future.pop();
+        game.past.push(current);
+        restoreSnapshot(next);
+        clearHint();
+        setStatus("已重做");
+        render();
+        persistProgress();
+        lastSavedSecond = elapsedSeconds();
+      }
+
+      /* 一键校验:给出剩余格数 / 错误数,全对即胜利 */
+      function checkBoard() {
+        if (game.ended || game.paused || game.generating) return;
+        if (!game.started) {
+          setStatus("先开始填数吧");
+          return;
+        }
+        const empty = countEmpty();
+        const mistakes = countMistakes();
+        if (empty === 0 && mistakes === 0) {
+          win();
+          return;
+        }
+        if (empty > 0 && mistakes === 0) {
+          setStatus("还差 " + empty + " 格未填");
+        } else if (empty > 0) {
+          setStatus("有 " + mistakes + " 处与答案不符,还差 " + empty + " 格");
+        } else {
+          setStatus("有 " + mistakes + " 处与答案不符");
+        }
+        updateAll();
+      }
+
+      function requestHint() {
+        if (!game.values || game.ended || game.paused || game.generating) return;
+        if (countMistakes() > 0) {
+          clearHint();
+          setStatus("请先修正错误");
+          if (hintTextEl) hintTextEl.textContent = "请先修正错误";
+          renderHud();
+          return;
+        }
+        const hint = findHint(game.values);
+        if (!hint) {
+          clearHint();
+          setStatus("当前局面暂无基础提示，可以尝试更高级推理");
+          if (hintTextEl) hintTextEl.textContent = "当前局面暂无基础提示，可以尝试更高级推理";
+          renderHud();
+          return;
+        }
+        const signature = game.values.join("");
+        const repeated = game.hintedStates.has(signature);
+        if (!repeated) {
+          beginInput();
+          game.hintedStates.add(signature);
+          game.baseMs += 30000;
+        }
+        game.hintTarget = {
+          index: hint.index,
+          strategy: hint.strategy,
+          unitType: hint.unitType,
+          unitIndex: hint.unitIndex,
+          targetCells: hint.targetCells.slice(),
+          affectedCells: hint.affectedCells.slice(),
+        };
+        if (hintTextEl) hintTextEl.textContent = hint.explanation;
+        setStatus(repeated ? "已保留当前提示" : "已显示一步提示");
+        render();
+        persistProgress();
+        lastSavedSecond = elapsedSeconds();
+      }
+
+      /* ----------------------------- 开局、存档与重置 ----------------------------- */
+
+      function loadPuzzle(puzzle, solution, options) {
+        const opts = options || {};
+        game.solution = solution.slice();
+        game.puzzle = puzzle.slice();
+        game.rating = opts.rating || ratePuzzle(game.puzzle);
+        game.values = (opts.values || puzzle).slice();
+        game.given = puzzle.map((v) => v !== 0);
+        game.notes = (opts.notes || new Array(TOTAL).fill(0)).slice();
+        game.started = opts.started === true;
+        game.ended = opts.ended === true;
+        game.paused = !game.ended && opts.paused === true;
+        game.baseMs = Number.isFinite(opts.elapsedMs) && opts.elapsedMs >= 0 ? opts.elapsedMs : 0;
+        game.startAt = null;
+        game.sel = -1;
+        game.activeDigit = 0;
+        game.noteMode = false;
+        game.hintTarget = null;
+        game.hintedStates.clear();
+        game.past = [];
+        game.future = [];
+        lastSavedSecond = Math.floor(game.baseMs / 1000);
+        stopTimer();
+        shell.classList.remove("sd-won");
+        if (game.ended) {
+          shell.classList.add("sd-won");
+          setStatus("胜利 🎉");
+        } else if (game.paused) {
+          setStatus("已恢复，当前暂停");
+        } else if (game.started) {
+          setStatus("进行中");
+          startTimer();
+        } else {
+          setStatus("待开始");
+        }
+        clearHint();
+        render();
+      }
+
+      function loadSaved(record) {
+        if (!record) return false;
+        loadPuzzle(record.puzzle, record.solution, {
+          values: record.values,
+          notes: record.notes,
+          elapsedMs: record.elapsedMs,
+          started: record.started,
+          ended: record.ended,
+          paused: record.started && !record.ended,
+        });
+        persistProgress();
+        return true;
+      }
+
+      function askConfirm(message, fallback) {
+        if (typeof window !== "undefined" && typeof window.confirm === "function") return window.confirm(message);
+        return fallback;
+      }
+
+      function startNew(difficultyKey, options) {
+        const opts = options || {};
+        const key = DIFFICULTIES[difficultyKey] ? difficultyKey : "medium";
+        if (!opts.skipConfirm && isProgressChanged()) {
+          const confirmed = askConfirm("当前对局尚未完成，确定开始新题吗？", false);
+          if (!confirmed) {
+            if (difficultyEl) difficultyEl.value = game.difficulty;
+            return;
+          }
+        }
+        persistProgress();
+        game.difficulty = key;
+        if (difficultyEl) difficultyEl.value = key;
+        game.generating = true;
+        updateControls();
+        setStatus("正在生成题目…");
+        const token = ++game.generationToken;
+        // 先让"生成中"状态绘制出来,再同步生成(难档可能需数百毫秒)
+        sudokuClock.setTimeout(() => {
+          if (token !== game.generationToken) return;
+          const config = DIFFICULTIES[key] || DIFFICULTIES.medium;
+          const result = makePuzzle(config.blanks, { now: () => sudokuClock.now() });
+          game.generating = false;
+          loadPuzzle(result.puzzle, result.solution, { rating: result.rating });
+          persistProgress();
+          updateControls();
+        }, 30);
+      }
+
+      function resetCurrent() {
+        if (!game.puzzle) {
+          startNew(game.difficulty, { skipConfirm: true });
+          return;
+        }
+        loadPuzzle(game.puzzle, game.solution);
+        persistProgress();
+      }
+
+      function togglePause() {
+        if (!game.started || game.ended || game.generating) return;
+        if (game.paused) {
+          game.paused = false;
+          startTimer();
+          pauseBtn.textContent = "暂停";
+          setStatus("进行中");
+        } else {
+          commitElapsed();
+          game.paused = true;
+          stopTimer();
+          pauseBtn.textContent = "继续";
+          setStatus("已暂停");
+        }
+        renderHud();
+        persistProgress();
+        lastSavedSecond = elapsedSeconds();
+      }
+
+      function handleDifficultyChange() {
+        if (!sudokuActive || game.generating) return;
+        const key = DIFFICULTIES[difficultyEl.value] ? difficultyEl.value : "medium";
+        if (key === game.difficulty) return;
+        persistProgress();
+        const saved = readSaved(key);
+        if (saved) {
+          const restore = askConfirm("发现该难度有未完成存档，确定恢复吗？取消将开始新题。", true);
+          if (restore) {
+            game.difficulty = key;
+            difficultyEl.value = key;
+            loadSaved(saved);
+            return;
+          }
+        }
+        startNew(key, { skipConfirm: true });
+      }
+
+      /* ----------------------------- Tab 切换 -----------------------------
+       * 三游戏共用的 Tab 高亮与壳显隐统一由 src/game-tabs.js 仲裁。
+       * 本脚本只注册"被激活 / 被停用"的生命周期回调,不再自行维护 Tab UI。
+       * 若协调器缺席(如 Node VM 测试环境),退回旧的二态直切逻辑,保证可独立运行。
+       */
+
+      function pauseIfRunning() {
+        if (game.started && !game.ended && !game.paused) togglePause();
+        else persistProgress();
+      }
+
+      function ensurePuzzle() {
+        if (!game.puzzle) {
+          const key = difficultyEl ? difficultyEl.value : "medium";
+          const difficulty = DIFFICULTIES[key] ? key : "medium";
+          const saved = readSaved(difficulty);
+          if (!loadSaved(saved)) startNew(difficulty, { skipConfirm: true });
+        }
+      }
+
+      function onSudokuActivate() {
+        // 切到数独:清理扫雷胜利烟花残留层,避免悬浮
+        if (fireworksLayer) fireworksLayer.innerHTML = "";
+        sudokuActive = true;
+        ensurePuzzle();
+      }
+
+      function onSudokuDeactivate() {
+        // 切走数独:若对局进行中则自动暂停,防止后台静默计时
+        pauseIfRunning();
+        sudokuActive = false;
+      }
+
+      /* 兼容旧版:无协调器时,本脚本自行完成 扫雷↔数独 的切换(仅双态)。 */
+      function activateGameLegacy(gameName) {
+        const isSudoku = gameName === "sudoku";
+        if (isSudoku) {
+          onSudokuActivate();
+          shell.hidden = false;
+          sweepShell.hidden = true;
+        } else {
+          pauseIfRunning();
+          sudokuActive = false;
+          shell.hidden = true;
+          sweepShell.hidden = false;
+        }
+        const active = isSudoku;
+        tabSweep.classList.toggle("is-active", !active);
+        tabSudoku.classList.toggle("is-active", active);
+        tabSweep.setAttribute("aria-selected", String(!active));
+        tabSudoku.setAttribute("aria-selected", String(active));
+        tabSweep.tabIndex = active ? -1 : 0;
+        tabSudoku.tabIndex = active ? 0 : -1;
+      }
+
+      /* ----------------------------- 构建界面 ----------------------------- */
+
+      function buildBoard() {
+        boardEl.innerHTML = "";
+        cells.length = 0;
+        for (let i = 0; i < TOTAL; i++) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "sd-cell";
+          btn.dataset.index = String(i);
+          btn.setAttribute("role", "gridcell");
+          if (colOf(i) % 3 === 2) btn.classList.add("sd-br");
+          if (rowOf(i) % 3 === 2) btn.classList.add("sd-bb");
+
+          const valueEl = document.createElement("span");
+          valueEl.className = "sd-value";
+          const notesEl = document.createElement("span");
+          notesEl.className = "sd-notes";
+          notesEl.setAttribute("aria-hidden", "true");
+          const noteEls = [];
+          for (let digit = 1; digit <= SIZE; digit++) {
+            const note = document.createElement("span");
+            note.className = "sd-note";
+            note.textContent = String(digit);
+            notesEl.appendChild(note);
+            noteEls.push(note);
+          }
+          btn.valueEl = valueEl;
+          btn.notesEl = notesEl;
+          btn.noteEls = noteEls;
+          btn.appendChild(valueEl);
+          btn.appendChild(notesEl);
+          btn.addEventListener("click", () => select(i));
+          boardEl.appendChild(btn);
+          cells.push(btn);
+        }
+      }
+
+      function buildPad() {
+        padEl.innerHTML = "";
+        padKeys.length = 0;
+        for (let value = 1; value <= SIZE; value++) {
+          const key = document.createElement("button");
+          key.type = "button";
+          key.className = "sd-key";
+          key.textContent = String(value);
+          key.dataset.digit = String(value);
+          key.setAttribute("aria-label", "填入数字 " + value);
+          key.addEventListener("click", () => typeValue(value));
+          padEl.appendChild(key);
+          padKeys.push(key);
+        }
+        const erase = document.createElement("button");
+        erase.type = "button";
+        erase.className = "sd-key sd-key--erase";
+        erase.textContent = "⌫";
+        erase.setAttribute("aria-label", "清除当前格子");
+        erase.addEventListener("click", eraseSelected);
+        padEl.appendChild(erase);
+      }
+
+      /* 数独激活期间在捕获阶段接管键盘;拦截 R 以免误触扫雷重开 */
+      document.addEventListener(
+        "keydown",
+        (e) => {
+          if (!sudokuActive) return;
+          const tag = e.target && e.target.tagName;
+          if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+          const key = e.key || "";
+          const lowerKey = key.toLowerCase();
+
+          if ((e.ctrlKey || e.metaKey) && lowerKey === "z") {
+            e.preventDefault();
+            if (e.shiftKey) redo();
+            else undo();
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && lowerKey === "y") {
+            e.preventDefault();
+            redo();
+            return;
+          }
+          if (!e.ctrlKey && !e.metaKey && lowerKey === "n") {
+            e.preventDefault();
+            toggleNoteMode();
+            return;
+          }
+          if (lowerKey === "r") {
+            e.stopPropagation();
+            return;
+          }
+          if (/^[1-9]$/.test(key)) {
+            e.preventDefault();
+            typeValue(Number(key));
+            return;
+          }
+          if (key === "0" || key === "Backspace" || key === "Delete") {
+            e.preventDefault();
+            eraseSelected();
+            return;
+          }
+          if (key.indexOf("Arrow") === 0) {
+            e.preventDefault();
+            const map = {
+              ArrowUp: [-1, 0],
+              ArrowDown: [1, 0],
+              ArrowLeft: [0, -1],
+              ArrowRight: [0, 1],
+            };
+            if (map[key]) moveSelection(map[key][0], map[key][1]);
+          }
+        },
+        true,
+      );
+
+      function bindControls() {
+        if (newBtn) newBtn.addEventListener("click", () => startNew(difficultyEl.value));
+        if (checkBtn) checkBtn.addEventListener("click", checkBoard);
+        if (pauseBtn) pauseBtn.addEventListener("click", togglePause);
+        if (resetBtn) resetBtn.addEventListener("click", resetCurrent);
+        if (notesToggleBtn) notesToggleBtn.addEventListener("click", toggleNoteMode);
+        if (undoBtn) undoBtn.addEventListener("click", undo);
+        if (redoBtn) redoBtn.addEventListener("click", redo);
+        if (hintBtn) hintBtn.addEventListener("click", requestHint);
+        if (difficultyEl) difficultyEl.addEventListener("change", handleDifficultyChange);
+        document.addEventListener("visibilitychange", persistProgress);
+        if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+          window.addEventListener("pagehide", persistProgress);
+        }
+        // Tab 切换:优先注册到全局协调器(三游戏);缺失时退回自管双态
+        const coordinator = typeof window !== "undefined" ? window.__GAME_TABS__ : null;
+        if (coordinator && typeof coordinator.register === "function") {
+          coordinator.register("sudoku", {
+            onActivate: onSudokuActivate,
+            onDeactivate: onSudokuDeactivate,
+          });
+        } else {
+          if (tabSweep) tabSweep.addEventListener("click", () => activateGameLegacy("sweep"));
+          if (tabSudoku) tabSudoku.addEventListener("click", () => activateGameLegacy("sudoku"));
+        }
+      }
+
+      function getState() {
+        return {
+          difficulty: game.difficulty,
+          puzzle: game.puzzle ? game.puzzle.slice() : null,
+          values: game.values ? game.values.slice() : null,
+          notes: game.notes.slice(),
+          started: game.started,
+          ended: game.ended,
+          paused: game.paused,
+          sel: game.sel,
+          activeDigit: game.activeDigit,
+          noteMode: game.noteMode,
+          baseMs: currentElapsedMs(),
+          hintTarget: game.hintTarget
+            ? {
+                index: game.hintTarget.index,
+                strategy: game.hintTarget.strategy,
+                unitType: game.hintTarget.unitType,
+                unitIndex: game.hintTarget.unitIndex,
+                targetCells: game.hintTarget.targetCells.slice(),
+                affectedCells: game.hintTarget.affectedCells.slice(),
+              }
+            : null,
+          rating: game.rating
+            ? { ...game.rating, counts: { ...game.rating.counts } }
+            : null,
+          canUndo: game.past.length > 0 && !game.paused && !game.ended,
+          canRedo: game.future.length > 0 && !game.paused && !game.ended,
+        };
+      }
+
+      /* ----------------------------- 启动 ----------------------------- */
+
+      function init() {
+        buildBoard();
+        buildPad();
+        bindControls();
+        renderHud();
+        // 支持 #sudoku 锚点直达数独(默认仍打开扫雷,与改造前一致)。
+        // 有协调器时由协调器统一路由;无协调器时自行处理。
+        const coordinator = typeof window !== "undefined" ? window.__GAME_TABS__ : null;
+        if (coordinator && typeof coordinator.register === "function") {
+          // 协调器已在 DOMContentLoaded 时激活初始游戏;若当前已是数独则补齐初始化
+          if (coordinator.getCurrent() === "sudoku") onSudokuActivate();
+        } else {
+          const initial = window.location.hash.indexOf("sudoku") !== -1 ? "sudoku" : "sweep";
+          activateGameLegacy(initial);
+        }
+      }
+
+      init();
+
+      // 仅供现有 Web 调试/回归脚本使用；规则实现来自 core，不在此重复定义。
+      if (typeof window !== "undefined") {
+        window.__SUDOKU__ = {
+          DIFFICULTIES,
+          makePuzzle,
+          countSolutions,
+          solveOnce,
+          shuffle,
+          getCandidates,
+          findHint,
+          findBasicHint,
+          ratePuzzle,
+          countRemaining,
+          serializeSave,
+          deserializeSave,
+          getState,
+        };
+      }
+    })();
+
+  };
+  moduleFactories["src/core/games/lianliankan/engine.js"] = function (exports, __require) {
+    /* Platform-agnostic Link-Link rules, level flow, and 3D geometry. */
+    const EMOJI_POOL = [
+      "🍎", "🍌", "🍇", "🍊", "🍓", "🍉", "🍑", "🍒", "🥝", "🍍", "🥥", "🥭",
+      "🍋", "🫐", "🍈", "🍐", "🍅", "🥑", "🌽", "🥕", "🍄", "🥦", "🍆", "🌶️",
+    ];
+
+    /* 3D 立体玩法难度:size = 魔方边长(每边小格数),kinds = 图案种类数
+     * (每类恰好 2 个,贴在外表面格上)。 */
+    const LLK3D_DIFFICULTIES = {
+      easy: { name: "简单", size: 3, kinds: 6 }, // 26 表面格,12 块
+      medium: { name: "中等", size: 4, kinds: 12 }, // 56 表面格,24 块
+      hard: { name: "困难", size: 5, kinds: 18 }, // 98 表面格,36 块
+    };
+
+    /* 难度:rows×cols 需可被 kinds 整除且每类数量为偶数。 */
+    const DIFFICULTIES = {
+      easy: { name: "简单", rows: 6, cols: 8, kinds: 8 }, // 48 格,每类 6 个(3 对)
+      medium: { name: "中等", rows: 8, cols: 10, kinds: 10 }, // 80 格,每类 8 个(4 对)
+      hard: { name: "困难", rows: 10, cols: 12, kinds: 12 }, // 120 格,每类 10 个(5 对)
+    };
+
+    /* 连线动画时长与消除延时(ms) */
+    const LINE_MS = 260;
+    const CLEAR_MS = 160;
+    const DROP_MS = 320;
+    const DROP_EASING = "cubic-bezier(0.22, 0.75, 0.28, 1)";
+    const CHALLENGE_CONFIG = Object.freeze({
+      timeLimitSeconds: 90,
+      hintLimit: 1,
+      shuffleLimit: 0,
+    });
+    const CHALLENGE_MISTAKE_PENALTY_MS = 3000;
+    const CHALLENGE_MISTAKE_PENALTY_SECONDS = CHALLENGE_MISTAKE_PENALTY_MS / 1000;
+
+    function makeBoard(rows, cols, kinds, rng = Math.random) {
+      const total = rows * cols;
+      const perKind = total / kinds;
+      if (total % 2 !== 0) throw new Error("board cells must be even");
+      if (perKind % 2 !== 0) throw new Error("each kind needs an even count");
+      if (kinds > EMOJI_POOL.length) throw new Error("too many kinds for emoji pool");
+      if (!Number.isInteger(perKind)) throw new Error("kinds must divide total cells evenly");
+
+      /* 图案清单:每类 perKind 个,按 id 编号(1..kinds) */
+      const list = [];
+      for (let k = 1; k <= kinds; k++) {
+        for (let n = 0; n < perKind; n++) list.push(k);
+      }
+      shuffle(list, rng);
+
+      /* 构造"必有一解"的开局:把第一类图案的两个放在首行 0、1 列
+       * (同行相邻,直线必然可连),保证开局不是死局。 */
+      const grid = new Array(total).fill(0);
+      grid[0] = 1;
+      grid[1] = 1;
+
+      // list 中扣除已放入 grid[0]、grid[1] 的 2 个 1 号,其余全部进入 rest 随机填充
+      let placedOnes = 2;
+      const rest = [];
+      for (let i = 0; i < list.length; i++) {
+        if (list[i] === 1 && placedOnes > 0) {
+          placedOnes--;
+          continue;
+        }
+        rest.push(list[i]);
+      }
+      shuffle(rest, rng);
+      for (let i = 2; i < total; i++) grid[i] = rest[i - 2];
+
+      return { rows, cols, kinds, grid };
+    }
+
+    function shuffle(list, rng = Math.random) {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        const tmp = list[i];
+        list[i] = list[j];
+        list[j] = tmp;
+      }
+      return list;
+    }
+
+    function challengeConfig() {
+      return { ...CHALLENGE_CONFIG };
+    }
+
+    function createChallengeState(config) {
+      const source = config && typeof config === "object" ? config : CHALLENGE_CONFIG;
+      const integerAtLeastZero = (value, fallback) => {
+        const number = Number(value);
+        return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : fallback;
+      };
+      return {
+        timeLimitSeconds: integerAtLeastZero(source.timeLimitSeconds, CHALLENGE_CONFIG.timeLimitSeconds),
+        hintsRemaining: integerAtLeastZero(source.hintLimit, CHALLENGE_CONFIG.hintLimit),
+        shufflesRemaining: integerAtLeastZero(source.shuffleLimit, CHALLENGE_CONFIG.shuffleLimit),
+      };
+    }
+
+    function consumeChallengeResource(state, resource) {
+      const current = state && typeof state === "object" ? state : createChallengeState();
+      const field = resource === "hint"
+        ? "hintsRemaining"
+        : (resource === "shuffle" ? "shufflesRemaining" : null);
+      if (!field || current[field] <= 0) return { ok: false, state: { ...current } };
+      return { ok: true, state: { ...current, [field]: current[field] - 1 } };
+    }
+
+    function remainingChallengeSeconds(timeLimitSeconds, activeMs) {
+      const limit = Number(timeLimitSeconds);
+      const elapsed = Number(activeMs);
+      const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
+      const safeElapsed = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+      return Math.max(0, safeLimit - Math.floor(safeElapsed / 1000));
+    }
+
+    function challengeRating(input) {
+      const source = input && typeof input === "object" ? input : {};
+      const limit = Number(source.timeLimitSeconds);
+      const elapsed = Number(source.elapsedSeconds);
+      const combo = Number(source.maxCombo);
+      const safeLimit = Number.isFinite(limit) ? Math.max(0, limit) : CHALLENGE_CONFIG.timeLimitSeconds;
+      const safeElapsed = Number.isFinite(elapsed) ? Math.max(0, elapsed) : safeLimit;
+      const safeCombo = Number.isFinite(combo) ? Math.max(0, combo) : 0;
+      if (safeElapsed > safeLimit) return { stars: 0, label: "未完成" };
+
+      let stars = 1;
+      if (safeLimit > 0 && safeElapsed <= safeLimit * 0.75) stars = 2;
+      if (safeLimit > 0 && safeElapsed <= safeLimit * 0.5 && safeCombo >= 3) stars = 3;
+      return { stars, label: ["未完成", "一星", "二星", "三星"][stars] };
+    }
+
+    /* 坐标是否为棋盘外虚拟通道(恒视为空) */
+    function isOutside(rows, cols, r, c) {
+      return r < 0 || r >= rows || c < 0 || c >= cols;
+    }
+
+    /* (r,c) 处是否为空:虚拟通道或 grid 值为 0 */
+    function isEmptyCell(grid, rows, cols, r, c) {
+      if (isOutside(rows, cols, r, c)) return true;
+      return grid[r * cols + c] === 0;
+    }
+
+    /* 水平或垂直直线段 a→b(含两端)之间是否全空。
+     * 要求 a、b 同行或同列;只检查二者之间的格(不含 a、b 自身)。 */
+    function segmentClear(grid, rows, cols, a, b) {
+      if (a.r === b.r) {
+        const c1 = Math.min(a.c, b.c);
+        const c2 = Math.max(a.c, b.c);
+        for (let c = c1 + 1; c < c2; c++) {
+          if (!isEmptyCell(grid, rows, cols, a.r, c)) return false;
+        }
+        return true;
+      }
+      if (a.c === b.c) {
+        const r1 = Math.min(a.r, b.r);
+        const r2 = Math.max(a.r, b.r);
+        for (let r = r1 + 1; r < r2; r++) {
+          if (!isEmptyCell(grid, rows, cols, r, a.c)) return false;
+        }
+        return true;
+      }
+      return false;
+    }
+
+    /* 求两点间 ≤2 折的连通路径。
+     * 参数 a、b: { r, c }。返回拐点数组(含端点):
+     *   [a, b]                直线(0 折)
+     *   [a, corner, b]        1 折
+     *   [a, p, q, b]          2 折
+     * 不可连通返回 null。 */
+    function findPath(grid, rows, cols, a, b) {
+      if (a.r === b.r && a.c === b.c) return null;
+      const va = grid[a.r * cols + a.c];
+      const vb = grid[b.r * cols + b.c];
+      if (va <= 0 || vb <= 0 || va !== vb) return null;
+
+      // 0 折:同行或同列直线
+      if ((a.r === b.r || a.c === b.c) && segmentClear(grid, rows, cols, a, b)) {
+        return [a, b];
+      }
+
+      // 1 折:拐点在 (a.r, b.c) 或 (b.r, a.c),拐点须为空
+      const corners1 = [
+        { r: a.r, c: b.c },
+        { r: b.r, c: a.c },
+      ];
+      for (let i = 0; i < corners1.length; i++) {
+        const p = corners1[i];
+        if (isEmptyCell(grid, rows, cols, p.r, p.c) && segmentClear(grid, rows, cols, a, p) && segmentClear(grid, rows, cols, p, b)) {
+          return [a, p, b];
+        }
+      }
+
+      // 2 折:两段直线 + 中间一段直线。
+      // 形如"横-竖-横":a→(a.r,k) → (b.r,k)→b,枚举列 k(含两侧虚拟列);
+      // 形如"竖-横-竖":a→(k,a.c) → (k,b.c)→b,枚举行 k(含两侧虚拟行)。
+      for (let k = -1; k <= cols; k++) {
+        const p = { r: a.r, c: k };
+        const q = { r: b.r, c: k };
+        if (isEmptyCell(grid, rows, cols, p.r, p.c) && isEmptyCell(grid, rows, cols, q.r, q.c) && segmentClear(grid, rows, cols, a, p) && segmentClear(grid, rows, cols, p, q) && segmentClear(grid, rows, cols, q, b)) {
+          return [a, p, q, b];
+        }
+      }
+      for (let k = -1; k <= rows; k++) {
+        const p = { r: k, c: a.c };
+        const q = { r: k, c: b.c };
+        if (isEmptyCell(grid, rows, cols, p.r, p.c) && isEmptyCell(grid, rows, cols, q.r, q.c) && segmentClear(grid, rows, cols, a, p) && segmentClear(grid, rows, cols, p, q) && segmentClear(grid, rows, cols, q, b)) {
+          return [a, p, q, b];
+        }
+      }
+      return null;
+    }
+
+    /* 将测试传入的二维棋盘转换为游戏内部使用的一维棋盘。 */
+    function normalizeGrid(grid, rows, cols) {
+      if (!Array.isArray(grid)) return null;
+      if (!Array.isArray(grid[0])) return grid;
+      const flat = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          flat.push(grid[r] && grid[r][c]);
+        }
+      }
+      return flat;
+    }
+
+    function isBoardCell(rows, cols, cell) {
+      return !!cell && Number.isInteger(cell.r) && Number.isInteger(cell.c) &&
+        cell.r >= 0 && cell.r < rows && cell.c >= 0 && cell.c < cols;
+    }
+
+    /* 忽略转弯次数限制的可达性检查。访问状态包含方向，避免在空通道中绕圈。 */
+    function hasUnrestrictedPath(grid, rows, cols, a, b) {
+      const directions = [
+        { r: -1, c: 0 }, { r: 1, c: 0 }, { r: 0, c: -1 }, { r: 0, c: 1 },
+      ];
+      const queue = [{ r: a.r, c: a.c, dir: -1 }];
+      const visited = new Set([a.r + "," + a.c + ",-1"]);
+      for (let head = 0; head < queue.length; head++) {
+        const current = queue[head];
+        for (let dir = 0; dir < directions.length; dir++) {
+          const nextR = current.r + directions[dir].r;
+          const nextC = current.c + directions[dir].c;
+          if (nextR < -1 || nextR > rows || nextC < -1 || nextC > cols) continue;
+          if (nextR === b.r && nextC === b.c) return true;
+          if (!isEmptyCell(grid, rows, cols, nextR, nextC)) continue;
+          const key = nextR + "," + nextC + "," + dir;
+          if (visited.has(key)) continue;
+          visited.add(key);
+          queue.push({ r: nextR, c: nextC, dir });
+        }
+      }
+      return false;
+    }
+
+    /* 返回配对失败原因；合法路径返回 null。 */
+    function explainPairFailure(grid, rows, cols, a, b) {
+      if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows <= 0 || cols <= 0 ||
+          !isBoardCell(rows, cols, a) || !isBoardCell(rows, cols, b)) {
+        return "请选择两个有效图案";
+      }
+      const board = normalizeGrid(grid, rows, cols);
+      if (!board) return "请选择两个有效图案";
+      const va = board[a.r * cols + a.c];
+      const vb = board[b.r * cols + b.c];
+      if (va <= 0 || vb <= 0) return "请选择两个有效图案";
+      if (a.r === b.r && a.c === b.c) return "不能选择同一图案";
+      if (va !== vb) return "图案不一致";
+      if (findPath(board, rows, cols, a, b)) return null;
+      return hasUnrestrictedPath(board, rows, cols, a, b)
+        ? "无法连接：路径超过两次转弯"
+        : "无法连接：中间有图案阻挡";
+    }
+
+    /* 全盘扫描:返回任意一对可连的格子坐标,无则 null(用于死局检测)。 */
+    function findAnyPair(grid, rows, cols) {
+      const total = rows * cols;
+      for (let i = 0; i < total; i++) {
+        if (grid[i] <= 0) continue;
+        const a = { r: Math.floor(i / cols), c: i % cols };
+        for (let j = i + 1; j < total; j++) {
+          if (grid[j] !== grid[i]) continue;
+          const b = { r: Math.floor(j / cols), c: j % cols };
+          if (findPath(grid, rows, cols, a, b)) return { a, b };
+        }
+      }
+      return null;
+    }
+
+    /* 统计剩余非空格数 */
+    function countRemaining(grid) {
+      let n = 0;
+      for (let i = 0; i < grid.length; i++) if (grid[i] > 0) n += 1;
+      return n;
+    }
+
+    /* 将逻辑下落记录转换为 DOM 动画所需的行列位移。 */
+    function makeDropPlan(moves, cols) {
+      if (!Array.isArray(moves) || !Number.isInteger(cols) || cols <= 0) return [];
+      return moves
+        .filter((move) => move && Number.isInteger(move.from) && Number.isInteger(move.to) && move.from !== move.to)
+        .map((move) => ({
+          from: move.from,
+          to: move.to,
+          value: move.value,
+          deltaRows: Math.floor(move.to / cols) - Math.floor(move.from / cols),
+          deltaCols: (move.to % cols) - (move.from % cols),
+        }));
+    }
+
+    /* 将剩余图案重新随机铺满所有空位,并保证重排后至少存在一对可连。
+     * 失败保护:尝试若干次随机排布;仍无解时把某个仍有 ≥2 个的图案
+     * 强制放到一对相邻空位(此时其它格全空,相邻对必然可连)。 */
+    function reshuffle(grid, rows, cols, random = Math.random) {
+      const total = rows * cols;
+      const remaining = [];
+      const slots = [];
+      for (let i = 0; i < total; i++) {
+        if (grid[i] !== -1) slots.push(i);
+        if (grid[i] > 0) remaining.push(grid[i]);
+      }
+      if (remaining.length === 0 || slots.length < remaining.length) return false;
+
+      const place = (arr) => {
+        for (const index of slots) grid[index] = 0;
+        for (let i = 0; i < arr.length; i++) grid[slots[i]] = arr[i];
+      };
+
+      // 尝试随机排布直至有解(上限 80 次)
+      for (let attempt = 0; attempt < 80; attempt++) {
+        place(shuffle(remaining.slice(), random));
+        if (findAnyPair(grid, rows, cols)) return true;
+      }
+
+      // 保底:找仍有 ≥2 个的图案,放入一对"同行相邻空位"
+      const kinds = new Set(remaining);
+      for (const pairKind of kinds) {
+        if (remaining.filter((v) => v === pairKind).length < 2) continue;
+        for (let a = 0; a < slots.length; a++) for (let b = a + 1; b < slots.length; b++) {
+          const next = grid.slice();
+          for (const index of slots) next[index] = 0;
+          next[slots[a]] = pairKind;
+          next[slots[b]] = pairKind;
+          const candidate = remaining.slice();
+          let removed = 0;
+          for (let i = candidate.length - 1; i >= 0; i--) if (candidate[i] === pairKind && removed < 2) { candidate.splice(i, 1); removed++; }
+          let cursor = 0;
+          for (let i = 0; i < slots.length && cursor < candidate.length; i++) {
+            if (i === a || i === b) continue;
+            next[slots[i]] = candidate[cursor++];
+          }
+          for (const index of slots) grid[index] = next[index];
+          if (findAnyPair(grid, rows, cols)) return true;
+        }
+      }
+      return false;
+    }
+
+    function reshuffleLevel(input, rows, cols, findPair, random = Math.random) {
+      const source = input.slice();
+      if (typeof findPair !== "function") throw new TypeError("reshuffle requires a pair finder");
+      const slots = source.map((value, index) => value === -1 ? -1 : index).filter((index) => index >= 0);
+      const tiles = source.filter((value) => value > 0);
+      const tileCounts = new Map();
+      for (const tile of tiles) tileCounts.set(tile, (tileCounts.get(tile) || 0) + 1);
+
+      for (let attempt = 0; attempt < 80; attempt++) {
+        const next = source.slice();
+        for (const index of slots) next[index] = 0;
+        const shuffled = tiles.slice();
+        shuffle(shuffled, random);
+        for (let index = 0; index < shuffled.length; index++) next[slots[index]] = shuffled[index];
+        if (findPair(next, rows, cols)) return { ok: true, grid: next };
+      }
+
+      for (const [kind, count] of tileCounts) if (count >= 2) {
+        for (let first = 0; first < slots.length; first++) for (let second = first + 1; second < slots.length; second++) {
+          const next = source.slice();
+          for (const index of slots) next[index] = 0;
+          next[slots[first]] = kind;
+          next[slots[second]] = kind;
+          const rest = tiles.slice();
+          rest.splice(rest.indexOf(kind), 1);
+          rest.splice(rest.indexOf(kind), 1);
+          let cursor = 0;
+          for (let index = 0; index < slots.length && cursor < rest.length; index++) {
+            if (index !== first && index !== second) next[slots[index]] = rest[cursor++];
+          }
+          if (findPair(next, rows, cols)) return { ok: true, grid: next };
+        }
+      }
+      return { ok: false, grid: source };
+    }
+
+    /* ------------------------- 关卡流程纯逻辑 ------------------------- */
+
+    const LEVEL_PROGRESS_KEY = "lianliankan-level-progress-v1";
+    const LEVEL_PROGRESS_VERSION = 1;
+    const MAX_LEVEL_ID = 5;
+    const COMBO_WINDOW_MS = 3000;
+    const PAIR_SCORE = 100;
+    const COMBO_BONUS = 25;
+    const LEVEL_CLEAR_BONUS = 500;
+
+    function defaultLevelProgress() {
+      return { version: LEVEL_PROGRESS_VERSION, unlockedLevel: 1, completed: {} };
+    }
+
+    function normalizeLevelProgress(value) {
+      if (!value || value.version !== LEVEL_PROGRESS_VERSION || !Number.isInteger(value.unlockedLevel) ||
+          value.unlockedLevel < 1 || value.unlockedLevel > MAX_LEVEL_ID + 1 ||
+          !value.completed || typeof value.completed !== "object" || Array.isArray(value.completed)) {
+        return defaultLevelProgress();
+      }
+      const completed = {};
+      let highestCompleted = 0;
+      for (const key of Object.keys(value.completed)) {
+        if (!/^[1-5]$/.test(key)) return defaultLevelProgress();
+        const result = value.completed[key];
+        if (!result || typeof result !== "object" || Array.isArray(result) ||
+            !Number.isFinite(result.score) || result.score < 0 ||
+            !Number.isFinite(result.time) || result.time < 0 ||
+            !Number.isFinite(result.combo) || result.combo < 0 ||
+            (Object.prototype.hasOwnProperty.call(result, "stars") &&
+              (!Number.isFinite(result.stars) || result.stars < 1 || result.stars > 3))) {
+          return defaultLevelProgress();
+        }
+        const normalizedResult = {
+          score: Math.floor(result.score),
+          time: Math.floor(result.time),
+          combo: Math.floor(result.combo),
+        };
+        if (Object.prototype.hasOwnProperty.call(result, "stars")) {
+          normalizedResult.stars = Math.floor(result.stars);
+        }
+        completed[key] = normalizedResult;
+        highestCompleted = Math.max(highestCompleted, Number(key));
+      }
+      for (let id = 1; id <= highestCompleted; id += 1) {
+        if (!completed[String(id)]) return defaultLevelProgress();
+      }
+      if (value.unlockedLevel !== Math.min(MAX_LEVEL_ID + 1, highestCompleted + 1)) {
+        return defaultLevelProgress();
+      }
+      return { version: LEVEL_PROGRESS_VERSION, unlockedLevel: value.unlockedLevel, completed };
+    }
+
+    function readLevelProgress(storage) {
+      try {
+        if (!storage || typeof storage.getItem !== "function") return defaultLevelProgress();
+        return normalizeLevelProgress(JSON.parse(storage.getItem(LEVEL_PROGRESS_KEY)));
+      } catch (err) {
+        return defaultLevelProgress();
+      }
+    }
+
+    function writeLevelProgress(progress, storage) {
+      try {
+        if (!storage || typeof storage.setItem !== "function") return false;
+        storage.setItem(LEVEL_PROGRESS_KEY, JSON.stringify(normalizeLevelProgress(progress)));
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function recordLevelCompletion(progress, levelId, result) {
+      const current = normalizeLevelProgress(progress);
+      const numericLevelId = Number(levelId);
+      if (!Number.isInteger(numericLevelId) || numericLevelId < 1 || numericLevelId > MAX_LEVEL_ID) return current;
+      const key = String(numericLevelId);
+      const previous = current.completed[key];
+      const source = result && typeof result === "object" ? result : {};
+      const score = Number.isFinite(source.score) && source.score >= 0 ? Math.floor(source.score) : 0;
+      const time = Number.isFinite(source.time) && source.time >= 0 ? Math.floor(source.time) : 0;
+      const combo = Number.isFinite(source.combo) && source.combo >= 0 ? Math.floor(source.combo) : 0;
+      const stars = Number.isFinite(source.stars) && source.stars >= 1 && source.stars <= 3
+        ? Math.floor(source.stars)
+        : null;
+      const completion = {
+        score: previous ? Math.max(previous.score, score) : score,
+        time: previous ? Math.min(previous.time, time) : time,
+        combo: previous ? Math.max(previous.combo, combo) : combo,
+      };
+      if (stars !== null || (previous && Number.isInteger(previous.stars))) {
+        completion.stars = previous && Number.isInteger(previous.stars)
+          ? Math.max(previous.stars, stars || 0)
+          : stars;
+      }
+      current.completed[key] = completion;
+      current.unlockedLevel = Math.max(current.unlockedLevel, numericLevelId + 1);
+      return current;
+    }
+
+    function nextPairScore(state, activeMs) {
+      const inWindow = state.lastSuccessMs !== null && activeMs - state.lastSuccessMs <= COMBO_WINDOW_MS;
+      const combo = inWindow ? state.combo + 1 : 1;
+      return {
+        score: state.score + PAIR_SCORE + Math.max(0, combo - 1) * COMBO_BONUS,
+        combo,
+        maxCombo: Math.max(state.maxCombo, combo),
+        lastSuccessMs: activeMs,
+      };
+    }
+
+    function resetLevelCombo(state) {
+      return { score: state.score, combo: 0, maxCombo: state.maxCombo, lastSuccessMs: null };
+    }
+
+    function expireLevelCombo(state, activeMs) {
+      if (state.combo > 0 && state.lastSuccessMs !== null && activeMs - state.lastSuccessMs > COMBO_WINDOW_MS) {
+        return resetLevelCombo(state);
+      }
+      return {
+        score: state.score,
+        combo: state.combo,
+        maxCombo: state.maxCombo,
+        lastSuccessMs: state.lastSuccessMs,
+      };
+    }
+
+    function scorePairForMode(state, activeMs, levelMode) {
+      return levelMode ? nextPairScore(state, activeMs) : {
+        score: state.score,
+        combo: state.combo,
+        maxCombo: state.maxCombo,
+        lastSuccessMs: state.lastSuccessMs,
+      };
+    }
+
+    function applyLevelClearBonus(score, levelMode) {
+      return levelMode ? score + LEVEL_CLEAR_BONUS : score;
+    }
+
+    function isSelectableTile(value) {
+      return value > 0;
+    }
+
+    function findHintPair(grid, rows, cols, finder) {
+      return typeof finder === "function" ? finder(grid.slice(), rows, cols) : null;
+    }
+
+    function ensureLevelSolvable(grid, rows, cols, levelApi, finder, random) {
+      const board = grid.slice();
+      if (finder(board, rows, cols)) return { grid: board, autoReshuffled: false };
+      if (!levelApi || typeof levelApi.reshuffle !== "function") return { grid: board, autoReshuffled: false };
+      const result = levelApi.reshuffle(board, rows, cols, finder, random);
+      return { grid: result.grid, autoReshuffled: !!result.ok };
+    }
+
+    /* --------------------------- 3D 纯逻辑 --------------------------- */
+
+    function isSurfaceCell3D(d, x, y, z) {
+      return x === 0 || x === d.nx - 1 || y === 0 || y === d.ny - 1 || z === 0 || z === d.nz - 1;
+    }
+
+    function idx3D(d, x, y, z) {
+      return (x * d.ny + y) * d.nz + z;
+    }
+
+    function dimsCube3D(n) {
+      return { nx: n, ny: n, nz: n };
+    }
+
+    function axisDiff3D(p, q) {
+      const dx = p.x - q.x;
+      const dy = p.y - q.y;
+      const dz = p.z - q.z;
+      const diffs = (dx !== 0 ? 1 : 0) + (dy !== 0 ? 1 : 0) + (dz !== 0 ? 1 : 0);
+      if (diffs !== 1) return -1;
+      if (dx !== 0) return 0;
+      if (dy !== 0) return 1;
+      return 2;
+    }
+
+    function surfaceCellList3D(d) {
+      const out = [];
+      for (let x = 0; x < d.nx; x++)
+        for (let y = 0; y < d.ny; y++)
+          for (let z = 0; z < d.nz; z++)
+            if (isSurfaceCell3D(d, x, y, z)) out.push({ x, y, z });
+      return out;
+    }
+
+    function emptySurfaceList3D(occ, d) {
+      const out = [];
+      for (let x = 0; x < d.nx; x++)
+        for (let y = 0; y < d.ny; y++)
+          for (let z = 0; z < d.nz; z++)
+            if (isSurfaceCell3D(d, x, y, z) && occ[idx3D(d, x, y, z)] === 0) out.push({ x, y, z });
+      return out;
+    }
+
+    function tileList3D(occ, d) {
+      const out = [];
+      for (let x = 0; x < d.nx; x++)
+        for (let y = 0; y < d.ny; y++)
+          for (let z = 0; z < d.nz; z++) {
+            const v = occ[idx3D(d, x, y, z)];
+            if (v > 0) out.push({ x, y, z, kind: v });
+          }
+      return out;
+    }
+
+    /* 沿 axis 从 p 到 q 的中间格(不含端点)是否全为表面空格 */
+    function legClear3D(occ, d, p, q, axis) {
+      const pv = [p.x, p.y, p.z];
+      const qv = [q.x, q.y, q.z];
+      const lo = Math.min(pv[axis], qv[axis]) + 1;
+      const hi = Math.max(pv[axis], qv[axis]);
+      for (let v = lo; v < hi; v++) {
+        const x = axis === 0 ? v : pv[0];
+        const y = axis === 1 ? v : pv[1];
+        const z = axis === 2 ? v : pv[2];
+        if (!isSurfaceCell3D(d, x, y, z)) return false;
+        if (occ[idx3D(d, x, y, z)] !== 0) return false;
+      }
+      return true;
+    }
+
+    /* 把拐点序列展开为逐格路径(含端点);非法返回 null */
+    function expandPath3D(d, corners) {
+      const out = [];
+      const pushCell = (c) => {
+        const last = out[out.length - 1];
+        if (!last || last.x !== c.x || last.y !== c.y || last.z !== c.z) out.push({ x: c.x, y: c.y, z: c.z });
+      };
+      for (let i = 0; i + 1 < corners.length; i++) {
+        const p = corners[i];
+        const q = corners[i + 1];
+        const ax = axisDiff3D(p, q);
+        if (ax < 0) return null;
+        const pv = [p.x, p.y, p.z];
+        const qv = [q.x, q.y, q.z];
+        const step = qv[ax] > pv[ax] ? 1 : -1;
+        const cu = [pv[0], pv[1], pv[2]];
+        pushCell(p);
+        while (cu[ax] !== qv[ax]) {
+          cu[ax] += step;
+          pushCell({ x: cu[0], y: cu[1], z: cu[2] });
+        }
+      }
+      return out;
+    }
+
+    /* 求两点间 ≤2 次转弯、全程沿表面的路径;返回拐点序列或 null */
+    function find3DPath(occ, d, a, b) {
+      const va = occ[idx3D(d, a.x, a.y, a.z)];
+      const vb = occ[idx3D(d, b.x, b.y, b.z)];
+      if (va === 0 || va !== vb) return null;
+      if (a.x === b.x && a.y === b.y && a.z === b.z) return null;
+
+      // 0 折:同一直线
+      const dab = axisDiff3D(a, b);
+      if (dab >= 0 && legClear3D(occ, d, a, b, dab)) return [a, b];
+
+      const empties = emptySurfaceList3D(occ, d);
+
+      // 1 折:一个拐点(须为表面空格)
+      for (let i = 0; i < empties.length; i++) {
+        const t = empties[i];
+        const ax = axisDiff3D(a, t);
+        if (ax < 0) continue;
+        const bx = axisDiff3D(t, b);
+        if (bx < 0 || bx === ax) continue;
+        if (legClear3D(occ, d, a, t, ax) && legClear3D(occ, d, t, b, bx)) return [a, t, b];
+      }
+
+      // 2 折:两个拐点(三段各自沿一条坐标轴,且路径不自交)
+      for (let i = 0; i < empties.length; i++) {
+        const t1 = empties[i];
+        const ax = axisDiff3D(a, t1);
+        if (ax < 0) continue;
+        for (let j = 0; j < empties.length; j++) {
+          if (j === i) continue;
+          const t2 = empties[j];
+          const mx = axisDiff3D(t1, t2);
+          if (mx < 0 || mx === ax) continue;
+          const bx = axisDiff3D(t2, b);
+          if (bx < 0 || bx === mx) continue;
+          if (!legClear3D(occ, d, a, t1, ax)) continue;
+          if (!legClear3D(occ, d, t1, t2, mx)) continue;
+          if (!legClear3D(occ, d, t2, b, bx)) continue;
+          const cells = expandPath3D(d, [a, t1, t2, b]);
+          if (!cells) continue;
+          const seen = new Set();
+          let dup = false;
+          for (let k = 0; k < cells.length; k++) {
+            const key = cells[k].x + "," + cells[k].y + "," + cells[k].z;
+            if (seen.has(key)) {
+              dup = true;
+              break;
+            }
+            seen.add(key);
+          }
+          if (!dup) return [a, t1, t2, b];
+        }
+      }
+      return null;
+    }
+
+    /* 扫描是否存在可消除配对 */
+    function find3DAnyPair(occ, d) {
+      const byKind = new Map();
+      const tiles = tileList3D(occ, d);
+      for (let i = 0; i < tiles.length; i++) {
+        const t = tiles[i];
+        if (!byKind.has(t.kind)) byKind.set(t.kind, []);
+        byKind.get(t.kind).push(t);
+      }
+      for (const group of byKind.values()) {
+        for (let i = 0; i < group.length; i++)
+          for (let j = i + 1; j < group.length; j++) {
+            if (find3DPath(occ, d, group[i], group[j])) return { a: group[i], b: group[j] };
+          }
+      }
+      return null;
+    }
+
+    function count3DRemaining(occ) {
+      let n = 0;
+      for (let i = 0; i < occ.length; i++) if (occ[i] > 0) n += 1;
+      return n;
+    }
+
+    function sameCell3D(a, b) {
+      return a.x === b.x && a.y === b.y && a.z === b.z;
+    }
+
+    function make3DBoard(size, kinds, rng = Math.random) {
+      const d = dimsCube3D(size);
+      const surf = surfaceCellList3D(d);
+      const total = d.nx * d.ny * d.nz;
+      if (kinds * 2 > surf.length) throw new Error("too many tiles for surface cells");
+      if (kinds > EMOJI_POOL.length) throw new Error("too many kinds for emoji pool");
+      const occ = new Array(total).fill(-1);
+      for (let i = 0; i < surf.length; i++) occ[idx3D(d, surf[i].x, surf[i].y, surf[i].z)] = 0;
+
+      const usedKeys = new Set();
+      const keyOf = (c) => c.x + "," + c.y + "," + c.z;
+      const claim = (c, kind) => {
+        usedKeys.add(keyOf(c));
+        occ[idx3D(d, c.x, c.y, c.z)] = kind;
+      };
+      const DIRS = [
+        [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+      ];
+
+      // 第 1 类:两个相邻表面格(直线必连,保证开局非死局)
+      let placed = false;
+      for (let attempt = 0; attempt < 500 && !placed; attempt++) {
+        const c = surf[Math.floor(rng() * surf.length)];
+        if (usedKeys.has(keyOf(c))) continue;
+        const nbrs = [];
+        for (let i = 0; i < DIRS.length; i++) {
+          const nx = c.x + DIRS[i][0];
+          const ny = c.y + DIRS[i][1];
+          const nz = c.z + DIRS[i][2];
+          if (nx < 0 || nx >= d.nx || ny < 0 || ny >= d.ny || nz < 0 || nz >= d.nz) continue;
+          if (!isSurfaceCell3D(d, nx, ny, nz)) continue;
+          if (!usedKeys.has(nx + "," + ny + "," + nz)) nbrs.push({ x: nx, y: ny, z: nz });
+        }
+        if (nbrs.length === 0) continue;
+        const nb = nbrs[Math.floor(rng() * nbrs.length)];
+        claim(c, 1);
+        claim(nb, 1);
+        placed = true;
+      }
+      if (!placed) throw new Error("failed to place guaranteed pair");
+
+      for (let k = 2; k <= kinds; k++) {
+        for (let n = 0; n < 2; n++) {
+          let cell = null;
+          for (let attempt = 0; attempt < 800 && !cell; attempt++) {
+            const c = surf[Math.floor(rng() * surf.length)];
+            if (!usedKeys.has(keyOf(c))) cell = c;
+          }
+          if (!cell) throw new Error("surface full while placing board");
+          claim(cell, k);
+        }
+      }
+      return { d, kinds, occ };
+    }
+
+    /* 重排剩余图块,保证重排后至少存在一对可连(就地修改 occ) */
+    function reshuffle3D(board, rng = Math.random) {
+      const d = board.d;
+      const occ = board.occ;
+      const cells = emptySurfaceList3D(occ, d);
+      if (cells.length < 4) return false;
+
+      // 剩余图块按“每类恰好 2 个”收集(本玩法设计如此;异常时按偶数收集)
+      const counts = new Map();
+      const tiles = tileList3D(occ, d);
+      for (let i = 0; i < tiles.length; i++) {
+        const k = tiles[i].kind;
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      const kindsLeft = [];
+      for (const entry of counts) if (entry[1] % 2 === 0) kindsLeft.push(entry[0]);
+      if (kindsLeft.length === 0) return false;
+
+      const DIRS = [
+        [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+      ];
+      const clear = () => {
+        for (let i = 0; i < occ.length; i++) if (occ[i] > 0) occ[i] = 0;
+      };
+
+      // 随机铺放若干次,直到有解
+      for (let attempt = 0; attempt < 80; attempt++) {
+        clear();
+        const pool = emptySurfaceList3D(occ, d);
+        shuffle(pool, rng);
+        if (pool.length < kindsLeft.length * 2) break;
+        const order = shuffle(kindsLeft.slice(), rng);
+        let pi = 0;
+        for (let i = 0; i < order.length; i++) {
+          const c1 = pool[pi++];
+          const c2 = pool[pi++];
+          occ[idx3D(d, c1.x, c1.y, c1.z)] = order[i];
+          occ[idx3D(d, c2.x, c2.y, c2.z)] = order[i];
+        }
+        if (find3DAnyPair(occ, d)) return true;
+      }
+
+      // 保底:任选一类放到一对相邻空格(相邻必可直线消除)
+      for (let attempt = 0; attempt < 300; attempt++) {
+        clear();
+        const pool = emptySurfaceList3D(occ, d);
+        shuffle(pool, rng);
+        if (pool.length < kindsLeft.length * 2) break;
+        const pickKind = kindsLeft[Math.floor(rng() * kindsLeft.length)];
+        // 找一对相邻空格
+        let anchor = null;
+        let mate = null;
+        for (let i = 0; i < pool.length && !anchor; i++) {
+          const c = pool[i];
+          for (let j = 0; j < DIRS.length; j++) {
+            const nx = c.x + DIRS[j][0];
+            const ny = c.y + DIRS[j][1];
+            const nz = c.z + DIRS[j][2];
+            if (nx < 0 || nx >= d.nx || ny < 0 || ny >= d.ny || nz < 0 || nz >= d.nz) continue;
+            if (!isSurfaceCell3D(d, nx, ny, nz)) continue;
+            if (occ[idx3D(d, nx, ny, nz)] !== 0) continue;
+            anchor = c;
+            mate = { x: nx, y: ny, z: nz };
+            break;
+          }
+        }
+        if (!anchor || !mate) continue;
+        occ[idx3D(d, anchor.x, anchor.y, anchor.z)] = pickKind;
+        occ[idx3D(d, mate.x, mate.y, mate.z)] = pickKind;
+        // 其余类铺到剩余空格
+        const restKinds = kindsLeft.filter((k) => k !== pickKind);
+        shuffle(restKinds, rng);
+        let pi = 0;
+        for (let i = 0; i < pool.length; i++) {
+          const c = pool[i];
+          if (sameCell3D(c, anchor) || sameCell3D(c, mate)) continue;
+          if (pi < restKinds.length * 2) {
+            const kind = restKinds[Math.floor(pi / 2)];
+            occ[idx3D(d, c.x, c.y, c.z)] = kind;
+            pi++;
+          }
+        }
+        return true;
+      }
+      return false;
+    }
+    exports.EMOJI_POOL = EMOJI_POOL;
+    exports.LLK3D_DIFFICULTIES = LLK3D_DIFFICULTIES;
+    exports.DIFFICULTIES = DIFFICULTIES;
+    exports.CHALLENGE_CONFIG = CHALLENGE_CONFIG;
+    exports.CHALLENGE_MISTAKE_PENALTY_MS = CHALLENGE_MISTAKE_PENALTY_MS;
+    exports.CHALLENGE_MISTAKE_PENALTY_SECONDS = CHALLENGE_MISTAKE_PENALTY_SECONDS;
+    exports.makeBoard = makeBoard;
+    exports.shuffle = shuffle;
+    exports.challengeConfig = challengeConfig;
+    exports.createChallengeState = createChallengeState;
+    exports.consumeChallengeResource = consumeChallengeResource;
+    exports.remainingChallengeSeconds = remainingChallengeSeconds;
+    exports.challengeRating = challengeRating;
+    exports.isEmptyCell = isEmptyCell;
+    exports.segmentClear = segmentClear;
+    exports.findPath = findPath;
+    exports.normalizeGrid = normalizeGrid;
+    exports.isBoardCell = isBoardCell;
+    exports.explainPairFailure = explainPairFailure;
+    exports.findAnyPair = findAnyPair;
+    exports.countRemaining = countRemaining;
+    exports.makeDropPlan = makeDropPlan;
+    exports.reshuffle = reshuffle;
+    exports.reshuffleLevel = reshuffleLevel;
+    exports.defaultLevelProgress = defaultLevelProgress;
+    exports.readLevelProgress = readLevelProgress;
+    exports.writeLevelProgress = writeLevelProgress;
+    exports.recordLevelCompletion = recordLevelCompletion;
+    exports.nextPairScore = nextPairScore;
+    exports.resetLevelCombo = resetLevelCombo;
+    exports.expireLevelCombo = expireLevelCombo;
+    exports.scorePairForMode = scorePairForMode;
+    exports.applyLevelClearBonus = applyLevelClearBonus;
+    exports.isSelectableTile = isSelectableTile;
+    exports.findHintPair = findHintPair;
+    exports.ensureLevelSolvable = ensureLevelSolvable;
+    exports.isSurfaceCell3D = isSurfaceCell3D;
+    exports.idx3D = idx3D;
+    exports.dimsCube3D = dimsCube3D;
+    exports.axisDiff3D = axisDiff3D;
+    exports.surfaceCellList3D = surfaceCellList3D;
+    exports.emptySurfaceList3D = emptySurfaceList3D;
+    exports.tileList3D = tileList3D;
+    exports.expandPath3D = expandPath3D;
+    exports.find3DPath = find3DPath;
+    exports.find3DAnyPair = find3DAnyPair;
+    exports.count3DRemaining = count3DRemaining;
+    exports.sameCell3D = sameCell3D;
+    exports.make3DBoard = make3DBoard;
+    exports.reshuffle3D = reshuffle3D;
+  };
+  moduleFactories["src/core/games/lianliankan/levels.js"] = function (exports, __require) {
+    const { countRemaining: countGridRemaining, reshuffleLevel: reshuffleLevel } = __require("src/core/games/lianliankan/engine.js");
+
+    function makeLayout(rows, cols, obstacleIndexes, emptyIndexes, kinds, anchorIndexes) {
+      const layout = new Array(rows * cols).fill(0);
+      for (const index of obstacleIndexes) layout[index] = -1;
+      for (const index of emptyIndexes) layout[index] = 0;
+
+      for (const index of anchorIndexes) {
+        if (layout[index] !== 0) throw new Error("anchor must be an empty board cell");
+        layout[index] = 1;
+      }
+
+      const reserved = new Set([...obstacleIndexes, ...emptyIndexes, ...anchorIndexes]);
+      const slots = [];
+      for (let i = 0; i < layout.length; i++) {
+        if (!reserved.has(i)) slots.push(i);
+      }
+      const remaining = new Array(kinds + 1).fill(4);
+      remaining[1] -= anchorIndexes.length;
+      if (remaining[1] < 0) throw new Error("challenge layout has too many anchor tiles");
+      if (slots.length !== remaining.slice(1).reduce((sum, count) => sum + count, 0)) {
+        throw new Error("challenge layout must contain four tiles per kind");
+      }
+
+      let cursor = 0;
+      for (const index of slots) {
+        const row = Math.floor(index / cols);
+        const col = index % cols;
+        let chosen = 0;
+        for (let step = 0; step < kinds; step++) {
+          const candidate = ((cursor + step) % kinds) + 1;
+          if (!remaining[candidate]) continue;
+          const neighbors = [
+            row > 0 ? layout[index - cols] : 0,
+            col > 0 ? layout[index - 1] : 0,
+            row + 1 < rows ? layout[index + cols] : 0,
+            col + 1 < cols ? layout[index + 1] : 0,
+          ];
+          if (neighbors.includes(candidate)) continue;
+          chosen = candidate;
+          break;
+        }
+        if (!chosen) throw new Error("challenge layout cannot avoid adjacent pairs");
+        layout[index] = chosen;
+        remaining[chosen]--;
+        cursor = chosen % kinds;
+      }
+      return layout;
+    }
+
+    const LLK_LEVELS = [
+      {
+        id: 1,
+        name: "交错",
+        rows: 6,
+        cols: 6,
+        kinds: 7,
+        challenge: { timeLimitSeconds: 90, hintLimit: 1, shuffleLimit: 0 },
+        layout: makeLayout(6, 6, [0, 5, 30, 35], [8, 15, 20, 27], 7, [7, 14]),
+      },
+      {
+        id: 2,
+        name: "断桥",
+        rows: 6,
+        cols: 8,
+        kinds: 9,
+        challenge: { timeLimitSeconds: 80, hintLimit: 1, shuffleLimit: 0 },
+        layout: makeLayout(6, 8, [0, 1, 6, 7, 40, 41, 46, 47], [10, 17, 30, 37], 9, [9, 18]),
+      },
+      {
+        id: 3,
+        name: "迷阵",
+        rows: 8,
+        cols: 8,
+        kinds: 12,
+        challenge: { timeLimitSeconds: 70, hintLimit: 1, shuffleLimit: 0 },
+        layout: makeLayout(8, 8, [0, 1, 6, 7, 8, 15, 48, 55, 56, 57, 62, 63], [10, 17, 42, 49], 12, [9, 18]),
+      },
+      {
+        id: 4,
+        name: "回廊",
+        rows: 8,
+        cols: 10,
+        kinds: 15,
+        challenge: { timeLimitSeconds: 60, hintLimit: 0, shuffleLimit: 0 },
+        layout: makeLayout(8, 10, [1, 2, 7, 8, 11, 12, 17, 18, 61, 62, 67, 68, 71, 72, 77, 78], [23, 34, 45, 56], 15, [22, 33]),
+      },
+      {
+        id: 5,
+        name: "终局",
+        rows: 10,
+        cols: 10,
+        kinds: 19,
+        challenge: { timeLimitSeconds: 50, hintLimit: 0, shuffleLimit: 0 },
+        layout: makeLayout(10, 10, [0, 1, 8, 9, 10, 11, 18, 19, 44, 45, 54, 55, 80, 81, 88, 89, 90, 91, 98, 99], [23, 34, 65, 76], 19, [22, 33]),
+      },
+    ];
+
+    function cloneLayout(levelOrId) {
+      const level = typeof levelOrId === "number" ? LLK_LEVELS[levelOrId - 1] : levelOrId;
+      if (!level) throw new Error("unknown level");
+      return level.layout.slice();
+    }
+
+    function countRemaining(grid) {
+      return countGridRemaining(grid);
+    }
+
+    function collapseColumns(grid, rows, cols) {
+      const result = grid.slice();
+      const moves = [];
+      for (let col = 0; col < cols; col++) {
+        let start = 0;
+        while (start < rows) {
+          while (start < rows && grid[start * cols + col] === -1) start++;
+          const end = start;
+          while (start < rows && grid[start * cols + col] !== -1) start++;
+          const values = [];
+          for (let row = end; row < start; row++) if (grid[row * cols + col] > 0) values.push({ from: row * cols + col, value: grid[row * cols + col] });
+          for (let row = end; row < start; row++) result[row * cols + col] = 0;
+          for (let index = 0; index < values.length; index++) {
+            const to = (start - values.length + index) * cols + col;
+            result[to] = values[index].value;
+            if (values[index].from !== to) moves.push({ from: values[index].from, to, value: values[index].value });
+          }
+        }
+      }
+      return { grid: result, moves, dropMoves: moves };
+    }
+
+    function reshuffle(input, rows, cols, findPair, random) {
+      return reshuffleLevel(input, rows, cols, findPair, random);
+    }
+    exports.LLK_LEVELS = LLK_LEVELS;
+    exports.cloneLayout = cloneLayout;
+    exports.countRemaining = countRemaining;
+    exports.collapseColumns = collapseColumns;
+    exports.reshuffle = reshuffle;
+  };
+  moduleFactories["src/lianliankan-game.js"] = function (exports, __require) {
+    const { CHALLENGE_CONFIG: CHALLENGE_CONFIG, CHALLENGE_MISTAKE_PENALTY_MS: CHALLENGE_MISTAKE_PENALTY_MS, CHALLENGE_MISTAKE_PENALTY_SECONDS: CHALLENGE_MISTAKE_PENALTY_SECONDS, DIFFICULTIES: DIFFICULTIES, EMOJI_POOL: EMOJI_POOL, LLK3D_DIFFICULTIES: LLK3D_DIFFICULTIES, applyLevelClearBonus: applyLevelClearBonus, axisDiff3D: axisDiff3D, challengeConfig: challengeConfig, challengeRating: challengeRating, consumeChallengeResource: consumeChallengeResource, count3DRemaining: count3DRemaining, countRemaining: countRemaining, createChallengeState: createChallengeState, defaultLevelProgress: defaultLevelProgress, dimsCube3D: dimsCube3D, emptySurfaceList3D: emptySurfaceList3D, ensureLevelSolvable: ensureLevelSolvable, explainPairFailure: explainPairFailure, expireLevelCombo: expireLevelCombo, expandPath3D: expandPath3D, find3DAnyPair: find3DAnyPair, find3DPath: find3DPath, findAnyPair: findAnyPair, findHintPair: findHintPair, findPath: findPath, isEmptyCell: isEmptyCell, isSelectableTile: isSelectableTile, isSurfaceCell3D: isSurfaceCell3D, make3DBoard: make3DBoard, makeBoard: makeBoard, makeDropPlan: makeDropPlan, nextPairScore: nextPairScore, readLevelProgress: readLevelProgress, recordLevelCompletion: recordLevelCompletion, remainingChallengeSeconds: remainingChallengeSeconds, reshuffle: reshuffle, reshuffle3D: reshuffle3D, resetLevelCombo: resetLevelCombo, sameCell3D: sameCell3D, scorePairForMode: scorePairForMode, segmentClear: segmentClear, surfaceCellList3D: surfaceCellList3D, tileList3D: tileList3D, idx3D: idx3D, writeLevelProgress: writeLevelProgress } = __require("src/core/games/lianliankan/engine.js");
+    const { LLK_LEVELS: LLK_LEVELS, cloneLayout: cloneLayout, collapseColumns: collapseColumns, reshuffle: reshuffleLevel } = __require("src/core/games/lianliankan/levels.js");
+    const { createWebClock: createWebClock } = __require("src/platform/web/clock.js");
+    const { createWebStorage: createWebStorage } = __require("src/platform/web/storage.js");
+
+    /* 独立连连看小游戏(与扫雷、数独相互独立,同页第三个 Tab)
+     *
+     * 设计约束:
+     * 1. 本文件是由 src/app.js 导入的 Web ESM 适配器；IIFE 只用于隔离 DOM
+     *    控制器状态，所有顶层变量不外泄(仅暴露 window.__LLK__ 兼容入口供测试)。
+     * 2. 规则:棋盘上每类图案成对出现;依次点选两个相同图案,若两者可用
+     *    "不超过两次转弯"的路径连通(路径不得穿过其它图案,允许绕棋盘
+     *    外侧的虚拟通道),则消除;全部消除即通关。
+     * 3. Tab 高亮与壳显隐由 src/game-tabs.js 统一仲裁,本脚本只注册
+     *    onActivate / onDeactivate 生命周期回调(切走自动暂停、切回自动恢复)。
+     * 4. 连连看激活时在捕获阶段拦截 R 键,避免误触扫雷"重开"。
+     */
+    (function () {
+      "use strict";
+      const lianliankanClock = createWebClock();
+      const lianliankanStorage = createWebStorage();
+      const LINE_MS = 260;
+      const CLEAR_MS = 160;
+      const DROP_MS = 320;
+      const DROP_EASING = "cubic-bezier(0.22, 0.75, 0.28, 1)";
+
+      /* ----------------------------- 纯逻辑 -----------------------------
+       * 2D 规则、关卡流程与挑战状态由 core/games/lianliankan/engine.js 提供。
+       * 本文件只负责 DOM、交互和平台能力适配。
+       */
+
+      /* ----------------------------- DOM 与游戏状态 ----------------------------- */
+
+      const shell = document.getElementById("lianliankanShell");
+      const boardEl = document.getElementById("llkBoard");
+      const timerEl = document.getElementById("llkTimer");
+      const statusEl = document.getElementById("llkStatus");
+      const leftEl = document.getElementById("llkLeft");
+      const difficultyEl = document.getElementById("llkDifficulty");
+      const newBtn = document.getElementById("llkNew");
+      const shuffleBtn = document.getElementById("llkShuffle");
+      const pathLayer = document.getElementById("llkPathLayer");
+      const modeEl = document.getElementById("llkMode");
+      const stageEl = document.getElementById("llk3dStage");
+      const toastEl = document.getElementById("llk3dToast");
+      const taglineEl = document.getElementById("llkTagline");
+      const hintEl = document.getElementById("llkHint");
+      const hintBtn = document.getElementById("llkHintBtn");
+      const scoreEl = document.getElementById("llkScore");
+      const comboEl = document.getElementById("llkCombo");
+      const challengeResourcesEl = document.getElementById("llkChallengeResources");
+      const challengeResourceCardEl = document.getElementById("llkChallengeResourceCard");
+      const challengeResultEl = document.getElementById("llkChallengeResult");
+      const challengeStarsEl = document.getElementById("llkChallengeStars");
+      const challengeResultTextEl = document.getElementById("llkChallengeResultText");
+      const levelPickerEl = document.getElementById("llkLevelPicker");
+      let statusRevision = 0;
+      let transientStatus = null;
+
+      if (!shell || !boardEl || !timerEl || !statusEl || !leftEl) return;
+
+      const game = {
+        difficulty: "medium",
+        rows: 0,
+        cols: 0,
+        kinds: 0,
+        grid: null,
+        sel: null, // 当前选中的第一格 { r, c } 或 null
+        busy: false, // 正在播放连线/消除动画,锁定输入
+        started: false,
+        ended: false,
+        paused: false,
+        autoPaused: false, // 因切走 Tab 自动暂停(区别于手动)
+        baseMs: 0,
+        startAt: null,
+        timerId: null,
+        levelId: null,
+        score: 0,
+        combo: 0,
+        maxCombo: 0,
+        lastSuccessMs: null,
+        progress: null,
+        animationToken: 0,
+        challenge: null,
+      };
+
+      const cellEls = []; // 与 grid 索引一一对应的 button
+      let llkActive = false;
+      const pendingAnimationTimers = new Set();
+
+      /* 当前玩法:classic(经典 2D)/ levels(固定关卡)/ challenge(限时挑战)/ 3d(魔方表面 3D) */
+      let llkModeKey = "classic";
+      if (modeEl && modeEl.value === "3d") llkModeKey = "3d";
+      if (modeEl && modeEl.value === "challenge") llkModeKey = "challenge";
+
+      /* 3D 模式状态容器:属性由下方「3D 立体模式」节填充(先声明避免 TDZ)。 */
+      const llk3d = {};
+
+      function activeMode3D() {
+        return llkModeKey === "3d" && !!llk3d.occ;
+      }
+
+      function nowMs() {
+        return lianliankanClock.now();
+      }
+
+      function formatTime(totalSeconds) {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return minutes + ":" + String(seconds).padStart(2, "0");
+      }
+
+      function elapsedSeconds() {
+        const extra = game.startAt === null ? 0 : nowMs() - game.startAt;
+        return Math.floor((game.baseMs + extra) / 1000);
+      }
+
+      function elapsedActiveMs() {
+        return game.baseMs + (game.startAt === null ? 0 : nowMs() - game.startAt);
+      }
+
+      function getLevelApi() {
+        return {
+          levels: LLK_LEVELS,
+          cloneLayout,
+          collapseColumns,
+          reshuffle: reshuffleLevel,
+        };
+      }
+
+      function getLocalStorage() {
+        return lianliankanStorage;
+      }
+
+      function isLevelMode() {
+        return (llkModeKey === "levels" || llkModeKey === "challenge") && game.levelId !== null;
+      }
+
+      function isChallengeMode() {
+        return llkModeKey === "challenge" && game.levelId !== null && !!game.challenge;
+      }
+
+      function renderScore() {
+        if (scoreEl) scoreEl.textContent = String(game.score);
+        if (comboEl) comboEl.textContent = "×" + game.combo;
+      }
+
+      function resetRunStats() {
+        game.score = 0;
+        game.combo = 0;
+        game.maxCombo = 0;
+        game.lastSuccessMs = null;
+        renderScore();
+      }
+
+      function renderChallengeResources() {
+        if (!challengeResourcesEl) return;
+        const state = isChallengeMode() ? game.challenge : null;
+        if (challengeResourceCardEl) challengeResourceCardEl.hidden = !state;
+        if (state) {
+          const shuffleText = state.shufflesRemaining > 0
+            ? "重排 " + state.shufflesRemaining
+            : "自动重排";
+          challengeResourcesEl.textContent = "提示 " + state.hintsRemaining + " · " + shuffleText;
+        } else {
+          challengeResourcesEl.textContent = "";
+        }
+      }
+
+      function clearChallengeResult() {
+        if (challengeResultEl) challengeResultEl.hidden = true;
+        if (challengeStarsEl) challengeStarsEl.textContent = "☆☆☆";
+        if (challengeResultTextEl) challengeResultTextEl.textContent = "";
+      }
+
+      function renderChallengeResult(rating, detail) {
+        if (!challengeResultEl) return;
+        const stars = rating && Number.isInteger(rating.stars)
+          ? Math.max(0, Math.min(3, rating.stars))
+          : 0;
+        challengeResultEl.hidden = false;
+        if (challengeStarsEl) challengeStarsEl.textContent = "★".repeat(stars) + "☆".repeat(3 - stars);
+        if (challengeResultTextEl) challengeResultTextEl.textContent = detail || (rating ? rating.label : "未完成");
+      }
+
+      function awardPair() {
+        const next = scorePairForMode({
+          score: game.score,
+          combo: game.combo,
+          maxCombo: game.maxCombo,
+          lastSuccessMs: game.lastSuccessMs,
+        }, elapsedActiveMs(), isLevelMode());
+        game.score = next.score;
+        game.combo = next.combo;
+        game.maxCombo = next.maxCombo;
+        game.lastSuccessMs = next.lastSuccessMs;
+        renderScore();
+      }
+
+      function resetCurrentCombo() {
+        const next = resetLevelCombo({
+          score: game.score,
+          combo: game.combo,
+          maxCombo: game.maxCombo,
+          lastSuccessMs: game.lastSuccessMs,
+        });
+        game.score = next.score;
+        game.combo = next.combo;
+        game.maxCombo = next.maxCombo;
+        game.lastSuccessMs = next.lastSuccessMs;
+        renderScore();
+      }
+
+      function expireComboIfNeeded() {
+        if (!isLevelMode() || game.combo <= 0) return;
+        const next = expireLevelCombo({
+          score: game.score,
+          combo: game.combo,
+          maxCombo: game.maxCombo,
+          lastSuccessMs: game.lastSuccessMs,
+        }, elapsedActiveMs());
+        if (next.combo === game.combo && next.lastSuccessMs === game.lastSuccessMs) return;
+        game.combo = next.combo;
+        game.lastSuccessMs = next.lastSuccessMs;
+        renderScore();
+      }
+
+      function applyChallengeMistakePenalty() {
+        if (!isChallengeMode()) return false;
+        game.baseMs += CHALLENGE_MISTAKE_PENALTY_MS;
+        resetCurrentCombo();
+        renderTimer();
+        if (challengeSecondsRemaining() <= 0) {
+          failChallenge();
+          return true;
+        }
+        return false;
+      }
+
+      function challengeSecondsRemaining() {
+        if (!isChallengeMode()) return null;
+        return remainingChallengeSeconds(game.challenge.timeLimitSeconds, elapsedActiveMs());
+      }
+
+      function renderTimer() {
+        const seconds = isChallengeMode() ? challengeSecondsRemaining() : elapsedSeconds();
+        if (timerEl) timerEl.textContent = formatTime(seconds);
+      }
+
+      function startTimer() {
+        if (game.timerId !== null) return;
+        game.startAt = nowMs();
+        game.timerId = lianliankanClock.setInterval(() => {
+          if (game.started && !game.ended && !game.paused) {
+            renderTimer();
+            expireComboIfNeeded();
+            if (isChallengeMode()) {
+              if (challengeSecondsRemaining() <= 0) failChallenge();
+            } else if (elapsedSeconds() >= 359999) {
+              stopTimer();
+            }
+          }
+        }, 250);
+      }
+
+      function stopTimer() {
+        if (game.timerId !== null) {
+          lianliankanClock.clearInterval(game.timerId);
+          game.timerId = null;
+        }
+      }
+
+      function pauseTimer() {
+        if (!game.started || game.ended || game.paused) return;
+        if (game.startAt !== null) {
+          game.baseMs += nowMs() - game.startAt;
+          game.startAt = null;
+        }
+        game.paused = true;
+        stopTimer();
+      }
+
+      function resumeTimer() {
+        if (!game.started || game.ended || !game.paused) return;
+        game.paused = false;
+        startTimer();
+      }
+
+      function failChallenge() {
+        if (!isChallengeMode() || game.ended) return;
+        cancelAnimations();
+        game.ended = true;
+        game.paused = false;
+        stopTimer();
+        if (game.startAt !== null) {
+          game.baseMs += nowMs() - game.startAt;
+          game.startAt = null;
+        }
+        renderTimer();
+        renderChallengeResult({ stars: 0, label: "未完成" }, "未完成 · 时间到");
+        clearSelection();
+        setLeft();
+        shell.classList.remove("llk-won");
+        setStatus("时间到，挑战失败");
+      }
+
+      function setStatus(text) {
+        statusRevision++;
+        if (transientStatus && !transientStatus.setting) {
+          lianliankanClock.clearTimeout(transientStatus.timer);
+          transientStatus = null;
+        }
+        if (statusEl) statusEl.textContent = text;
+      }
+
+      function showTransientStatus(text) {
+        const previousStatus = transientStatus ? transientStatus.previousStatus : (statusEl ? statusEl.textContent : "");
+        if (transientStatus) lianliankanClock.clearTimeout(transientStatus.timer);
+        const notice = { previousStatus, setting: true, timer: null, revision: 0 };
+        transientStatus = notice;
+        setStatus(text);
+        notice.setting = false;
+        notice.revision = statusRevision;
+        notice.timer = lianliankanClock.setTimeout(() => {
+          if (transientStatus === notice && statusRevision === notice.revision) {
+            transientStatus = null;
+            setStatus(notice.previousStatus);
+          }
+        }, 1200);
+      }
+
+      function prefersReducedMotion() {
+        try {
+          return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        } catch (err) {
+          return false;
+        }
+      }
+
+      function setBoardBusy(busy) {
+        if (!boardEl) return;
+        if (busy) boardEl.setAttribute("aria-busy", "true");
+        else boardEl.removeAttribute("aria-busy");
+      }
+
+      function clearAnimationStyles() {
+        for (const cell of cellEls) {
+          cell.classList.remove("is-clearing", "is-dropping");
+          if (!cell.style) continue;
+          cell.style.transform = "";
+          cell.style.transition = "";
+          cell.style.willChange = "";
+        }
+        setBoardBusy(false);
+      }
+
+      function scheduleAnimation(callback, delay, token) {
+        const timer = lianliankanClock.setTimeout(() => {
+          pendingAnimationTimers.delete(timer);
+          if (token !== game.animationToken) return;
+          callback();
+        }, Math.max(0, delay));
+        pendingAnimationTimers.add(timer);
+        return timer;
+      }
+
+      function cancelAnimations() {
+        game.animationToken += 1;
+        for (const timer of pendingAnimationTimers) lianliankanClock.clearTimeout(timer);
+        pendingAnimationTimers.clear();
+        clearAnimationStyles();
+        clearLine();
+        game.busy = false;
+      }
+
+      function setLeft() {
+        if (!leftEl) return;
+        let pairs = 0;
+        if (activeMode3D()) {
+          pairs = Math.floor(count3DRemaining(llk3d.occ) / 2);
+        } else if (game.grid) {
+          pairs = Math.floor(countRemaining(game.grid) / 2);
+        }
+        leftEl.textContent = pairs + " 对";
+      }
+
+      /* ----------------------------- 视图 ----------------------------- */
+
+      /* 根据当前难度与窗口宽度计算格子尺寸(px),写入 CSS 变量 */
+      function computeCellSize() {
+        const wrap = boardEl.parentElement;
+        const avail = wrap ? wrap.clientWidth : Math.min(window.innerWidth * 0.92, 720);
+        const raw = Math.floor((avail - 12) / game.cols);
+        return Math.max(24, Math.min(raw, 46));
+      }
+
+      function applyCellSize() {
+        const cell = computeCellSize();
+        if (boardEl.style) {
+          boardEl.style.setProperty("--llk-cell", cell + "px");
+          boardEl.style.setProperty("--llk-cols", String(game.cols));
+        }
+        return cell;
+      }
+
+      function cellLabel(r, c) {
+        const v = game.grid[r * game.cols + c];
+        if (v === -1) return "第 " + (r + 1) + " 行第 " + (c + 1) + " 列障碍物，不可选择";
+        return "第 " + (r + 1) + " 行第 " + (c + 1) + " 列" + (v ? " " + EMOJI_POOL[v - 1] : " 空");
+      }
+
+      function updateCell(index) {
+        const btn = cellEls[index];
+        if (!btn) return;
+        const r = Math.floor(index / game.cols);
+        const c = index % game.cols;
+        const value = game.grid[index];
+        btn.textContent = value > 0 ? EMOJI_POOL[value - 1] : "";
+        btn.setAttribute("aria-label", cellLabel(r, c));
+        btn.disabled = value === -1;
+        const isSel = game.sel !== null && game.sel.r === r && game.sel.c === c;
+        btn.classList.toggle("is-sel", isSel && value !== 0);
+        btn.classList.toggle("is-obstacle", value === -1);
+        if (value === 0) btn.classList.add("is-empty");
+        else btn.classList.remove("is-empty");
+      }
+
+      function renderAll() {
+        for (let i = 0; i < cellEls.length; i++) updateCell(i);
+      }
+
+      function setCellValue(r, c, value) {
+        game.grid[r * game.cols + c] = value;
+        updateCell(r * game.cols + c);
+      }
+
+      function clearSelection() {
+        game.sel = null;
+        for (let i = 0; i < cellEls.length; i++) cellEls[i].classList.remove("is-sel");
+      }
+
+      /* ----------------------------- 连线动画 ----------------------------- */
+
+      /*
+       * 将逻辑棋盘坐标转换为连线层坐标。
+       *
+       * 不能用 --llk-cell 直接推算:棋盘还有 gap、padding,并且连线层位于
+       * board-wrap 上,不一定和 llkBoard 左上角重合。使用真实格子矩形可以
+       * 保证连线端点始终落在目标格中心。
+       */
+      function computePathPoints(path, rows, cols, cellRects, layerRect) {
+        if (!Array.isArray(path) || !Array.isArray(cellRects) || cellRects.length < rows * cols) {
+          return [];
+        }
+
+        const xCenters = [];
+        const yCenters = [];
+        for (let c = 0; c < cols; c++) {
+          const rect = cellRects[c];
+          xCenters.push(rect.left + rect.width / 2);
+        }
+        for (let r = 0; r < rows; r++) {
+          const rect = cellRects[r * cols];
+          yCenters.push(rect.top + rect.height / 2);
+        }
+
+        const xStep = cols > 1 ? xCenters[1] - xCenters[0] : cellRects[0].width;
+        const yStep = rows > 1 ? yCenters[1] - yCenters[0] : cellRects[0].height;
+        const xAt = (c) => {
+          if (c < 0) return xCenters[0] + c * xStep;
+          if (c >= cols) return xCenters[cols - 1] + (c - cols + 1) * xStep;
+          return xCenters[c];
+        };
+        const yAt = (r) => {
+          if (r < 0) return yCenters[0] + r * yStep;
+          if (r >= rows) return yCenters[rows - 1] + (r - rows + 1) * yStep;
+          return yCenters[r];
+        };
+
+        return path.map((p) => [xAt(p.c) - layerRect.left, yAt(p.r) - layerRect.top]);
+      }
+
+      function getLineStrokeWidth(cellRects) {
+        const cellWidth = cellRects && cellRects[0] && Number(cellRects[0].width);
+        return Math.max(3, (Number.isFinite(cellWidth) && cellWidth > 0 ? cellWidth : 24) / 8);
+      }
+
+      /* path: [{r,c}...] 拐点序列,含可能的虚拟外圈点(r 或 c 为 -1 / rows / cols)。
+       * 通过 SVG 折线 + stroke-dasharray 过渡实现"画线"动效。 */
+      function drawLine(path) {
+        if (!pathLayer) return;
+        pathLayer.innerHTML = "";
+        const layerRect = pathLayer.getBoundingClientRect();
+        const cellRects = cellEls.map((el) => el.getBoundingClientRect());
+        const NS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(NS, "svg");
+        const W = layerRect.width || pathLayer.clientWidth || 1;
+        const H = layerRect.height || pathLayer.clientHeight || 1;
+        svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+        svg.setAttribute("width", W);
+        svg.setAttribute("height", H);
+        svg.style.position = "absolute";
+        svg.style.left = "0px";
+        svg.style.top = "0px";
+        svg.style.pointerEvents = "none";
+        svg.style.overflow = "visible";
+
+        const poly = document.createElementNS(NS, "polyline");
+        const coords = computePathPoints(path, game.rows, game.cols, cellRects, layerRect);
+        const pts = coords.map((point) => point[0] + "," + point[1]).join(" ");
+        poly.setAttribute("points", pts);
+        poly.setAttribute("fill", "none");
+        poly.setAttribute("stroke", "var(--accent, #6dd3ff)");
+        poly.setAttribute("stroke-width", getLineStrokeWidth(cellRects));
+        poly.setAttribute("stroke-linecap", "round");
+        poly.setAttribute("stroke-linejoin", "round");
+
+        // 计算折线总长用于描边动画
+        let len = 0;
+        for (let i = 1; i < coords.length; i++) {
+          len += Math.hypot(coords[i][0] - coords[i - 1][0], coords[i][1] - coords[i - 1][1]);
+        }
+        poly.style.strokeDasharray = len + " " + len;
+        poly.style.strokeDashoffset = String(len);
+
+        svg.appendChild(poly);
+        pathLayer.appendChild(svg);
+
+        // 触发过渡:下一帧将 dashoffset 置 0
+        requestAnimationFrame(() => {
+          poly.style.transition = "stroke-dashoffset " + LINE_MS + "ms ease-out";
+          poly.style.strokeDashoffset = "0";
+        });
+        return poly;
+      }
+
+      function clearLine() {
+        if (pathLayer) pathLayer.innerHTML = "";
+      }
+
+      function animateLevelDrop(nextGrid, dropMoves, token, onComplete) {
+        if (token !== game.animationToken) return;
+
+        game.grid = nextGrid;
+        renderAll();
+
+        const plan = makeDropPlan(dropMoves, game.cols);
+        if (!plan.length || prefersReducedMotion()) {
+          clearAnimationStyles();
+          onComplete();
+          return;
+        }
+
+        const rects = cellEls.map((cell) => (
+          cell && typeof cell.getBoundingClientRect === "function"
+            ? cell.getBoundingClientRect()
+            : null
+        ));
+        const animatedCells = [];
+        for (const move of plan) {
+          const source = cellEls[move.from];
+          const target = cellEls[move.to];
+          const sourceRect = rects[move.from];
+          const targetRect = rects[move.to];
+          if (!source || !target || !sourceRect || !targetRect) continue;
+
+          const dx = sourceRect.left - targetRect.left;
+          const dy = sourceRect.top - targetRect.top;
+          if (!Number.isFinite(dx) || !Number.isFinite(dy)) continue;
+
+          target.classList.add("is-dropping");
+          target.style.willChange = "transform";
+          target.style.transition = "none";
+          target.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          animatedCells.push(target);
+        }
+
+        if (!animatedCells.length) {
+          clearAnimationStyles();
+          onComplete();
+          return;
+        }
+
+        const raf = typeof requestAnimationFrame === "function"
+          ? requestAnimationFrame
+          : (callback) => lianliankanClock.setTimeout(callback, 0);
+        raf(() => raf(() => {
+          if (token !== game.animationToken) return;
+          for (const cell of animatedCells) {
+            // 读取一次布局，确保初始 transform 已提交后再开启过渡。
+            cell.getBoundingClientRect();
+            cell.style.transition = `transform ${DROP_MS}ms ${DROP_EASING}`;
+            cell.style.transform = "translate3d(0, 0, 0)";
+          }
+          scheduleAnimation(() => {
+            clearAnimationStyles();
+            onComplete();
+          }, DROP_MS, token);
+        }));
+      }
+
+      /* ----------------------------- 游戏流程 ----------------------------- */
+
+      function finishPairResolution(token) {
+        if (token !== game.animationToken) return;
+        clearLine();
+        clearAnimationStyles();
+        game.busy = false;
+
+        if (countRemaining(game.grid) === 0) {
+          win();
+          return;
+        }
+
+        setLeft();
+        // 关卡模式自动洗牌；经典模式保留原来的手动重排提示。
+        if (!findAnyPair(game.grid, game.rows, game.cols)) {
+          if (isLevelMode()) {
+            const levels = getLevelApi();
+            const result = ensureLevelSolvable(game.grid, game.rows, game.cols, levels, findAnyPair);
+            if (result.autoReshuffled) {
+              game.grid = result.grid;
+              renderAll();
+              setStatus("无可用配对，已自动洗牌");
+            } else {
+              setStatus("无可用配对，自动洗牌失败");
+            }
+          } else {
+            setStatus("无可用配对,点「重排」");
+            if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
+          }
+        } else if (shuffleBtn) {
+          shuffleBtn.classList.remove("is-highlight");
+        }
+      }
+
+      function beginLevelPairResolution(a, b, poly, token) {
+        setBoardBusy(true);
+        const reducedMotion = prefersReducedMotion();
+        if (poly && poly.style) {
+          poly.style.transition = `opacity ${reducedMotion ? 0 : CLEAR_MS}ms ease`;
+          poly.style.opacity = "0";
+        }
+        if (!reducedMotion) {
+          if (cellEls[a.r * game.cols + a.c]) cellEls[a.r * game.cols + a.c].classList.add("is-clearing");
+          if (cellEls[b.r * game.cols + b.c]) cellEls[b.r * game.cols + b.c].classList.add("is-clearing");
+        }
+
+        scheduleAnimation(() => {
+          setCellValue(a.r, a.c, 0);
+          setCellValue(b.r, b.c, 0);
+
+          const levels = getLevelApi();
+          const result = levels && typeof levels.collapseColumns === "function"
+            ? levels.collapseColumns(game.grid, game.rows, game.cols)
+            : { grid: game.grid.slice(), dropMoves: [] };
+          animateLevelDrop(result.grid, result.dropMoves || result.moves, token, () => finishPairResolution(token));
+        }, reducedMotion ? 0 : CLEAR_MS, token);
+      }
+
+      function win() {
+        if (game.ended) return;
+        const challengeRun = isChallengeMode();
+        game.ended = true;
+        game.paused = false;
+        stopTimer();
+        if (game.startAt !== null) {
+          game.baseMs += nowMs() - game.startAt;
+          game.startAt = null;
+        }
+        renderTimer();
+        if (isLevelMode()) {
+          game.score = applyLevelClearBonus(game.score, true);
+          renderScore();
+          const result = {
+            score: game.score,
+            time: elapsedSeconds(),
+            combo: game.maxCombo,
+          };
+          const rating = challengeRun ? challengeRating({
+            timeLimitSeconds: game.challenge.timeLimitSeconds,
+            elapsedSeconds: result.time,
+            maxCombo: result.combo,
+          }) : null;
+          if (rating) {
+            result.stars = rating.stars;
+            renderChallengeResult(rating, rating.label + " · 用时 " + result.time + " 秒");
+          }
+          game.progress = recordLevelCompletion(game.progress, game.levelId, result);
+          writeLevelProgress(game.progress, getLocalStorage());
+          renderLevelPicker();
+          setStatus(challengeRun
+            ? "第 " + game.levelId + " 关挑战成功 🎉"
+            : "第 " + game.levelId + " 关通关 🎉");
+        } else {
+          setStatus("通关 🎉");
+        }
+        clearSelection();
+        shell.classList.add("llk-won");
+      }
+
+      function handleCellClick(r, c) {
+        if (game.ended || game.busy || game.paused) return;
+        const value = game.grid[r * game.cols + c];
+        if (!isSelectableTile(value)) return;
+
+        // 首次有效点击视为开始
+        if (!game.started) {
+          game.started = true;
+          game.paused = false;
+          startTimer();
+          setStatus("进行中");
+        }
+
+        // 点击已选中的格子:取消选中
+        if (game.sel !== null && game.sel.r === r && game.sel.c === c) {
+          clearSelection();
+          return;
+        }
+
+        if (game.sel === null) {
+          game.sel = { r, c };
+          updateCell(r * game.cols + c);
+          return;
+        }
+
+        // 已有选中格:尝试配对
+        const a = game.sel;
+        const b = { r, c };
+        const reason = explainPairFailure(game.grid, game.rows, game.cols, a, b);
+        const path = reason === null ? findPath(game.grid, game.rows, game.cols, a, b) : null;
+
+        if (path && path.length >= 2) {
+          // 配对成功:锁输入、画线,线画完后再让两格消失
+          game.sel = null;
+          game.busy = true;
+          if (isLevelMode()) setBoardBusy(true);
+          awardPair();
+          clearSelection();
+          const poly = drawLine(path);
+          const animationToken = game.animationToken;
+          scheduleAnimation(() => {
+            if (isLevelMode()) {
+              beginLevelPairResolution(a, b, poly, animationToken);
+              return;
+            }
+
+            // 经典模式保持原有即时消除节奏,仅复用新的取消/完成保护。
+            setCellValue(a.r, a.c, 0);
+            setCellValue(b.r, b.c, 0);
+            if (poly && poly.style) poly.style.transition = "opacity " + CLEAR_MS + "ms ease";
+            if (poly && poly.style) poly.style.opacity = "0";
+            scheduleAnimation(() => finishPairResolution(animationToken), CLEAR_MS, animationToken);
+          }, LINE_MS, animationToken);
+        } else {
+          // 配对失败:新点击的格成为选中格
+          const challengeMistake = isChallengeMode();
+          if (applyChallengeMistakePenalty()) return;
+          if (!challengeMistake) resetCurrentCombo();
+          showTransientStatus(challengeMistake
+            ? reason + " · 扣 " + CHALLENGE_MISTAKE_PENALTY_SECONDS + " 秒，Combo 已重置"
+            : reason);
+          clearSelection();
+          game.sel = b;
+          updateCell(b.r * game.cols + b.c);
+        }
+      }
+
+      function loadBoard(rows, cols, kinds) {
+        cancelAnimations();
+        const result = makeBoard(rows, cols, kinds);
+        game.rows = result.rows;
+        game.cols = result.cols;
+        game.kinds = result.kinds;
+        game.grid = result.grid;
+        game.sel = null;
+        game.started = false;
+        game.ended = false;
+        game.paused = false;
+        game.baseMs = 0;
+        game.startAt = null;
+        game.busy = false;
+        game.levelId = null;
+        game.challenge = null;
+        stopTimer();
+        resetRunStats();
+        clearChallengeResult();
+        shell.classList.remove("llk-won");
+        if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
+        setStatus("待开始");
+        renderTimer();
+        renderChallengeResources();
+        setLeft();
+        buildCells();
+        applyCellSize();
+      }
+
+      function startNew(difficultyKey) {
+        const config = DIFFICULTIES[difficultyKey] || DIFFICULTIES.medium;
+        game.difficulty = difficultyKey;
+        if (difficultyEl) difficultyEl.value = difficultyKey;
+        loadBoard(config.rows, config.cols, config.kinds);
+      }
+
+      function renderLevelPicker() {
+        if (!levelPickerEl) return;
+        const levels = getLevelApi();
+        const entries = levels && Array.isArray(levels.levels) ? levels.levels : (Array.isArray(levels) ? levels : []);
+        levelPickerEl.hidden = llkModeKey !== "levels" && llkModeKey !== "challenge";
+        levelPickerEl.innerHTML = "";
+        for (let i = 0; i < entries.length; i++) {
+          const level = entries[i];
+          const locked = level.id > game.progress.unlockedLevel;
+          const challengeProfile = llkModeKey === "challenge" ? level.challenge : null;
+          const challengeText = challengeProfile ? " · " + formatTime(challengeProfile.timeLimitSeconds) : "";
+          const challengeLabel = challengeProfile
+            ? "，限时 " + formatTime(challengeProfile.timeLimitSeconds) +
+              "，提示 " + challengeProfile.hintLimit + " 次，错误配对扣 " +
+              CHALLENGE_MISTAKE_PENALTY_SECONDS + " 秒并重置 Combo，无解时自动重排"
+            : "";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "llk-level-btn";
+          button.disabled = locked;
+          button.textContent = "第 " + level.id + " 关 · " + level.name + challengeText + (locked ? "（未解锁）" : "");
+          button.setAttribute("aria-label", "第 " + level.id + " 关 " + level.name + challengeLabel + (locked ? "，未解锁" : "，可开始"));
+          button.classList.toggle("is-current", game.levelId === level.id);
+          button.addEventListener("click", () => {
+            if (!locked) startLevel(level.id);
+          });
+          levelPickerEl.appendChild(button);
+        }
+      }
+
+      function startLevel(levelId) {
+        const challengeRun = llkModeKey === "challenge";
+        cancelAnimations();
+        const levels = getLevelApi();
+        const entries = levels && Array.isArray(levels.levels) ? levels.levels : (Array.isArray(levels) ? levels : []);
+        const level = entries.find((entry) => entry.id === levelId);
+        if (!level || level.id > game.progress.unlockedLevel || !levels || typeof levels.cloneLayout !== "function") return;
+        game.difficulty = (challengeRun ? "challenge-" : "level-") + level.id;
+        game.rows = level.rows;
+        game.cols = level.cols;
+        game.kinds = level.kinds;
+        game.grid = levels.cloneLayout(level);
+        game.sel = null;
+        game.started = false;
+        game.ended = false;
+        game.paused = false;
+        game.autoPaused = false;
+        game.baseMs = 0;
+        game.startAt = null;
+        game.busy = false;
+        game.levelId = level.id;
+        game.challenge = challengeRun ? createChallengeState(level.challenge || CHALLENGE_CONFIG) : null;
+        stopTimer();
+        resetRunStats();
+        clearChallengeResult();
+        shell.classList.remove("llk-won");
+        if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
+        setStatus(challengeRun ? "第 " + level.id + " 关挑战，待开始" : "第 " + level.id + " 关，待开始");
+        renderTimer();
+        renderChallengeResources();
+        setLeft();
+        buildCells();
+        applyCellSize();
+        renderLevelPicker();
+      }
+
+      function handleShuffle() {
+        if (game.ended || game.busy) return;
+        if (!game.grid) return;
+        if (countRemaining(game.grid) === 0) return;
+        if (isChallengeMode()) {
+          showTransientStatus("挑战模式不支持手动重排，无解时会自动重排");
+          return;
+        }
+        resetCurrentCombo();
+        const levels = getLevelApi();
+        const levelResult = isLevelMode() && levels && typeof levels.reshuffle === "function"
+          ? levels.reshuffle(game.grid, game.rows, game.cols, findAnyPair)
+          : null;
+        const ok = levelResult ? levelResult.ok : reshuffle(game.grid, game.rows, game.cols);
+        if (levelResult) game.grid = levelResult.grid;
+        if (!game.started) {
+          game.started = true;
+          startTimer();
+        }
+        setStatus(ok ? "已重排,继续配对" : "重排后仍无解,可再试一次");
+        if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
+        renderAll();
+        setLeft();
+        clearLine();
+      }
+
+      /* ----------------------------- 构建界面 ----------------------------- */
+
+      function buildCells() {
+        boardEl.innerHTML = "";
+        cellEls.length = 0;
+        const total = game.rows * game.cols;
+        for (let i = 0; i < total; i++) {
+          const r = Math.floor(i / game.cols);
+          const c = i % game.cols;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "llk-cell";
+          btn.dataset.index = String(i);
+          btn.setAttribute("role", "gridcell");
+          btn.addEventListener("click", () => handleCellClick(r, c));
+          boardEl.appendChild(btn);
+          cellEls.push(btn);
+        }
+        renderAll();
+      }
+
+      function showHint2D() {
+        if (activeMode3D() || game.busy || game.ended || !game.grid) return;
+        const pair = findHintPair(game.grid, game.rows, game.cols, findAnyPair);
+        if (!pair) {
+          setStatus(isLevelMode() ? "暂无可用配对，将自动洗牌" : "暂无可用配对,点「重排」试试");
+          return;
+        }
+        if (isChallengeMode()) {
+          const consumed = consumeChallengeResource(game.challenge, "hint");
+          if (!consumed.ok) {
+            showTransientStatus("本局提示已用完");
+            return;
+          }
+          game.challenge = consumed.state;
+          renderChallengeResources();
+        }
+        const first = pair.a.r * game.cols + pair.a.c;
+        const second = pair.b.r * game.cols + pair.b.c;
+        if (cellEls[first]) cellEls[first].classList.add("is-hint");
+        if (cellEls[second]) cellEls[second].classList.add("is-hint");
+        showTransientStatus("已高亮一对可用图案");
+        lianliankanClock.setTimeout(() => {
+          if (cellEls[first]) cellEls[first].classList.remove("is-hint");
+          if (cellEls[second]) cellEls[second].classList.remove("is-hint");
+        }, 1400);
+      }
+
+      function bindControls() {
+        const currentDiffKey = () => (difficultyEl ? difficultyEl.value : "medium");
+        if (newBtn) newBtn.addEventListener("click", () => startGameForMode(currentDiffKey()));
+        if (shuffleBtn) shuffleBtn.addEventListener("click", onShufflePressed);
+        if (hintBtn) hintBtn.addEventListener("click", () => activeMode3D() ? showHint3D() : showHint2D());
+        if (difficultyEl) {
+          difficultyEl.addEventListener("change", () => {
+            if (llkActive && llkModeKey !== "levels" && llkModeKey !== "challenge") {
+              startGameForMode(difficultyEl.value);
+            }
+          });
+        }
+        if (modeEl) {
+          modeEl.addEventListener("change", () => switchLlkMode(modeEl.value));
+        }
+        window.addEventListener("resize", () => {
+          if (activeMode3D()) {
+            llk3dNeedsResize = true;
+          } else if (game.grid) {
+            applyCellSize();
+          }
+        });
+
+        const coordinator = typeof window !== "undefined" ? window.__GAME_TABS__ : null;
+        if (coordinator && typeof coordinator.register === "function") {
+          coordinator.register("lianliankan", {
+            onActivate: onLinkActivate,
+            onDeactivate: onLinkDeactivate,
+          });
+        }
+      }
+
+      /* 连连看激活期间在捕获阶段接管键盘:
+       *  - 拦截 R 防止误触扫雷重开;
+       *  - 3D 玩法支持方向键旋转、+/- 缩放、H 提示。 */
+      document.addEventListener(
+        "keydown",
+        (e) => {
+          if (!llkActive) return;
+          const tag = e.target && e.target.tagName;
+          if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+          const key = e.key;
+          if (llkModeKey === "3d" && llk3d.onKey && activeMode3D()) {
+            const handled = llk3d.onKey(key);
+            if (handled) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
+          }
+          if (key && key.toLowerCase() === "h" && !activeMode3D()) {
+            showHint2D();
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          if (key && key.toLowerCase() === "r") {
+            e.stopPropagation();
+          }
+        },
+        true,
+      );
+
+      /* ----------------------------- 生命周期回调(由协调器调用) ----------------------------- */
+
+      function onLinkActivate() {
+        llkActive = true;
+        // 清理扫雷胜利烟花残留层,避免悬浮在连连看上方
+        const fireworksLayer = document.getElementById("fireworksLayer");
+        if (fireworksLayer) fireworksLayer.innerHTML = "";
+
+        if (llkModeKey === "3d") {
+          if (!llk3d.built) {
+            const key = difficultyEl ? difficultyEl.value : "medium";
+            start3DGame(LLK3D_DIFFICULTIES[key] ? key : "medium");
+          } else {
+            llk3dStartLoop();
+          }
+        } else if (!game.grid) {
+          if (llkModeKey === "levels" || llkModeKey === "challenge") startLevel(1);
+          else {
+            const key = difficultyEl ? difficultyEl.value : "medium";
+            startNew(DIFFICULTIES[key] ? key : "medium");
+          }
+        }
+
+        // 切回时若因切走自动暂停则恢复(经典/3D 共用计时字段)
+        if (game.autoPaused) {
+          game.autoPaused = false;
+          if (game.started && !game.ended) {
+            resumeTimer();
+            setStatus("进行中");
+            renderTimer();
+          }
+        }
+
+        if (llkModeKey === "3d") {
+          setLeft();
+        } else {
+          // 棋盘可能在隐藏面板中预生成,切入后按可见容器重新计算格子尺寸。
+          applyCellSize();
+          renderAll();
+          setLeft();
+        }
+      }
+
+      function onLinkDeactivate() {
+        llkActive = false;
+        // 切走:若进行中则自动暂停,防止后台静默计时;同时停止 3D 渲染循环
+        if (game.started && !game.ended && !game.paused) {
+          game.autoPaused = true;
+          pauseTimer();
+        }
+        llk3dStopLoop();
+      }
+
+      /* ============================================================
+         3D 立体玩法(魔方表面连线)
+         ------------------------------------------------------------
+         模型:边长 size 的实心魔方,图块贴在外表面格上,每类恰好 2 个。
+         占用数组 occ 索引 idx=(x*ny+y)*nz+z:
+           -1 = 内部格(连线不得进入) 0 = 表面空格 >0 = 图块种类
+         连通规则:连线只能沿表面行走(相邻格曼哈顿距离 1,跨棱边时自然
+         接续到相邻面),整条路径 ≤2 次转弯,中间不得经过其它图块。
+         视图:Canvas 手绘透视投影,拖拽旋转 / 滚轮缩放 / 方向键微调。
+         ============================================================ */
+
+      const LLK3D_TEXT = {
+        classicHint: "依次点选两个相同图案,若可用不超过两次转弯的路径连通即消除;无可用配对时点「重排」",
+        classicTag: "找到相同图案,用不超过两次转弯的路径相连,即可消除。",
+        hint:
+          "拖动或按方向键旋转魔方、滚轮缩放。依次点选两个相同图案:若它们之间在立体表面上存在不超过两次转弯的通道即可消除;" +
+          "被挡住时会提示,按 H 键显示可用配对,无解时点「重排」",
+        tag: "旋转魔方,在立体表面上寻找能够连通的相同图案。",
+      };
+      const LEVEL_TEXT = {
+        hint: "选择已解锁关卡；障碍不可选择，消除后图案会按障碍分段下落。按 H 或「提示」高亮可用配对。",
+        tag: "逐关挑战固定布局，连续消除可累积 Combo 和得分。",
+      };
+      const CHALLENGE_TEXT = {
+        hint: "90 秒内完成当前关卡；每局只有 1 次提示，错误配对扣 3 秒并重置 Combo，无解时自动重排，障碍分段下落，连续消除可累积 Combo。",
+        tag: "限时完成固定关卡，错误配对会扣时并中断 Combo；无解时自动重排。",
+      };
+
+      /* 渲染/交互可调参数 */
+      const TILE_HALF = 0.42; // 图块小立方体半边长(世界单位,格距 1)
+
+      /* ---- 状态(在经典 2D 上独立,但共用 game 的计时/流程字段) ---- */
+      llk3d.d = null; // { nx, ny, nz }
+      llk3d.kinds = 0;
+      llk3d.occ = null;
+      llk3d.built = false;
+      llk3d.sel = null; // 当前选中格 {x,y,z}
+      llk3d.stage = null;
+      llk3d.canvas = null;
+      llk3d.ctx = null;
+      llk3d.toastEl = null;
+      llk3d.theme = { accent: [109, 211, 255], bg: [15, 23, 37] };
+      llk3d.yaw = 0.85;
+      llk3d.pitch = 0.42;
+      llk3d.zoom = 1;
+      llk3d.dragging = false;
+      llk3d.lastX = 0;
+      llk3d.lastY = 0;
+      llk3d.lastInput = 0;
+      llk3d.frame = 0;
+      llk3d.running = false;
+      llk3d.anim = { line: null, fading: null }; // 连线/淡出动画
+      llk3d.hintPair = null;
+      llk3d.hintUntil = 0;
+      llk3d.toastTimer = 0;
+      let llk3dNeedsResize = true;
+
+      /* --------------------------- 3D 适配状态 --------------------------- */
+      /* 逻辑棋盘由 core/games/lianliankan/engine.js 管理，这两个函数只连接 UI 状态。 */
+      function occValue3D(cell) {
+        return llk3d.occ[idx3D(llk3d.d, cell.x, cell.y, cell.z)];
+      }
+
+      function setOccValue3D(cell, v) {
+        llk3d.occ[idx3D(llk3d.d, cell.x, cell.y, cell.z)] = v;
+      }
+
+      /* --------------------------- 3D 视图 --------------------------- */
+
+      function cssColorToRgb(str) {
+        if (!str) return null;
+        str = String(str).trim();
+        if (str.charAt(0) === "#") {
+          const m = /^#([0-9a-f]{6})$/i.exec(str);
+          if (!m) return null;
+          return [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16)];
+        }
+        const m = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(str);
+        if (m) return [Math.round(parseFloat(m[1])), Math.round(parseFloat(m[2])), Math.round(parseFloat(m[3]))];
+        return null;
+      }
+
+      function readThemeColors3D() {
+        try {
+          const cs = window.getComputedStyle ? getComputedStyle(document.documentElement) : null;
+          if (!cs) return;
+          const a = cssColorToRgb(cs.getPropertyValue("--accent"));
+          const b = cssColorToRgb(cs.getPropertyValue("--control-bg"));
+          if (a) llk3d.theme.accent = a;
+          if (b) llk3d.theme.bg = b;
+        } catch (err) {
+          /* 保留默认配色 */
+        }
+      }
+
+      /* 构造相机(渲染与拾取共用,保证一致) */
+      function llkCam(cssW, cssH) {
+        const d = llk3d.d;
+        const R = Math.sqrt(d.nx * d.nx + d.ny * d.ny + d.nz * d.nz) / 2 + 0.7;
+        const fov = Math.min(cssW, cssH) * 0.92 * llk3d.zoom;
+        const dist = R * 3.05;
+        const cY = Math.cos(llk3d.yaw);
+        const sY = Math.sin(llk3d.yaw);
+        const cP = Math.cos(llk3d.pitch);
+        const sP = Math.sin(llk3d.pitch);
+        const toEye = (x, y, z) => {
+          const rx = x * cY + z * sY;
+          const rz = -x * sY + z * cY;
+          const ry2 = y * cP - rz * sP;
+          const rz2 = y * sP + rz * cP;
+          return { x: rx, y: ry2, z: rz2 };
+        };
+        const project = (e) => {
+          const denom = dist - e.z;
+          if (denom <= 1e-4) return null;
+          const s = fov / denom;
+          return { x: cssW / 2 + e.x * s, y: cssH / 2 - e.y * s, z: e.z, s };
+        };
+        return { toEye, project };
+      }
+
+      function cellWorld3D(cell) {
+        return {
+          x: cell.x - (llk3d.d.nx - 1) / 2,
+          y: cell.y - (llk3d.d.ny - 1) / 2,
+          z: cell.z - (llk3d.d.nz - 1) / 2,
+        };
+      }
+
+      function rgbaStr(rgb, a) {
+        return "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + a + ")";
+      }
+
+      function shadeRgb(rgb, m) {
+        return [Math.min(255, Math.round(rgb[0] * m)), Math.min(255, Math.round(rgb[1] * m)), Math.min(255, Math.round(rgb[2] * m))];
+      }
+
+      /* 主渲染:一次 rAF 一帧 */
+      function renderLlk3D() {
+        if (!llk3d.canvas || !llk3d.ctx || !llk3d.occ) return;
+        const stage = llk3d.stage;
+        const cssW = stage.clientWidth || 0;
+        const cssH = stage.clientHeight || 0;
+        if (cssW < 40 || cssH < 40) return;
+        const canvas = llk3d.canvas;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const pw = Math.round(cssW * dpr);
+        const ph = Math.round(cssH * dpr);
+        if (canvas.width !== pw || canvas.height !== ph || llk3dNeedsResize) {
+          canvas.width = pw;
+          canvas.height = ph;
+          llk3dNeedsResize = false;
+        }
+        const ctx = llk3d.ctx;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        llk3d.frame += 1;
+
+        // 闲置自动旋转(便于观察各面)
+        if (!llk3d.dragging && nowMs() - llk3d.lastInput > 2600) {
+          llk3d.yaw += 0.0024;
+        }
+
+        readThemeColors3D();
+        const d = llk3d.d;
+        const cam = llkCam(cssW, cssH);
+        const HA = [d.nx / 2, d.ny / 2, d.nz / 2];
+        const ac = llk3d.theme.accent;
+        const bg = llk3d.theme.bg;
+        const base = [Math.round(ac[0] * 0.32 + bg[0] * 0.68), Math.round(ac[1] * 0.32 + bg[1] * 0.68), Math.round(ac[2] * 0.32 + bg[2] * 0.68)];
+        const labelFont = '"Noto Sans SC","Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",system-ui';
+
+        ctx.clearRect(0, 0, cssW, cssH);
+        ctx.lineJoin = "round";
+
+        const items = []; // { z, draw } 按 z 升序(远→近)绘制
+
+        /* 1) 大魔方六面:半透明填充 + 网格线 */
+        for (let a = 0; a < 3; a++) {
+          const u = (a + 1) % 3;
+          const v = (a + 2) % 3;
+          for (let s = 0; s < 2; s++) {
+            const sign = s === 0 ? -1 : 1;
+            const center = [0, 0, 0];
+            center[a] = sign * HA[a];
+            const e = cam.toEye(center[0], center[1], center[2]);
+            const pr = cam.project(e);
+            if (!pr) continue;
+            const corners = [];
+            const cs = [-1, 1];
+            for (let i = 0; i < 2; i++)
+              for (let j = 0; j < 2; j++) {
+                const pt = [center[0], center[1], center[2]];
+                pt[u] = cs[i] * HA[u];
+                pt[v] = cs[j] * HA[v];
+                corners.push(pt);
+              }
+            items.push({
+              z: e.z,
+              draw() {
+                const pts = corners.map((pt) => cam.project(cam.toEye(pt[0], pt[1], pt[2]))).filter(Boolean);
+                if (pts.length < 3) return;
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                ctx.closePath();
+                ctx.fillStyle = rgbaStr(ac, 0.055);
+                ctx.fill();
+                // 网格线(沿两轴)
+                ctx.strokeStyle = rgbaStr(ac, 0.22);
+                ctx.lineWidth = 1;
+                const nU = u === 0 ? d.nx : u === 1 ? d.ny : d.nz;
+                const nV = v === 0 ? d.nx : v === 1 ? d.ny : d.nz;
+                const hU = HA[u];
+                const hV = HA[v];
+                ctx.beginPath();
+                for (let k = 0; k <= nV; k++) {
+                  const pt1 = [center[0], center[1], center[2]];
+                  const pt2 = [center[0], center[1], center[2]];
+                  pt1[u] = -hU;
+                  pt2[u] = hU;
+                  pt1[v] = -hV + k;
+                  pt2[v] = -hV + k;
+                  const a1 = cam.project(cam.toEye(pt1[0], pt1[1], pt1[2]));
+                  const a2 = cam.project(cam.toEye(pt2[0], pt2[1], pt2[2]));
+                  if (a1 && a2) {
+                    ctx.moveTo(a1.x, a1.y);
+                    ctx.lineTo(a2.x, a2.y);
+                  }
+                }
+                for (let k = 0; k <= nU; k++) {
+                  const pt1 = [center[0], center[1], center[2]];
+                  const pt2 = [center[0], center[1], center[2]];
+                  pt1[u] = -hU + k;
+                  pt2[u] = -hU + k;
+                  pt1[v] = -hV;
+                  pt2[v] = hV;
+                  const a1 = cam.project(cam.toEye(pt1[0], pt1[1], pt1[2]));
+                  const a2 = cam.project(cam.toEye(pt2[0], pt2[1], pt2[2]));
+                  if (a1 && a2) {
+                    ctx.moveTo(a1.x, a1.y);
+                    ctx.lineTo(a2.x, a2.y);
+                  }
+                }
+                ctx.stroke();
+              },
+            });
+          }
+        }
+
+        /* 2) 图块:小立方体(面向相机的面)+ 屏幕直立 emoji 标签 */
+        const tiles = tileList3D(llk3d.occ, d);
+        const now = nowMs();
+        const fading = llk3d.anim && llk3d.anim.fading ? llk3d.anim.fading : [];
+
+        const pushTile = (cell, kind, scale, alpha, zBoost) => {
+          const cw = cellWorld3D(cell);
+          const e = cam.toEye(cw.x, cw.y, cw.z);
+          const pr = cam.project(e);
+          if (!pr) return;
+          const h = TILE_HALF * scale;
+          const faces = [];
+          for (let a = 0; a < 3; a++) {
+            for (const sg of [-1, 1]) {
+              const nrm = [0, 0, 0];
+              nrm[a] = sg;
+              const ne = cam.toEye(nrm[0], nrm[1], nrm[2]);
+              if (ne.z <= 0.001) continue;
+              faces.push({ ne, nrm });
+            }
+          }
+          items.push({
+            z: e.z,
+            draw() {
+              ctx.globalAlpha = alpha;
+              // 可见面
+              for (let i = 0; i < faces.length; i++) {
+                const f = faces[i];
+                const m = 0.46 + 0.54 * Math.min(1, Math.max(0, f.ne.z));
+                const col = shadeRgb(base, m);
+                const nAxis = f.nrm[0] !== 0 ? 0 : f.nrm[1] !== 0 ? 1 : 2;
+                const uAxis = (nAxis + 1) % 3;
+                const vAxis = (nAxis + 2) % 3;
+                // 面的四个角:法向偏移 + 两个切向单位轴(依序绕行,避免自交)
+                const nv = [f.nrm[0] * h, f.nrm[1] * h, f.nrm[2] * h];
+                const uv = [0, 0, 0];
+                const vv = [0, 0, 0];
+                uv[uAxis] = h;
+                vv[vAxis] = h;
+                const cornerOffsets = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+                ctx.beginPath();
+                let started = false;
+                for (let c2 = 0; c2 < cornerOffsets.length; c2++) {
+                  const su = cornerOffsets[c2][0];
+                  const sv = cornerOffsets[c2][1];
+                  const p2 = cam.project(
+                    cam.toEye(
+                      cw.x + nv[0] + uv[0] * su + vv[0] * sv,
+                      cw.y + nv[1] + uv[1] * su + vv[1] * sv,
+                      cw.z + nv[2] + uv[2] * su + vv[2] * sv,
+                    ),
+                  );
+                  if (!p2) {
+                    started = false;
+                    continue;
+                  }
+                  if (!started) {
+                    ctx.moveTo(p2.x, p2.y);
+                    started = true;
+                  } else {
+                    ctx.lineTo(p2.x, p2.y);
+                  }
+                }
+                ctx.closePath();
+                ctx.fillStyle = rgbaStr(col, 1);
+                ctx.fill();
+                ctx.strokeStyle = "rgba(0,0,0,0.16)";
+                ctx.lineWidth = 0.75;
+                ctx.stroke();
+              }
+              // 屏幕直立 emoji(加深度偏置,避免被自己的正面盖住)
+              const glyph = EMOJI_POOL[kind - 1];
+              const fontPx = Math.max(11, Math.min(34, pr.s * TILE_HALF * 2.1 * scale));
+              ctx.font = "700 " + fontPx + "px " + labelFont;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.lineWidth = Math.max(2, fontPx / 7);
+              ctx.strokeStyle = "rgba(0,0,0,0.6)";
+              ctx.strokeText(glyph, pr.x, pr.y);
+              ctx.fillStyle = "rgba(255,255,255," + alpha + ")";
+              ctx.fillText(glyph, pr.x, pr.y);
+              ctx.globalAlpha = 1;
+            },
+          });
+        };
+
+        for (let i = 0; i < tiles.length; i++) {
+          const t = tiles[i];
+          pushTile(t, t.kind, 1, 1, 0);
+        }
+        for (let i = 0; i < fading.length; i++) {
+          const f = fading[i];
+          const p = (now - f.start) / f.dur;
+          if (p >= 1) continue;
+          const k = 1 - p;
+          pushTile(f, f.kind, 0.6 + 0.6 * k, k, 0);
+        }
+
+        items.sort((x, y) => x.z - y.z);
+        for (let i = 0; i < items.length; i++) items[i].draw();
+
+        /* 3) 覆盖层:选中环 / 同类脉冲 / 提示环 / 连线动画 */
+        drawLlk3DOverlay(ctx, cam, cssW, cssH);
+      }
+
+      function drawLlk3DOverlay(ctx, cam, cssW, cssH) {
+        if (!llk3d.occ) return;
+        const d = llk3d.d;
+        const now = nowMs();
+        const ring = (cell, color, alpha, lw, dash) => {
+          const cw = cellWorld3D(cell);
+          const e = cam.toEye(cw.x, cw.y, cw.z);
+          const pr = cam.project(e);
+          if (!pr) return;
+          const r = Math.min(34, Math.max(10, pr.s * TILE_HALF * 1.45));
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = lw;
+          if (dash) ctx.setLineDash(dash);
+          ctx.beginPath();
+          ctx.arc(pr.x, pr.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        };
+
+        const ac = llk3d.theme.accent;
+        const accentStr = rgbaStr(ac, 1);
+        const win = [246, 211, 101];
+        const winStr = rgbaStr(win, 1);
+
+        // 已选中:仅实心环标注当前格,不提示其它同类位置(提示只由 H 键触发)
+        if (llk3d.sel && occValue3D(llk3d.sel) > 0) {
+          ring(llk3d.sel, accentStr, 1, 3, null);
+        }
+
+        // H 键提示
+        if (llk3d.hintPair && now < llk3d.hintUntil) {
+          ring(llk3d.hintPair.a, winStr, 0.95, 3, null);
+          ring(llk3d.hintPair.b, winStr, 0.95, 3, null);
+        }
+
+        // 连线动画
+        const anim = llk3d.anim;
+        if (anim && anim.line && anim.line.cells && anim.line.cells.length > 1) {
+          const t = Math.min(1, (now - anim.line.start) / anim.line.dur);
+          const pts = [];
+          for (let i = 0; i < anim.line.cells.length; i++) {
+            const cw = cellWorld3D(anim.line.cells[i]);
+            const e = cam.toEye(cw.x, cw.y, cw.z);
+            const pr = cam.project(e);
+            if (!pr) {
+              pts.push(null);
+            } else {
+              pts.push(pr);
+            }
+          }
+          // 按折线累计长度求当前进度端点
+          const segs = [];
+          let total = 0;
+          for (let i = 1; i < pts.length; i++) {
+            if (!pts[i - 1] || !pts[i]) {
+              segs.push(null);
+              continue;
+            }
+            const L = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+            segs.push(L);
+            total += L;
+          }
+          if (total > 0) {
+            let left = total * t;
+            ctx.save();
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.beginPath();
+            let drawn = false;
+            let head = null;
+            for (let i = 1; i < pts.length; i++) {
+              if (!pts[i - 1] || !pts[i] || !segs[i - 1]) continue;
+              const L = segs[i - 1];
+              if (left <= 0) break;
+              const take = Math.min(L, left);
+              const ratio = take / L;
+              const ex = pts[i - 1].x + (pts[i].x - pts[i - 1].x) * ratio;
+              const ey = pts[i - 1].y + (pts[i].y - pts[i - 1].y) * ratio;
+              if (!drawn) {
+                ctx.moveTo(pts[i - 1].x, pts[i - 1].y);
+                drawn = true;
+              }
+              ctx.lineTo(ex, ey);
+              head = { x: ex, y: ey };
+              left -= take;
+            }
+            if (drawn) {
+              ctx.strokeStyle = accentStr;
+              ctx.lineWidth = 4;
+              ctx.shadowColor = rgbaStr(ac, 0.9);
+              ctx.shadowBlur = 10;
+              ctx.stroke();
+              ctx.shadowBlur = 0;
+              if (head) {
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(head.x, head.y, 4.5, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+            ctx.restore();
+          }
+        }
+      }
+
+      /* --------------------------- 3D 交互 --------------------------- */
+
+      function ensureLlk3DStage() {
+        if (llk3d.ctx) return true;
+        if (!stageEl) return false;
+        let canvas = document.getElementById("llk3dCanvas");
+        if (!canvas) {
+          canvas = document.createElement("canvas");
+          canvas.className = "llk3d-canvas";
+          canvas.id = "llk3dCanvas";
+          stageEl.appendChild(canvas);
+        }
+        const ctx = canvas.getContext ? canvas.getContext("2d") : null;
+        if (!ctx) return false;
+        llk3d.stage = stageEl;
+        llk3d.canvas = canvas;
+        llk3d.ctx = ctx;
+        llk3d.toastEl = toastEl;
+        bindLlk3DInput(canvas);
+        llk3dNeedsResize = true;
+        return true;
+      }
+
+      function bindLlk3DInput(canvas) {
+        let down = false;
+        let moved = 0;
+        const local = (e) => {
+          const r = canvas.getBoundingClientRect();
+          return { x: e.clientX - r.left, y: e.clientY - r.top };
+        };
+        canvas.addEventListener("pointerdown", (e) => {
+          if (!activeMode3D() || game.ended || game.busy) return;
+          down = true;
+          moved = 0;
+          const p = local(e);
+          llk3d.lastX = p.x;
+          llk3d.lastY = p.y;
+          llk3d.dragging = true;
+          llk3d.lastInput = nowMs();
+          try {
+            canvas.setPointerCapture(e.pointerId);
+          } catch (err) {
+            /* ignore */
+          }
+        });
+        canvas.addEventListener("pointermove", (e) => {
+          if (!down) return;
+          const p = local(e);
+          const dx = p.x - llk3d.lastX;
+          const dy = p.y - llk3d.lastY;
+          llk3d.lastX = p.x;
+          llk3d.lastY = p.y;
+          moved += Math.abs(dx) + Math.abs(dy);
+          llk3d.yaw += dx * 0.008;
+          llk3d.pitch = Math.max(-1.25, Math.min(1.25, llk3d.pitch + dy * 0.007));
+          llk3d.lastInput = nowMs();
+        });
+        const endDrag = (e) => {
+          if (!down) return;
+          down = false;
+          llk3d.dragging = false;
+          if (moved < 6 && activeMode3D()) {
+            const p = local(e);
+            handleLlk3DPick(p.x, p.y);
+          }
+        };
+        canvas.addEventListener("pointerup", endDrag);
+        canvas.addEventListener("pointercancel", () => {
+          down = false;
+          llk3d.dragging = false;
+        });
+        canvas.addEventListener(
+          "wheel",
+          (e) => {
+            if (!activeMode3D()) return;
+            e.preventDefault();
+            const f = e.deltaY > 0 ? 1 / 1.12 : 1.12;
+            llk3d.zoom = Math.max(0.45, Math.min(3.2, llk3d.zoom * f));
+            llk3d.lastInput = nowMs();
+          },
+          { passive: false },
+        );
+      }
+
+      function pickTile3D(px, py) {
+        const d = llk3d.d;
+        const stage = llk3d.stage;
+        const cam = llkCam(stage.clientWidth || 1, stage.clientHeight || 1);
+        const tiles = tileList3D(llk3d.occ, d);
+        let best = null;
+        let bestZ = -Infinity;
+        for (let i = 0; i < tiles.length; i++) {
+          const cw = cellWorld3D(tiles[i]);
+          const e = cam.toEye(cw.x, cw.y, cw.z);
+          const pr = cam.project(e);
+          if (!pr) continue;
+          const dx = pr.x - px;
+          const dy = pr.y - py;
+          const r = Math.min(32, Math.max(13, pr.s * TILE_HALF * 1.6));
+          if (dx * dx + dy * dy <= r * r && e.z > bestZ) {
+            bestZ = e.z;
+            best = { x: tiles[i].x, y: tiles[i].y, z: tiles[i].z };
+          }
+        }
+        return best;
+      }
+
+      function llk3dToast(text, isError) {
+        const el = llk3d.toastEl;
+        if (!el) {
+          if (text) setStatus(text);
+          return;
+        }
+        if (llk3d.toastTimer) {
+          lianliankanClock.clearTimeout(llk3d.toastTimer);
+          llk3d.toastTimer = 0;
+        }
+        if (!text) {
+          el.classList.remove("is-show", "is-error");
+          el.hidden = true;
+          return;
+        }
+        el.textContent = text;
+        el.classList.toggle("is-error", !!isError);
+        el.hidden = false;
+        requestAnimationFrame(() => {
+          el.classList.add("is-show");
+        });
+        llk3d.toastTimer = lianliankanClock.setTimeout(() => {
+          el.classList.remove("is-show");
+          lianliankanClock.setTimeout(() => {
+            if (!el.classList.contains("is-show")) el.hidden = true;
+          }, 220);
+          llk3d.toastTimer = 0;
+        }, 1500);
+      }
+
+      function showHint3D() {
+        if (!activeMode3D() || game.busy || game.ended) return;
+        const pair = find3DAnyPair(llk3d.occ, llk3d.d);
+        if (!pair) {
+          llk3dToast("暂无可用配对,点「重排」试试", true);
+          if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
+          return;
+        }
+        llk3d.hintPair = pair;
+        llk3d.hintUntil = nowMs() + 2400;
+        llk3dToast("已高亮一对可用图案");
+      }
+
+      /* 点击拾取:选中/配对/消除流程(与经典共用计时字段) */
+      function handleLlk3DPick(px, py) {
+        if (!activeMode3D() || game.busy || game.ended || game.paused) return;
+        const hit = pickTile3D(px, py);
+        if (!hit) {
+          llk3d.sel = null; // 点到空白:取消选中
+          return;
+        }
+        if (!game.started) {
+          game.started = true;
+          game.paused = false;
+          startTimer();
+          setStatus("进行中");
+        }
+        if (llk3d.sel && sameCell3D(llk3d.sel, hit)) {
+          llk3d.sel = null; // 再点一次取消
+          return;
+        }
+        if (!llk3d.sel) {
+          llk3d.sel = hit;
+          return;
+        }
+        const a = llk3d.sel;
+        const b = hit;
+        const va = occValue3D(a);
+        const vb = occValue3D(b);
+        if (va !== vb) {
+          llk3d.sel = hit;
+          llk3dToast("图案不同", true);
+          return;
+        }
+        const path = find3DPath(llk3d.occ, llk3d.d, a, b);
+        if (!path) {
+          llk3d.sel = hit;
+          llk3dToast("被其它方块挡住了,换一对试试", true);
+          return;
+        }
+
+        // 配对成功
+        llk3d.sel = null;
+        game.busy = true;
+        const cells = expandPath3D(llk3d.d, path) || path;
+        llk3d.anim.line = { cells, start: nowMs(), dur: 380 };
+        llk3d.anim.fading = [];
+        lianliankanClock.setTimeout(() => {
+          // 画线完成:消除两格并播放缩小淡出
+          setOccValue3D(a, 0);
+          setOccValue3D(b, 0);
+          llk3d.anim.line = null;
+          llk3d.anim.fading = [
+            { x: a.x, y: a.y, z: a.z, kind: va, start: nowMs(), dur: 300 },
+            { x: b.x, y: b.y, z: b.z, kind: vb, start: nowMs(), dur: 300 },
+          ];
+          lianliankanClock.setTimeout(() => {
+            llk3d.anim.fading = [];
+            game.busy = false;
+            if (count3DRemaining(llk3d.occ) === 0) {
+              win();
+              return;
+            }
+            setLeft();
+            if (!find3DAnyPair(llk3d.occ, llk3d.d)) {
+              setStatus("无可用配对,点「重排」");
+              if (shuffleBtn) shuffleBtn.classList.add("is-highlight");
+            } else if (shuffleBtn) {
+              shuffleBtn.classList.remove("is-highlight");
+            }
+          }, 320);
+        }, 400);
+      }
+
+      function handleShuffle3D() {
+        if (game.ended || game.busy) return;
+        if (!activeMode3D()) return;
+        if (count3DRemaining(llk3d.occ) === 0) return;
+        const ok = reshuffle3D({ d: llk3d.d, kinds: llk3d.kinds, occ: llk3d.occ });
+        if (!game.started) {
+          game.started = true;
+          startTimer();
+        }
+        setStatus(ok ? "已重排,继续配对" : "重排后仍无解,可再试一次");
+        if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
+        llk3d.sel = null;
+        llk3d.anim.line = null;
+        llk3d.anim.fading = [];
+        llk3d.hintPair = null;
+        setLeft();
+      }
+
+      /* --------------------------- 3D 编排与模式切换 --------------------------- */
+
+      function llk3dStartLoop() {
+        if (llk3d.running) return;
+        llk3d.running = true;
+        const tick = () => {
+          if (!llk3d.running) return;
+          if (llkActive && activeMode3D()) {
+            try {
+              renderLlk3D();
+            } catch (err) {
+              if (typeof console !== "undefined") console.error("[llk3d]", err);
+            }
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+
+      function llk3dStopLoop() {
+        llk3d.running = false;
+      }
+
+      function start3DGame(key) {
+        cancelAnimations();
+        const cfg = LLK3D_DIFFICULTIES[key] || LLK3D_DIFFICULTIES.medium;
+        if (!ensureLlk3DStage()) {
+          setStatus("3D 画布不可用,请更换浏览器");
+          return;
+        }
+        if (difficultyEl) difficultyEl.value = cfg === LLK3D_DIFFICULTIES[key] ? key : "medium";
+        const board = make3DBoard(cfg.size, cfg.kinds);
+        llk3d.d = board.d;
+        llk3d.kinds = board.kinds;
+        llk3d.occ = board.occ;
+        llk3d.built = true;
+        llk3d.sel = null;
+        llk3d.anim.line = null;
+        llk3d.anim.fading = [];
+        llk3d.hintPair = null;
+        llk3d.frame = 0;
+        llk3dToast("");
+        game.difficulty = key;
+        game.sel = null;
+        game.started = false;
+        game.ended = false;
+        game.paused = false;
+        game.busy = false;
+        game.autoPaused = false;
+        game.baseMs = 0;
+        game.startAt = null;
+        game.challenge = null;
+        stopTimer();
+        resetRunStats();
+        clearChallengeResult();
+        shell.classList.remove("llk-won");
+        if (shuffleBtn) shuffleBtn.classList.remove("is-highlight");
+        setStatus("待开始");
+        renderTimer();
+        renderChallengeResources();
+        setLeft();
+        llk3dStartLoop();
+      }
+
+      /* 新局(按当前玩法) */
+      function startGameForMode(key) {
+        if (llkModeKey === "3d") {
+          const cfg = LLK3D_DIFFICULTIES[key];
+          start3DGame(cfg ? key : "medium");
+        } else if (llkModeKey === "levels" || llkModeKey === "challenge") {
+          startLevel(game.levelId || 1);
+        } else {
+          const cfg = DIFFICULTIES[key];
+          startNew(cfg ? key : "medium");
+        }
+      }
+
+      function onShufflePressed() {
+        if (llkModeKey === "3d") handleShuffle3D();
+        else handleShuffle();
+      }
+
+      /* 玩法切换(经典 / 关卡 / 挑战 <-> 3D) */
+      function switchLlkMode(next) {
+        const target = next === "3d" ? "3d"
+          : (next === "levels" ? "levels" : (next === "challenge" ? "challenge" : "classic"));
+        if (target === llkModeKey) return;
+        if (target === "3d" && !ensureLlk3DStage()) {
+          setStatus("当前浏览器不支持 3D 画布");
+          if (modeEl) modeEl.value = "classic";
+          return;
+        }
+        llkModeKey = target;
+        if (modeEl) modeEl.value = target;
+        shell.classList.toggle("llk-mode-3d", target === "3d");
+        shell.classList.toggle("llk-mode-levels", target === "levels");
+        shell.classList.toggle("llk-mode-challenge", target === "challenge");
+        llk3d.sel = null;
+        llk3dToast("");
+        llk3dStopLoop();
+        applyLlkModeTexts();
+        clearLine();
+        const key = difficultyEl ? difficultyEl.value : "medium";
+        if (target === "3d") {
+          const cfg = LLK3D_DIFFICULTIES[key];
+          start3DGame(cfg ? key : "medium");
+        } else if (target === "levels" || target === "challenge") {
+          startLevel(1);
+        } else {
+          const cfg = DIFFICULTIES[key];
+          startNew(cfg ? key : "medium");
+        }
+      }
+
+      /* 键盘:方向键旋转、+/- 缩放、H 提示 */
+      llk3d.onKey = (key) => {
+        if (key === "ArrowLeft" || key === "ArrowRight" || key === "ArrowUp" || key === "ArrowDown") {
+          const step = 0.3;
+          if (key === "ArrowLeft") llk3d.yaw -= step;
+          else if (key === "ArrowRight") llk3d.yaw += step;
+          else if (key === "ArrowUp") llk3d.pitch = Math.max(-1.25, Math.min(1.25, llk3d.pitch + step));
+          else llk3d.pitch = Math.max(-1.25, Math.min(1.25, llk3d.pitch - step));
+          llk3d.lastInput = nowMs();
+          return true;
+        }
+        if (key === "+" || key === "=") {
+          llk3d.zoom = Math.min(3.2, llk3d.zoom * 1.15);
+          llk3d.lastInput = nowMs();
+          return true;
+        }
+        if (key === "-" || key === "_") {
+          llk3d.zoom = Math.max(0.45, llk3d.zoom / 1.15);
+          llk3d.lastInput = nowMs();
+          return true;
+        }
+        if (key && key.toLowerCase() === "h") {
+          showHint3D();
+          return true;
+        }
+        return false;
+      };
+
+      /* 难度/提示/副标题等界面文案与当前玩法同步 */
+      function applyLlkDifficultyLabels() {
+        if (!difficultyEl || !difficultyEl.options) return;
+        const opts = difficultyEl.options;
+        for (let i = 0; i < opts.length; i++) {
+          const opt = opts[i];
+          const key = opt.value;
+          if (llkModeKey === "3d") {
+            const cfg = LLK3D_DIFFICULTIES[key];
+            if (cfg) opt.textContent = cfg.name + " " + cfg.size + "³";
+          } else {
+            const cfg = DIFFICULTIES[key];
+            if (cfg) opt.textContent = cfg.name + " " + cfg.rows + "×" + cfg.cols;
+          }
+        }
+      }
+
+      function applyLlkModeTexts() {
+        applyLlkDifficultyLabels();
+        const is3d = llkModeKey === "3d";
+        const isLevels = llkModeKey === "levels";
+        const isChallenge = llkModeKey === "challenge";
+        if (hintEl) {
+          hintEl.textContent = is3d ? LLK3D_TEXT.hint
+            : (isChallenge ? CHALLENGE_TEXT.hint : (isLevels ? LEVEL_TEXT.hint : LLK3D_TEXT.classicHint));
+        }
+        if (taglineEl) {
+          taglineEl.textContent = is3d ? LLK3D_TEXT.tag
+            : (isChallenge ? CHALLENGE_TEXT.tag : (isLevels ? LEVEL_TEXT.tag : LLK3D_TEXT.classicTag));
+        }
+        if (hintBtn) hintBtn.hidden = is3d;
+        if (shuffleBtn) shuffleBtn.disabled = isChallenge;
+        if (difficultyEl && difficultyEl.parentElement) difficultyEl.parentElement.hidden = isLevels || isChallenge;
+        renderChallengeResources();
+        renderLevelPicker();
+      }
+
+      /* ----------------------------- 启动 ----------------------------- */
+
+      function init() {
+        game.progress = readLevelProgress(getLocalStorage());
+        buildCells();
+        bindControls();
+        applyLlkModeTexts(); // 难度选项/提示文案与当前玩法保持一致
+        // 有协调器时由协调器统一路由;首次进入 lianliankan 前先建好初始棋盘
+        const coordinator = typeof window !== "undefined" ? window.__GAME_TABS__ : null;
+        if (coordinator && typeof coordinator.getCurrent === "function") {
+          // 预生成当前玩法棋盘(切换 Tab 后首帧即有内容)
+          const key = difficultyEl ? difficultyEl.value : "medium";
+          if (llkModeKey === "3d") {
+            start3DGame(LLK3D_DIFFICULTIES[key] ? key : "medium");
+          } else if (llkModeKey === "levels" || llkModeKey === "challenge") {
+            startLevel(1);
+          } else {
+            startNew(DIFFICULTIES[key] ? key : "medium");
+          }
+          if (coordinator.getCurrent() === "lianliankan") onLinkActivate();
+        }
+      }
+
+      init();
+
+      /* 暴露纯逻辑,供 Node 测试与调试 */
+      if (typeof window !== "undefined") {
+        window.addEventListener("error", (e) => {
+          try {
+            window.__llk3dError = (e && e.error && (e.error.stack || e.error.message)) || (e && e.message) || String(e);
+          } catch (err) {
+            /* ignore */
+          }
+        });
+      }
+      if (typeof window !== "undefined") {
+        window.__LLK_LEVELS__ = Object.assign(LLK_LEVELS, {
+          levels: LLK_LEVELS,
+          cloneLayout,
+          collapseColumns,
+          reshuffle: reshuffleLevel,
+          countRemaining,
+        });
+        window.__LLK__ = {
+          DIFFICULTIES,
+          LLK3D_DIFFICULTIES,
+          EMOJI_POOL,
+          makeBoard,
+          findPath,
+          explainPairFailure, // 配对失败原因纯逻辑
+          findAnyPair,
+          countRemaining,
+          reshuffle,
+          isEmptyCell,
+          segmentClear,
+          computePathPoints,
+          getLineStrokeWidth,
+          levelFlow: {
+            nextScore: nextPairScore,
+            resetCombo: resetLevelCombo,
+            expireCombo: expireLevelCombo,
+            scorePair: scorePairForMode,
+            applyClearBonus: applyLevelClearBonus,
+            dropPlan: makeDropPlan,
+            challengeConfig,
+            createChallengeState,
+            consumeChallengeResource,
+            remainingChallengeSeconds,
+            challengeRating,
+            isSelectable: isSelectableTile,
+            findHintPair,
+            defaultProgress: defaultLevelProgress,
+            readProgress: readLevelProgress,
+            writeProgress: writeLevelProgress,
+            recordCompletion: recordLevelCompletion,
+            ensureSolvable: ensureLevelSolvable,
+          },
+          llk3d: {
+            DIFFICULTIES: LLK3D_DIFFICULTIES,
+            isSurfaceCell: isSurfaceCell3D,
+            idx: idx3D,
+            dimsCube: dimsCube3D,
+            axisDiff: axisDiff3D,
+            makeBoard: make3DBoard,
+            findPath: find3DPath,
+            findAnyPair: find3DAnyPair,
+            countRemaining: count3DRemaining,
+            reshuffle: reshuffle3D,
+            expandPath: expandPath3D,
+            surfaceCells: surfaceCellList3D,
+            emptyCells: emptySurfaceList3D,
+            tiles: tileList3D,
+          },
+        };
+      }
+    })();
+
+  };
   moduleFactories["src/app.js"] = function (exports, __require) {
     const { CUSTOM_DIFFICULTY_CONFIG: CUSTOM_DIFFICULTY_CONFIG, DIFFICULTIES: DIFFICULTIES, HEX_DIFFICULTIES: HEX_DIFFICULTIES, MODES: MODES, RING_DIFFICULTIES: RING_DIFFICULTIES, SUDOKU_DIFFICULTIES: SUDOKU_DIFFICULTIES, THEMES: THEMES } = __require("src/config.js");
     const { makeState: makeState } = __require("src/core/games/minesweeper/state.js");
+    const { createGameRegistry: createGameRegistry } = __require("src/application/game-registry.js");
     const { createGameLogic: createGameLogic } = __require("src/game.js");
     const { createUI: createUI } = __require("src/ui.js");
     const { createRogueGame: createRogueGame } = __require("src/core/games/rogue/index.js");
@@ -4478,6 +9397,9 @@
     const { loadSettings: loadSettings, saveBackgroundOpacity: saveBackgroundOpacity, saveBackgroundUrl: saveBackgroundUrl, saveGenerationMode: saveGenerationMode, saveModeKey: saveModeKey, saveThemeKey: saveThemeKey } = __require("src/storage.js");
     const { createWebStorage: createWebStorage } = __require("src/platform/web/storage.js");
     const { createWebClock: createWebClock } = __require("src/platform/web/clock.js");
+    __require("src/game-tabs.js");
+    __require("src/sudoku-game.js");
+    __require("src/lianliankan-game.js");
 
     const elements = {
       boardEl: document.getElementById("board"),
@@ -4559,6 +9481,7 @@
 
     const webStorage = createWebStorage();
     const webClock = createWebClock();
+    const gameRegistry = createGameRegistry({ initialGame: "sweep" });
     const storage = loadSettings(webStorage);
     const validModes = Object.keys(MODES);
     let modeKey = validModes.includes(storage.modeKey) ? storage.modeKey : "classic";
@@ -4958,6 +9881,59 @@
       onChooseReward: (upgradeId) => rogueGame.chooseReward(upgradeId),
       onAction: () => renderRogue(),
     };
+
+    gameRegistry.register("sweep", {
+      getState: () => state,
+      dispatch: (action) => {
+        if (action?.type === "reset") resetGame();
+        else if (action?.type === "reveal") handleReveal(action.row, action.col);
+        else if (action?.type === "chord") handleChord(action.row, action.col);
+        else if (action?.type === "mark") handleCycleMark(action.row, action.col);
+        else if (action?.type === "hint") handleHint();
+        else return "invalid";
+        return state;
+      },
+    });
+
+    gameRegistry.register("rogue", {
+      getState: () => rogueGame.getState(),
+      dispatch: (action) => {
+        const result = action?.type === "reset"
+          ? rogueHandlers.onReset()
+          : action?.type === "reveal"
+            ? rogueHandlers.onReveal(action.row, action.col)
+            : action?.type === "chord"
+              ? rogueHandlers.onChord(action.row, action.col)
+              : action?.type === "mark"
+                ? rogueHandlers.onCycleMark(action.row, action.col)
+                : action?.type === "select-contract"
+                  ? rogueHandlers.onSelectContract(action.contractId)
+                  : action?.type === "select-tool"
+                    ? rogueHandlers.onSelectTool(action.toolKey)
+                    : action?.type === "use-tool"
+                      ? rogueHandlers.onUseTool(action.row, action.col)
+                      : action?.type === "cancel-tool"
+                        ? rogueHandlers.onCancelTool()
+                        : action?.type === "choose-reward"
+                          ? rogueHandlers.onChooseReward(action.upgradeId)
+                          : "invalid";
+        return result === "invalid" ? result : rogueGame.getState();
+      },
+    });
+
+    gameRegistry.register("2048", {
+      getState: () => game2048UI.getState(),
+      dispatch: (action) => {
+        if (action?.type === "move") return game2048UI.move(action.direction);
+        if (action?.type === "reset") {
+          game2048UI.reset();
+          return game2048UI.getState();
+        }
+        return "invalid";
+      },
+    });
+
+    window.__GAME_REGISTRY__ = gameRegistry;
 
     ui.bindHandlers({
       onReset: resetGame,

@@ -28,6 +28,9 @@ import {
 } from "./storage.js";
 import { createWebStorage } from "./platform/web/storage.js";
 import { createWebClock } from "./platform/web/clock.js";
+import "./game-tabs.js";
+import "./sudoku-game.js";
+import "./lianliankan-game.js";
 
 const elements = {
   boardEl: document.getElementById("board"),

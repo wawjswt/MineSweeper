@@ -56,6 +56,13 @@ function collectModule(moduleId) {
     return `${linePrefix}const { ${bindings.join(", ")} } = __require(${JSON.stringify(dependencyId)});`;
   });
 
+  const sideEffectImportPattern = /(^|\r?\n)[ \t]*import\s*["']([^"']+)["'];?[ \t]*(?=\r?\n|$)/g;
+  source = source.replace(sideEffectImportPattern, (match, linePrefix, specifier) => {
+    const dependencyId = normalizeModuleId(moduleId, specifier);
+    collectModule(dependencyId);
+    return `${linePrefix}__require(${JSON.stringify(dependencyId)});`;
+  });
+
   const exportFromPattern = /(^|\r?\n)[ \t]*export\s*\{([\s\S]*?)\}\s*from\s*["']([^"']+)["'];?[ \t]*(?=\r?\n|$)/g;
   source = source.replace(exportFromPattern, (match, linePrefix, specifierList, specifier) => {
     const dependencyId = normalizeModuleId(moduleId, specifier);

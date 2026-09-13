@@ -202,27 +202,27 @@
 - `file:` loads the generated `dist/file-bundle.js`, which contains the same app dependency graph, including all canonical core modules and Web controllers.
 - The bundle builder supports named imports, side-effect imports and named re-exports, while rejecting unsupported external imports.
 
-- [ ] **Step 1: Add failing entry/bundle assertions**
+- [x] **Step 1: Add failing entry/bundle assertions**
 
   Assert that `index.html` no longer loads the legacy game scripts as independent business entries, that `src/app.js` reaches the Web controllers through imports, and that the generated bundle contains canonical Sudoku/Link-Link/Rogue modules without duplicate legacy implementations.
 
-- [ ] **Step 2: Run the file-entry test and verify the expected failure**
+- [x] **Step 2: Run the file-entry test and verify the expected failure**
 
   Run: `node --test tests/file-entry.test.js`.
   Expected: FAIL before the unified imports and builder support are added.
 
-- [ ] **Step 3: Update the entry and builder minimally**
+- [x] **Step 3: Update the entry and builder minimally**
 
   Add side-effect import parsing, keep the bundle self-contained, remove the duplicate script tags from `index.html`, and add the focused tests to `npm test`.
 
-- [ ] **Step 4: Update documentation and core status records**
+- [x] **Step 4: Update documentation and core status records**
 
   Record that Sudoku and Link-Link are now extracted Web adapters, Rogue is canonical under `core`, and the next phase is `platform/wechat` plus WXML/WXSS adapters. Keep future UI work explicitly out of this phase.
 
-- [ ] **Step 5: Run the complete verification command**
+- [x] **Step 5: Run the complete verification command**
 
   Run: `npm test` and confirm bundle generation succeeds, all Node tests pass, and all legacy generator/flow checks pass.
 
-- [ ] **Step 6: Inspect the diff and commit the second phase**
+- [x] **Step 6: Inspect the diff and commit the second phase**
 
   Run: `git diff --stat`, `git diff --check`, and `git status --short --untracked-files=all`; keep only intentional source, test, documentation, and generated bundle changes. Commit with `refactor: complete remaining game core extraction`.

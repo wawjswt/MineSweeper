@@ -23,9 +23,8 @@ import { createWebStorage } from "./platform/web/storage.js";
 /* 独立标准数独小游戏(与传统扫雷、数独扫雷相互独立)
  *
  * 设计约束:
- * 1. 本文件为普通 <script>(非 ES module),与 src/app.js(扫雷)同页加载。
- *    bundle.js 在顶层声明了大量 const/function,共享同一全局词法环境,
- *    因此本文件必须整体包裹在 IIFE 中,任何顶层变量都不外泄。
+ * 1. 本文件是由 src/app.js 导入的 Web ESM 适配器；IIFE 只用于隔离 DOM
+ *    控制器状态，任何顶层变量都不外泄。
  * 2. 题目由程序实时生成:随机完整解 + 按难度挖洞,并用解数计数保证唯一解。
  * 3. 与扫雷通过页面顶部「游戏类型」Tab 同页切换;数独激活时在捕获阶段
  *    拦截 R 键,避免误触扫雷的"重开"快捷键。
