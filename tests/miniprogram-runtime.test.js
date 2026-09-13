@@ -80,10 +80,12 @@ test("Mini Program runtime registers view-model-backed game sessions", () => {
     },
   });
 
-  assert.deepEqual(runtime.listGames(), ["2048", "sweep"]);
+  assert.deepEqual(runtime.listGames(), ["2048", "sweep", "sudoku"]);
   assert.equal(runtime.currentGame(), "2048");
   assert.equal(runtime.getState().cells.length, 16);
   assert.equal(runtime.dispatch({ type: "reset" }).state.cells.length, 16);
+  runtime.select("sudoku");
+  assert.equal(runtime.getState().cells.length, 81);
 });
 
 test("game runtime forwards session updates through view models", () => {

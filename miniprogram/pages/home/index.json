@@ -1,5 +1,6 @@
 {
   "usingComponents": {
-    "minesweeper-board": "/components/minesweeper-board/index"
+    "minesweeper-board": "/components/minesweeper-board/index",
+    "sudoku-board": "/components/sudoku-board/index"
   }
 }

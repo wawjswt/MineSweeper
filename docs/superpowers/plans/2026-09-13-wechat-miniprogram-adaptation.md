@@ -259,7 +259,7 @@
 
   The session owns the mutable state and configuration; the board component only emits `reveal`, `chord`, and `mark` events. A normal tap reveals; a long press enters mark mode for the tapped cell; the explicit mark button remains available for devices where long press is inconvenient.
 
-- [ ] **Step 4: Run focused and full tests**
+- [x] **Step 4: Run focused and full tests**
 
   ```bash
   node --test tests/minesweeper-session.test.js tests/minesweeper.test.js tests/core-boundaries.test.js
@@ -290,7 +290,7 @@
 - Session state contains the existing `values`, `given`, `notes`, `solution`-derived progress, `selectedIndex`, `activeDigit`, `noteMode`, `past`, `future`, `paused`, `ended`, and `generating` semantics; serialization continues through `serializeSave`/`deserializeSave`.
 - `toSudokuViewModel(state)` produces 81 WXML cells with candidates, peer/highlight flags, given/user values, and remaining-count text.
 
-- [ ] **Step 1: Add failing session tests**
+- [x] **Step 1: Add failing session tests**
 
   Cover unique generated puzzles, given-cell protection, note toggling, undo/redo, hint application, wrong input feedback, save/load round-trip, and pause/resume behavior with fake RNG, clock, and storage.
 
@@ -298,7 +298,7 @@
 
   Move puzzle state transitions into the session while leaving DOM rendering, keyboard listeners, and tab switching in `src/sudoku-game.js`. Update the Web controller to consume the same session so Web and Mini Program do not develop different rules.
 
-- [ ] **Step 3: Implement the WXML board and keypad**
+- [x] **Step 3: Implement the WXML board and keypad**
 
   The board emits `select`; a numeric keypad emits `input`; notes/erase/hint/undo/redo buttons dispatch explicit actions. Given cells are disabled by view state, not by duplicated Sudoku validation in WXML.
 

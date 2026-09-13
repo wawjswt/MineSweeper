@@ -6,6 +6,7 @@ Page({
     games: [],
     activeGame: null,
     game: null,
+    sudokuDigits: [1, 2, 3, 4, 5, 6, 7, 8, 9],
   },
 
   onLoad() {
@@ -74,6 +75,18 @@ Page({
 
   onSweepHint() {
     this.dispatch({ type: "hint" }, "sweep");
+  },
+
+  onSudokuSelect(event) {
+    this.dispatch({ type: "select", index: Number(event.detail.index) }, "sudoku");
+  },
+
+  onSudokuInput(event) {
+    this.dispatch({ type: "input", digit: Number(event.currentTarget.dataset.digit) }, "sudoku");
+  },
+
+  onSudokuAction(event) {
+    this.dispatch({ type: event.currentTarget.dataset.action }, "sudoku");
   },
 
   onNewGame() {

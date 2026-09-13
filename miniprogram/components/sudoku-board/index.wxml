@@ -1,0 +1,14 @@
+<view class="sudoku-board">
+  <view
+    wx:for="{{cells}}"
+    wx:key="index"
+    class="sudoku-cell {{item.given ? 'is-given' : ''}} {{item.selected ? 'is-selected' : ''}} {{item.peer ? 'is-peer' : ''}} {{item.same ? 'is-same' : ''}} {{item.error ? 'is-error' : ''}} {{item.hintTarget ? 'is-hint-target' : ''}} {{item.hintAffected ? 'is-hint-affected' : ''}}"
+    data-index="{{item.index}}"
+    bindtap="onCellTap"
+  >
+    <text wx:if="{{item.value}}" class="sudoku-value">{{item.value}}</text>
+    <view wx:else class="sudoku-notes">
+      <text wx:for="{{item.notes}}" wx:key="*this" class="sudoku-note">{{item}}</text>
+    </view>
+  </view>
+</view>

@@ -65,6 +65,35 @@
         <button class="secondary-button" bindtap="onSweepHint">提示</button>
       </view>
     </view>
+
+    <view wx:elif="{{activeGame === 'sudoku' && game}}" class="game-card sudoku-card">
+      <view class="score-row">
+        <view><text class="score-label">TIME</text><text class="score-value">{{game.timer}}</text></view>
+        <view><text class="score-label">LEFT</text><text class="score-value">{{game.remaining}}</text></view>
+        <view><text class="score-label">ERRORS</text><text class="score-value">{{game.errors}}</text></view>
+      </view>
+      <sudoku-board cells="{{game.cells}}" bind:select="onSudokuSelect" />
+      <text wx:if="{{game.notice}}" class="notice">{{game.notice}}</text>
+      <view class="sudoku-pad">
+        <button
+          wx:for="{{sudokuDigits}}"
+          wx:key="*this"
+          class="digit-button {{item === game.activeDigit ? 'is-active' : ''}}"
+          data-digit="{{item}}"
+          bindtap="onSudokuInput"
+        >{{item}}</button>
+      </view>
+      <view class="actions sudoku-actions">
+        <button class="secondary-button" data-action="toggle-note" bindtap="onSudokuAction">{{game.noteMode ? '笔记：开' : '笔记：关'}}</button>
+        <button class="secondary-button" data-action="erase" bindtap="onSudokuAction">擦除</button>
+        <button class="secondary-button" data-action="hint" bindtap="onSudokuAction">提示</button>
+      </view>
+      <view class="actions sudoku-actions">
+        <button class="secondary-button" data-action="undo" bindtap="onSudokuAction">撤销</button>
+        <button class="secondary-button" data-action="redo" bindtap="onSudokuAction">重做</button>
+        <button class="primary-button" bindtap="onNewGame">重置</button>
+      </view>
+    </view>
   </view>
   <view wx:else class="empty-state">
     <text class="title">正在加载</text>
