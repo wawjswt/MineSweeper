@@ -26,6 +26,7 @@ import {
   saveThemeKey,
 } from "./storage.js";
 import { createWebStorage } from "./platform/web/storage.js";
+import { createWebClock } from "./platform/web/clock.js";
 
 const elements = {
   boardEl: document.getElementById("board"),
@@ -106,6 +107,7 @@ const elements = {
 };
 
 const webStorage = createWebStorage();
+const webClock = createWebClock();
 const storage = loadSettings(webStorage);
 const validModes = Object.keys(MODES);
 let modeKey = validModes.includes(storage.modeKey) ? storage.modeKey : "classic";
@@ -452,6 +454,7 @@ const game = createGameLogic({
   getState: () => state,
   getDifficultySpec,
   getGenerationMode: () => generationMode,
+  clock: webClock,
 });
 const rogueUI = createRogueUI(elements);
 const rogueGame = createRogueGame({ rng: Math.random });

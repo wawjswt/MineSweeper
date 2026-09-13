@@ -32,6 +32,17 @@ function parseImportBindings(specifierList) {
     });
 }
 
+function parseExportBindings(specifierList) {
+  return specifierList
+    .split(",")
+    .map((specifier) => specifier.trim())
+    .filter(Boolean)
+    .map((specifier) => {
+      const [local, exported = local] = specifier.split(/\s+as\s+/);
+      return { local: local.trim(), exported: exported.trim() };
+    });
+}
+
 function collectModule(moduleId) {
   if (modules.has(moduleId)) return;
   modules.set(moduleId, { source: null });
@@ -43,6 +54,17 @@ function collectModule(moduleId) {
     collectModule(dependencyId);
     const bindings = parseImportBindings(specifierList);
     return `${linePrefix}const { ${bindings.join(", ")} } = __require(${JSON.stringify(dependencyId)});`;
+  });
+
+  const exportFromPattern = /(^|\r?\n)[ \t]*export\s*\{([\s\S]*?)\}\s*from\s*["']([^"']+)["'];?[ \t]*(?=\r?\n|$)/g;
+  source = source.replace(exportFromPattern, (match, linePrefix, specifierList, specifier) => {
+    const dependencyId = normalizeModuleId(moduleId, specifier);
+    collectModule(dependencyId);
+    const bindings = parseExportBindings(specifierList);
+    const lines = bindings.map(({ local, exported }) => (
+      `const { ${local}: ${local} } = __require(${JSON.stringify(dependencyId)}); exports.${exported} = ${local};`
+    ));
+    return `${linePrefix}${lines.join("\n")}`;
   });
 
   const exportedNames = [];
@@ -66,7 +88,7 @@ function indent(source, spaces) {
   const prefix = " ".repeat(spaces);
   return source
     .split("\n")
-    .map((line) => line ? `${prefix}${line}` : "")
+    .map((line) => line.trim() ? `${prefix}${line}` : "")
     .join("\n");
 }
 

@@ -20,3 +20,17 @@ test("file-compatible runtime is a self-contained classic script", () => {
   assert.doesNotMatch(bundle, /^\s*(?:import|export)\b/m);
   assert.match(bundle, /MinesweeperFileRuntime/);
 });
+
+test("file bundle follows the canonical core module graph", () => {
+  const bundlePath = path.join(projectRoot, "dist", "file-bundle.js");
+  const bundle = fs.readFileSync(bundlePath, "utf8");
+
+  assert.match(bundle, /src\/core\/games\/2048\/engine\.js/);
+  assert.match(bundle, /src\/core\/games\/minesweeper\/generator\.js/);
+  assert.match(bundle, /src\/core\/games\/minesweeper\/solver\.js/);
+  assert.match(bundle, /src\/core\/games\/minesweeper\/state\.js/);
+  assert.match(bundle, /src\/core\/games\/rogue\/index\.js/);
+  assert.doesNotMatch(bundle, /moduleFactories\["src\/2048-game\.js"\]/);
+  assert.doesNotMatch(bundle, /moduleFactories\["src\/state\.js"\]/);
+  assert.doesNotMatch(bundle, /[ \t]+\r?$/m, "generated bundle should not contain trailing whitespace");
+});

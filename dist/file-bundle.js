@@ -19,7 +19,7 @@
       hard: { name: "困难", rows: 16, cols: 16, mines: 40 },
       extreme: { name: "极致", rows: 16, cols: 30, mines: 99 },
     };
-    
+
     const SUDOKU_DIFFICULTIES = {
       easy: { name: "基础", rows: 9, cols: 9, mines: 9 },
       normal: { name: "进阶", rows: 11, cols: 11, mines: 11 },
@@ -27,21 +27,21 @@
       extreme: { name: "挑战", rows: 15, cols: 15, mines: 15 },
       expert: { name: "宗师", rows: 19, cols: 19, mines: 19 },
     };
-    
+
     const HEX_DIFFICULTIES = {
       easy: { name: "简单", rows: 8, cols: 8, mines: 10 },
       normal: { name: "普通", rows: 11, cols: 11, mines: 18 },
       hard: { name: "困难", rows: 14, cols: 14, mines: 35 },
       extreme: { name: "极致", rows: 18, cols: 18, mines: 70 },
     };
-    
+
     const RING_DIFFICULTIES = {
       easy: { name: "简单", rows: 6, cols: 24, mines: 14 },
       normal: { name: "普通", rows: 7, cols: 30, mines: 24 },
       hard: { name: "困难", rows: 8, cols: 36, mines: 38 },
       extreme: { name: "极致", rows: 9, cols: 42, mines: 56 },
     };
-    
+
     const MODES = {
       classic: { label: "经典扫雷" },
       offset: { label: "偏移扫雷" },
@@ -50,7 +50,7 @@
       ring: { label: "环形棋盘" },
       rogue: { label: "战术扫雷" },
     };
-    
+
     const CUSTOM_DIFFICULTY_CONFIG = {
       classic: { rowLabel: "行", colLabel: "列", row: [5, 30], col: [5, 40], defaults: [9, 9, 10] },
       offset: { rowLabel: "行", colLabel: "列", row: [5, 30], col: [5, 40], defaults: [9, 9, 10] },
@@ -58,13 +58,13 @@
       hex: { rowLabel: "行", colLabel: "列", row: [5, 22], col: [5, 22], defaults: [11, 11, 18] },
       ring: { rowLabel: "圈数", colLabel: "每圈格", row: [3, 10], col: [12, 48], defaults: [7, 30, 24] },
     };
-    
+
     const BOARD_METRICS = {
       classic: { cellSize: 34, gap: 4 },
       hex: { cellW: 42, cellH: 48, xStep: 32, yStep: 36 },
       ring: { innerRadius: 72, radialStep: 26, ringGap: 3 },
     };
-    
+
     const THEMES = {
       dark: {
         page: ["#101b2d", "#09111d"], panel: "rgba(14, 21, 36, 0.82)", panelBorder: "rgba(255,255,255,0.08)",
@@ -100,22 +100,56 @@
     exports.BOARD_METRICS = BOARD_METRICS;
     exports.THEMES = THEMES;
   };
-  moduleFactories["src/state.js"] = function (exports, __require) {
-    const { DIFFICULTIES: DIFFICULTIES, HEX_DIFFICULTIES: HEX_DIFFICULTIES, RING_DIFFICULTIES: RING_DIFFICULTIES, SUDOKU_DIFFICULTIES: SUDOKU_DIFFICULTIES } = __require("src/config.js");
-    
+  moduleFactories["src/core/games/minesweeper/config.js"] = function (exports, __require) {
+    const DIFFICULTIES = {
+      easy: { name: "简单", rows: 7, cols: 7, mines: 7 },
+      normal: { name: "普通", rows: 9, cols: 9, mines: 10 },
+      hard: { name: "困难", rows: 16, cols: 16, mines: 40 },
+      extreme: { name: "极致", rows: 16, cols: 30, mines: 99 },
+    };
+
+    const SUDOKU_DIFFICULTIES = {
+      easy: { name: "基础", rows: 9, cols: 9, mines: 9 },
+      normal: { name: "进阶", rows: 11, cols: 11, mines: 11 },
+      hard: { name: "困难", rows: 13, cols: 13, mines: 13 },
+      extreme: { name: "挑战", rows: 15, cols: 15, mines: 15 },
+      expert: { name: "宗师", rows: 19, cols: 19, mines: 19 },
+    };
+
+    const HEX_DIFFICULTIES = {
+      easy: { name: "简单", rows: 8, cols: 8, mines: 10 },
+      normal: { name: "普通", rows: 11, cols: 11, mines: 18 },
+      hard: { name: "困难", rows: 14, cols: 14, mines: 35 },
+      extreme: { name: "极致", rows: 18, cols: 18, mines: 70 },
+    };
+
+    const RING_DIFFICULTIES = {
+      easy: { name: "简单", rows: 6, cols: 24, mines: 14 },
+      normal: { name: "普通", rows: 7, cols: 30, mines: 24 },
+      hard: { name: "困难", rows: 8, cols: 36, mines: 38 },
+      extreme: { name: "极致", rows: 9, cols: 42, mines: 56 },
+    };
+    exports.DIFFICULTIES = DIFFICULTIES;
+    exports.SUDOKU_DIFFICULTIES = SUDOKU_DIFFICULTIES;
+    exports.HEX_DIFFICULTIES = HEX_DIFFICULTIES;
+    exports.RING_DIFFICULTIES = RING_DIFFICULTIES;
+  };
+  moduleFactories["src/core/games/minesweeper/state.js"] = function (exports, __require) {
+    const { DIFFICULTIES: DIFFICULTIES, HEX_DIFFICULTIES: HEX_DIFFICULTIES, RING_DIFFICULTIES: RING_DIFFICULTIES, SUDOKU_DIFFICULTIES: SUDOKU_DIFFICULTIES } = __require("src/core/games/minesweeper/config.js");
+
     function getCatalog(modeKey) {
       if (modeKey === "sudoku") return SUDOKU_DIFFICULTIES;
       if (modeKey === "hex") return HEX_DIFFICULTIES;
       if (modeKey === "ring") return RING_DIFFICULTIES;
       return DIFFICULTIES;
     }
-    
+
     function resolveSpec(difficultyOrSpec, modeKey) {
       if (typeof difficultyOrSpec === "object") return difficultyOrSpec;
       const catalog = getCatalog(modeKey);
       return catalog[difficultyOrSpec] || catalog.normal || catalog.easy;
     }
-    
+
     function makeState(difficultyOrSpec = "normal", modeKey = "classic") {
       const { rows, cols, mines } = resolveSpec(difficultyOrSpec, modeKey);
       return {
@@ -149,19 +183,19 @@
     }
     exports.makeState = makeState;
   };
-  moduleFactories["src/minesweeper-solver.js"] = function (exports, __require) {
+  moduleFactories["src/core/games/minesweeper/solver.js"] = function (exports, __require) {
     function key(row, col) {
       return `${row},${col}`;
     }
-    
+
     function pointFromKey(value) {
       return value.split(",").map(Number);
     }
-    
+
     function inBounds(row, col, rows, cols) {
       return row >= 0 && row < rows && col >= 0 && col < cols;
     }
-    
+
     function neighbors(row, col, rows, cols) {
       const result = [];
       for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
@@ -174,19 +208,19 @@
       }
       return result;
     }
-    
+
     function comparePoints([rowA, colA], [rowB, colB]) {
       return rowA - rowB || colA - colB;
     }
-    
+
     function sortedUnknowns(values) {
       return [...values].map(pointFromKey).sort(comparePoints);
     }
-    
+
     function result(kind, target, related, message) {
       return { kind, target, related, message };
     }
-    
+
     function candidateResult(kind, candidates, relatedByKey, messageFor) {
       const target = sortedUnknowns(candidates)[0];
       if (!target) return null;
@@ -194,25 +228,25 @@
       const related = [...(relatedByKey.get(targetKey) || [])].sort(comparePoints);
       return result(kind, target, related, messageFor(target, related));
     }
-    
+
     function analyzePosition({ board, rows = board.length, cols = board[0]?.length || 0, totalMines = 0 }) {
       const constraints = [];
       const safeCandidates = new Set();
       const mineCandidates = new Set();
       const safeRelated = new Map();
       const mineRelated = new Map();
-    
+
       const addRelated = (map, cellKey, related) => {
         if (!map.has(cellKey)) map.set(cellKey, []);
         const values = map.get(cellKey);
         if (!values.some(([row, col]) => row === related[0] && col === related[1])) values.push(related);
       };
-    
+
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
           const current = board[row]?.[col];
           if (!current?.revealed || current.mine) continue;
-    
+
           const unknown = [];
           let flagged = 0;
           for (const [neighborRow, neighborCol] of neighbors(row, col, rows, cols)) {
@@ -220,7 +254,7 @@
             if (neighbor.flagged) flagged++;
             else if (!neighbor.revealed) unknown.push(key(neighborRow, neighborCol));
           }
-    
+
           const remaining = Number(current.count) - flagged;
           if (remaining < 0 || remaining > unknown.length) {
             return result(
@@ -231,14 +265,14 @@
             );
           }
           if (!unknown.length) continue;
-    
+
           const constraint = {
             cells: new Set(unknown),
             remaining,
             source: [row, col],
           };
           constraints.push(constraint);
-    
+
           if (remaining === 0) {
             for (const cellKey of unknown) {
               safeCandidates.add(cellKey);
@@ -252,20 +286,20 @@
           }
         }
       }
-    
+
       if (safeCandidates.size && mineCandidates.size) {
         const conflict = [...safeCandidates].find((cellKey) => mineCandidates.has(cellKey));
         if (conflict) {
           return result("inconsistent", null, [...(safeRelated.get(conflict) || []), ...(mineRelated.get(conflict) || [])], "当前标记与数字线索矛盾，请检查旗帜。");
         }
       }
-    
+
       for (const first of constraints) {
         for (const second of constraints) {
           if (first === second || first.cells.size >= second.cells.size) continue;
           const isSubset = [...first.cells].every((cellKey) => second.cells.has(cellKey));
           if (!isSubset) continue;
-    
+
           const difference = [...second.cells].filter((cellKey) => !first.cells.has(cellKey));
           const remainingDifference = second.remaining - first.remaining;
           if (remainingDifference < 0 || remainingDifference > difference.length) {
@@ -286,7 +320,7 @@
           }
         }
       }
-    
+
       const safe = candidateResult(
         "safe",
         safeCandidates,
@@ -294,7 +328,7 @@
         ([row, col], related) => `确定安全：可根据 ${related.map(([sourceRow, sourceCol]) => `(${sourceRow + 1},${sourceCol + 1})`).join("、")} 的数字排除该格 (${row + 1},${col + 1})。`,
       );
       if (safe) return safe;
-    
+
       const mine = candidateResult(
         "mine",
         mineCandidates,
@@ -302,19 +336,19 @@
         ([row, col], related) => `确定为雷：可根据 ${related.map(([sourceRow, sourceCol]) => `(${sourceRow + 1},${sourceCol + 1})`).join("、")} 的数字确认该格 (${row + 1},${col + 1})。`,
       );
       if (mine) return mine;
-    
+
       void totalMines;
       return result("none", null, [], "当前没有确定安全格或雷位，请继续自行推理。");
     }
     exports.analyzePosition = analyzePosition;
   };
-  moduleFactories["src/minesweeper-generator.js"] = function (exports, __require) {
-    const { analyzePosition: analyzePosition } = __require("src/minesweeper-solver.js");
-    
+  moduleFactories["src/core/games/minesweeper/generator.js"] = function (exports, __require) {
+    const { analyzePosition: analyzePosition } = __require("src/core/games/minesweeper/solver.js");
+
     function inBounds(row, col, rows, cols) {
       return row >= 0 && row < rows && col >= 0 && col < cols;
     }
-    
+
     function neighbors(row, col, rows, cols) {
       const result = [];
       for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
@@ -327,7 +361,7 @@
       }
       return result;
     }
-    
+
     function createBoard(rows, cols) {
       return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({
         mine: false,
@@ -338,7 +372,7 @@
         count: 0,
       })));
     }
-    
+
     function shuffle(list, rng) {
       for (let index = list.length - 1; index > 0; index--) {
         const randomIndex = Math.floor(rng() * (index + 1));
@@ -346,7 +380,7 @@
       }
       return list;
     }
-    
+
     function populateCounts(board, rows, cols) {
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
@@ -355,14 +389,14 @@
         }
       }
     }
-    
+
     function createStandardBoard({ rows, cols, mines, safeRow, safeCol, rng }) {
       const board = createBoard(rows, cols);
       const forbidden = new Set([`${safeRow},${safeCol}`]);
       for (const [neighborRow, neighborCol] of neighbors(safeRow, safeCol, rows, cols)) {
         forbidden.add(`${neighborRow},${neighborCol}`);
       }
-    
+
       const spots = [];
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
@@ -377,7 +411,7 @@
       populateCounts(board, rows, cols);
       return board;
     }
-    
+
     function revealFlood(board, row, col, rows, cols) {
       const queue = [[row, col]];
       let index = 0;
@@ -393,11 +427,11 @@
         }
       }
     }
-    
+
     function isSolved(board) {
       return board.flat().every((current) => current.mine || current.revealed);
     }
-    
+
     function canBeSolvedWithoutGuessing(board, rows, cols, mines, safeRow, safeCol) {
       revealFlood(board, safeRow, safeCol, rows, cols);
       let steps = 0;
@@ -418,7 +452,7 @@
       }
       return isSolved(board);
     }
-    
+
     function generateClassicBoard({
       rows,
       cols,
@@ -440,7 +474,7 @@
         safeCol: Math.max(0, Math.min(normalizedCols - 1, Math.floor(safeCol))),
         rng,
       };
-    
+
       if (generationMode === "no-guess") {
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           const candidate = createStandardBoard(options);
@@ -455,7 +489,7 @@
           fallback: true,
         };
       }
-    
+
       return {
         board: createStandardBoard(options),
         generationMode: "standard",
@@ -464,7 +498,7 @@
     }
     exports.generateClassicBoard = generateClassicBoard;
   };
-  moduleFactories["src/sudoku-minesweeper.js"] = function (exports, __require) {
+  moduleFactories["src/core/games/sudoku/minesweeper.js"] = function (exports, __require) {
     function shuffle(list, rng = Math.random) {
       for (let index = list.length - 1; index > 0; index--) {
         const randomIndex = Math.floor(rng() * (index + 1));
@@ -472,16 +506,16 @@
       }
       return list;
     }
-    
+
     function gcd(a, b) {
       while (b !== 0) [a, b] = [b, a % b];
       return Math.abs(a);
     }
-    
+
     function adjacent([rowA, colA], [rowB, colB]) {
       return Math.abs(rowA - rowB) <= 1 && Math.abs(colA - colB) <= 1;
     }
-    
+
     function generateMineLayout(size, rng) {
       const result = [];
       const usedColumns = new Set();
@@ -501,7 +535,7 @@
       };
       return search(0) ? result : null;
     }
-    
+
     function countSolutions(regions, givenMine, rng = Math.random, nodeLimit = 100000) {
       const size = regions.length;
       const usedColumns = new Set();
@@ -509,7 +543,7 @@
       const chosen = [];
       let count = 0;
       let nodes = 0;
-    
+
       const search = (row) => {
         if (count > 1) return;
         if (++nodes > nodeLimit) {
@@ -538,11 +572,11 @@
           if (count > 1) return;
         }
       };
-    
+
       search(0);
       return count;
     }
-    
+
     function generateRegions(size, mines, rng = Math.random) {
       if (!mines) return Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, col) => col));
       for (let attempt = 0; attempt < 80; attempt++) {
@@ -574,14 +608,14 @@
       }
       return Array.from({ length: size }, (_, row) => Array.from({ length: size }, (_, col) => Math.min(size - 1, Math.floor((row * size + col) / size))));
     }
-    
+
     function generateSudokuMines(size, { rng = Math.random, maxAttempts } = {}) {
       const attempts = maxAttempts ?? (size <= 9 ? 600 : size <= 11 ? 120 : size <= 13 ? 30 : size <= 15 ? 15 : 8);
       const fallbackSteps = [];
       for (let step = 2; step < size; step++) {
         if (gcd(step, size) === 1 && step !== size - 1) fallbackSteps.push(step);
       }
-    
+
       for (let attempt = 0; attempt < attempts; attempt++) {
         const mines = generateMineLayout(size, rng);
         const regions = mines ? generateRegions(size, mines, rng) : null;
@@ -589,7 +623,7 @@
           return { mines, regions, verified: true, strategy: "random", attempts: attempt + 1 };
         }
       }
-    
+
       for (const step of shuffle([...fallbackSteps], rng)) {
         const mines = Array.from({ length: size }, (_, row) => [row, (row * step) % size]);
         const regions = generateRegions(size, mines, rng);
@@ -597,7 +631,7 @@
           return { mines, regions, verified: true, strategy: "fallback-verified", fallbackStep: step, attempts };
         }
       }
-    
+
       const fallbackStep = fallbackSteps[Math.floor(rng() * fallbackSteps.length)] || 2;
       const fallbackOffset = Math.floor(rng() * size);
       const mines = Array.from({ length: size }, (_, row) => [row, (fallbackOffset + row * fallbackStep) % size]);
@@ -613,11 +647,49 @@
     }
     exports.generateSudokuMines = generateSudokuMines;
   };
+  moduleFactories["src/core/shared/clock.js"] = function (exports, __require) {
+    function requireFunction(name, value) {
+      if (typeof value !== "function") {
+        throw new TypeError(`clock.${name} must be a function`);
+      }
+      return value;
+    }
+
+    function createClock({ now, setInterval, clearInterval, setTimeout, clearTimeout } = {}) {
+      return Object.freeze({
+        now: requireFunction("now", now),
+        setInterval: requireFunction("setInterval", setInterval),
+        clearInterval: requireFunction("clearInterval", clearInterval),
+        setTimeout: requireFunction("setTimeout", setTimeout),
+        clearTimeout: requireFunction("clearTimeout", clearTimeout),
+      });
+    }
+    exports.createClock = createClock;
+  };
+  moduleFactories["src/platform/web/clock.js"] = function (exports, __require) {
+    const { createClock: createClock } = __require("src/core/shared/clock.js");
+
+    function readNow() {
+      return globalThis.performance?.now?.() ?? Date.now();
+    }
+
+    function createWebClock() {
+      return createClock({
+        now: readNow,
+        setInterval: (...args) => globalThis.setInterval(...args),
+        clearInterval: (...args) => globalThis.clearInterval(...args),
+        setTimeout: (...args) => globalThis.setTimeout(...args),
+        clearTimeout: (...args) => globalThis.clearTimeout(...args),
+      });
+    }
+    exports.createWebClock = createWebClock;
+  };
   moduleFactories["src/game.js"] = function (exports, __require) {
-    const { generateClassicBoard: generateClassicBoard } = __require("src/minesweeper-generator.js");
-    const { analyzePosition: analyzePosition } = __require("src/minesweeper-solver.js");
-    const { generateSudokuMines: generateSudokuMines } = __require("src/sudoku-minesweeper.js");
-    
+    const { generateClassicBoard: generateClassicBoard } = __require("src/core/games/minesweeper/generator.js");
+    const { analyzePosition: analyzePosition } = __require("src/core/games/minesweeper/solver.js");
+    const { generateSudokuMines: generateSudokuMines } = __require("src/core/games/sudoku/minesweeper.js");
+    const { createWebClock: createWebClock } = __require("src/platform/web/clock.js");
+
     function shuffle(list, rng) {
       for (let index = list.length - 1; index > 0; index--) {
         const randomIndex = Math.floor(rng() * (index + 1));
@@ -625,7 +697,7 @@
       }
       return list;
     }
-    
+
     function createEmptyBoard(rows, cols) {
       return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({
         mine: false,
@@ -639,41 +711,42 @@
         region: 0,
       })));
     }
-    
+
     function createGameLogic({
       getState,
       getDifficultySpec,
       getGenerationMode = () => "standard",
       rng = Math.random,
+      clock = createWebClock(),
     }) {
       let timerId = null;
       let timerStartAt = null;
-    
+
       function state() {
         return getState();
       }
-    
+
       function inBounds(row, col) {
         const current = state();
         return row >= 0 && row < current.rows && col >= 0 && col < current.cols;
       }
-    
+
       function isSudokuMode() {
         return state().modeKey === "sudoku";
       }
-    
+
       function isHexMode() {
         return state().modeKey === "hex";
       }
-    
+
       function isRingMode() {
         return state().modeKey === "ring";
       }
-    
+
       function isOffsetMode() {
         return state().modeKey === "offset";
       }
-    
+
       function neighbors(row, col) {
         const current = state();
         if (isHexMode()) {
@@ -692,7 +765,7 @@
             return [nextR + Math.floor((nextQ - (nextQ & 1)) / 2), nextQ];
           }).filter(([nextRow, nextCol]) => inBounds(nextRow, nextCol));
         }
-    
+
         const result = [];
         for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
           for (let colOffset = -1; colOffset <= 1; colOffset++) {
@@ -711,7 +784,7 @@
         }
         return result;
       }
-    
+
       function offsetNeighbors(row, col) {
         const result = [];
         for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
@@ -723,12 +796,12 @@
         }
         return result;
       }
-    
+
       function countAround(board, row, col) {
         const adjacent = isOffsetMode() ? offsetNeighbors(row, col) : neighbors(row, col);
         return adjacent.reduce((total, [neighborRow, neighborCol]) => total + (board[neighborRow][neighborCol].mine ? 1 : 0), 0);
       }
-    
+
       function resetCells(current) {
         for (const row of current.board) {
           for (const cell of row) {
@@ -744,7 +817,7 @@
           }
         }
       }
-    
+
       function prepareSudoku() {
         const current = state();
         if (!isSudokuMode()) return;
@@ -763,7 +836,7 @@
         current.board[givenRow][givenCol].flagged = true;
         current.board[givenRow][givenCol].givenMine = true;
       }
-    
+
       function layMines(safeRow, safeCol) {
         const current = state();
         if (isSudokuMode()) {
@@ -786,7 +859,7 @@
           current.notice = generated.fallback ? "可推理棋盘生成失败，已使用标准随机棋盘。" : "";
           return;
         }
-    
+
         resetCells(current);
         const forbidden = new Set([`${safeRow},${safeCol}`]);
         for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
@@ -811,7 +884,7 @@
           for (let col = 0; col < current.cols; col++) current.board[row][col].count = countAround(current.board, row, col);
         }
       }
-    
+
       function floodReveal(row, col) {
         const current = state();
         const queue = [[row, col]];
@@ -828,7 +901,7 @@
           }
         }
       }
-    
+
       function revealAllMines(exploded) {
         const current = state();
         for (let row = 0; row < current.rows; row++) {
@@ -839,7 +912,7 @@
           }
         }
       }
-    
+
       function markSudokuFailure() {
         const current = state();
         current.ended = true;
@@ -852,7 +925,7 @@
           }
         }
       }
-    
+
       function checkWin() {
         const current = state();
         if (isSudokuMode()) {
@@ -873,27 +946,27 @@
         }
         return false;
       }
-    
+
       function startTimer(onTick = () => {}) {
-        if (timerId) return;
-        const now = globalThis.performance?.now?.() ?? Date.now();
+        if (timerId !== null) return;
+        const now = clock.now();
         timerStartAt = now - state().timer * 1000;
-        timerId = setInterval(() => {
+        timerId = clock.setInterval(() => {
           const current = state();
           if (current.started && !current.ended && timerStartAt !== null) {
-            const timestamp = globalThis.performance?.now?.() ?? Date.now();
+            const timestamp = clock.now();
             current.timer = Math.min(999, (timestamp - timerStartAt) / 1000);
             onTick();
           }
         }, 100);
       }
-    
+
       function stopTimer() {
-        if (timerId) clearInterval(timerId);
+        if (timerId !== null) clock.clearInterval(timerId);
         timerId = null;
         timerStartAt = null;
       }
-    
+
       function reveal(row, col, onTick) {
         const current = state();
         if (current.ended) return;
@@ -927,7 +1000,7 @@
         if (checkWin()) return "win";
         return "continue";
       }
-    
+
       function chord(row, col, onTick) {
         const current = state();
         if (current.ended || isSudokuMode()) return;
@@ -947,7 +1020,7 @@
         if (checkWin()) return "win";
         return "continue";
       }
-    
+
       function cycleMark(row, col) {
         const current = state();
         if (current.ended) return "continue";
@@ -978,13 +1051,13 @@
         } else cell.questioned = false;
         return "continue";
       }
-    
+
       function getHint() {
         const current = state();
         if (current.modeKey !== "classic") return { kind: "none", target: null, related: [], message: "提示仅适用于经典扫雷。" };
         return analyzePosition({ board: current.board, rows: current.rows, cols: current.cols, totalMines: current.mines });
       }
-    
+
       return {
         reveal,
         chord,
@@ -998,11 +1071,11 @@
   };
   moduleFactories["src/ui.js"] = function (exports, __require) {
     const { BOARD_METRICS: BOARD_METRICS } = __require("src/config.js");
-    
+
     function nextMarkMode(mode) {
       return mode === "mark" ? "reveal" : "mark";
     }
-    
+
     function buildCellAriaLabel(cell, row, col) {
       const position = `第 ${row + 1} 行第 ${col + 1} 列`;
       if (cell.flagged) return `${position}，已标记为雷`;
@@ -1012,15 +1085,15 @@
       if (!cell.count) return `${position}，已揭开，空白`;
       return `${position}，已揭开，数字 ${cell.count}`;
     }
-    
+
     function isHexMode(state) {
       return state.modeKey === "hex";
     }
-    
+
     function isRingMode(state) {
       return state.modeKey === "ring";
     }
-    
+
     function cellText(cell, modeKey) {
       if (cell.givenMine) return "💣";
       if (modeKey === "sudoku") {
@@ -1033,7 +1106,7 @@
       if (cell.mine) return "💣";
       return cell.count ? String(cell.count) : "";
     }
-    
+
     function sectorClipPath(outerRatio, innerRatio, angleStart, angleEnd, steps = 4) {
       const points = [];
       const addArc = (radius, from, to) => {
@@ -1046,7 +1119,7 @@
       addArc(innerRatio, angleEnd, angleStart);
       return `polygon(${points.map(([x, y]) => `${x.toFixed(2)}% ${y.toFixed(2)}%`).join(", ")})`;
     }
-    
+
     function createUI(elements) {
       let longPressTimer = null;
       let activePointerId = null;
@@ -1055,40 +1128,40 @@
       let markMode = "reveal";
       let sudokuCrossDrag = null;
       let sudokuCrossClickSuppressed = false;
-    
+
       function renderHud(state) {
         const flagged = state.board.flat().filter((cell) => cell.flagged).length;
         if (elements.boardMineCounterEl) elements.boardMineCounterEl.textContent = `剩余 ${Math.max(0, state.mines - flagged)}`;
         if (elements.boardMineMetaEl) elements.boardMineMetaEl.textContent = `已标记 ${flagged} / 总雷数 ${state.mines}`;
         if (elements.timerEl) elements.timerEl.textContent = state.started ? state.timer.toFixed(3) : "0.000";
       }
-    
+
       function setFocus(row, col) {
         focusedCell = [row, col];
         const button = elements.boardEl.querySelector(`[data-row="${row}"][data-col="${col}"]`);
         if (button) button.focus({ preventScroll: true });
       }
-    
+
       function moveFocus(state, row, col, rowDelta, colDelta) {
         const nextRow = Math.max(0, Math.min(state.rows - 1, row + rowDelta));
         const nextCol = Math.max(0, Math.min(state.cols - 1, col + colDelta));
         setFocus(nextRow, nextCol);
       }
-    
+
       function handlePrimary(row, col, state, handlers) {
         if (markMode === "mark" && state.modeKey !== "sudoku") return handlers.onCycleMark(row, col);
         if (state.modeKey === "sudoku") return handlers.onReveal(row, col);
         const cell = state.board[row][col];
         return cell.revealed ? handlers.onChord(row, col) : handlers.onReveal(row, col);
       }
-    
+
       function render(state, handlers) {
         if (!elements.boardEl) return;
         const activeElement = document.activeElement;
         const activeRow = Number(activeElement?.dataset?.row);
         const activeCol = Number(activeElement?.dataset?.col);
         if (Number.isInteger(activeRow) && Number.isInteger(activeCol)) focusedCell = [activeRow, activeCol];
-    
+
         elements.boardEl.innerHTML = "";
         elements.boardEl.classList.remove("hex-mode", "ring-mode");
         elements.boardEl.style.display = "grid";
@@ -1114,7 +1187,7 @@
           elements.boardEl.style.height = "";
           elements.boardEl.style.position = "";
         }
-    
+
         for (let row = 0; row < state.rows; row++) {
           for (let col = 0; col < state.cols; col++) {
             const cell = state.board[row][col];
@@ -1126,12 +1199,12 @@
             button.setAttribute("role", "gridcell");
             button.setAttribute("aria-label", buildCellAriaLabel(cell, row, col));
             button.tabIndex = focusedCell[0] === row && focusedCell[1] === col ? 0 : -1;
-    
+
             const label = document.createElement("span");
             label.className = "cell-label";
             label.textContent = cellText(cell, state.modeKey);
             button.append(label);
-    
+
             if (state.modeKey === "sudoku") {
               button.classList.add("sudoku", `region-${cell.region}`);
               if (cell.givenMine) button.classList.add("given-mine");
@@ -1145,7 +1218,7 @@
             if (state.hint?.target?.[0] === row && state.hint.target[1] === col) button.classList.add("hint-target");
             if (state.hint?.related?.some(([hintRow, hintCol]) => hintRow === row && hintCol === col)) button.classList.add("hint-related");
             if (cell.revealed && cell.count > 0) button.classList.add(`num-${cell.count}`);
-    
+
             if (isHexMode(state)) {
               button.classList.add("hex-cell");
               const { cellW, cellH, xStep, yStep } = BOARD_METRICS.hex;
@@ -1179,7 +1252,7 @@
               label.style.left = `${boxSize / 2 + Math.cos(angleMiddle) * labelRadius}px`;
               label.style.top = `${boxSize / 2 + Math.sin(angleMiddle) * labelRadius}px`;
             }
-    
+
             button.addEventListener("click", (event) => {
               if (longPressTriggered) {
                 longPressTriggered = false;
@@ -1251,19 +1324,19 @@
           if (focusButton && activeElement?.dataset?.row !== undefined) focusButton.focus({ preventScroll: true });
         }
       }
-    
+
       function setStatus(text) {
         if (elements.statusTextEl) elements.statusTextEl.textContent = text;
       }
-    
+
       function setResetEmoji(text) {
         if (elements.resetButton) elements.resetButton.textContent = text;
       }
-    
+
       function setHintFeedback(text) {
         if (elements.hintFeedbackEl) elements.hintFeedbackEl.textContent = text;
       }
-    
+
       function setMarkMode(value) {
         markMode = value === "mark" ? "mark" : "reveal";
         if (elements.markModeButton) {
@@ -1271,7 +1344,7 @@
           elements.markModeButton.setAttribute("aria-pressed", String(markMode === "mark"));
         }
       }
-    
+
       function applyTheme(themeKey, theme) {
         document.documentElement.dataset.theme = themeKey;
         document.documentElement.style.setProperty("--bg0", theme.page[1]);
@@ -1292,7 +1365,7 @@
         document.documentElement.style.setProperty("--control-text", theme.controlText);
         document.documentElement.style.setProperty("--control-border", theme.controlBorder);
       }
-    
+
       function applyBackground(url) {
         if (!elements.pageBackdropEl) return;
         elements.pageBackdropEl.style.backgroundImage = url ? `url("${url}")` : "none";
@@ -1300,11 +1373,11 @@
         elements.pageBackdropEl.style.backgroundPosition = "center";
         elements.pageBackdropEl.style.backgroundRepeat = "no-repeat";
       }
-    
+
       function applyBackgroundOpacity(value) {
         document.documentElement.style.setProperty("--bg-opacity", value);
       }
-    
+
       function bindHandlers(handlers) {
         elements.resetButton?.addEventListener("click", handlers.onReset);
         elements.hintButton?.addEventListener("click", handlers.onHint);
@@ -1327,7 +1400,7 @@
           if (event.key.toLowerCase() === "r" && !["input", "select", "textarea"].includes(tagName)) handlers.onReset();
         });
       }
-    
+
       function resetTransientInputState() {
         if (longPressTimer) clearTimeout(longPressTimer);
         longPressTimer = null;
@@ -1336,7 +1409,7 @@
         sudokuCrossDrag = null;
         sudokuCrossClickSuppressed = false;
       }
-    
+
       return {
         render,
         renderHud,
@@ -1365,7 +1438,7 @@
   };
   moduleFactories["src/rogue-state.js"] = function (exports, __require) {
     const TOOL_KEYS = ["scoutPulse", "defusalKit", "reactionShield"];
-    
+
     function createRogueEmptyCell() {
       return {
         mine: false,
@@ -1380,7 +1453,7 @@
         specialCollected: false,
       };
     }
-    
+
     function createEmptyBoard(rows, cols) {
       return Array.from({ length: rows }, () =>
         Array.from({ length: cols }, () => createRogueEmptyCell()),
@@ -1395,7 +1468,7 @@
         insertionQualifiedSectors: [],
       };
     }
-    
+
     function createRogueRunState() {
       return {
         modeKey: "rogue",
@@ -1451,6 +1524,10 @@
     }
     exports.createRogueEmptyCell = createRogueEmptyCell;
     exports.createRogueRunState = createRogueRunState;
+  };
+  moduleFactories["src/minesweeper-generator.js"] = function (exports, __require) {
+    const { generateClassicBoard: generateClassicBoard } = __require("src/core/games/minesweeper/generator.js"); exports.generateClassicBoard = generateClassicBoard;
+
   };
   moduleFactories["src/rogue-sectors.js"] = function (exports, __require) {
     const ROGUE_SECTOR_COUNT = 3;
@@ -1552,7 +1629,7 @@
     const { generateClassicBoard: generateClassicBoard } = __require("src/minesweeper-generator.js");
     const { createRogueEmptyCell: createRogueEmptyCell } = __require("src/rogue-state.js");
     const { assignRogueSectorIds: assignRogueSectorIds, calculateRogueSectorStats: calculateRogueSectorStats, createRogueSectors: createRogueSectors } = __require("src/rogue-sectors.js");
-    
+
     const ROGUE_LEVELS = Object.freeze([
       { floor: 1, rows: 7, cols: 7, mines: 8, label: "教学层" },
       { floor: 2, rows: 8, cols: 9, mines: 13, label: "扩张层" },
@@ -1560,12 +1637,12 @@
       { floor: 4, rows: 10, cols: 12, mines: 28, label: "高压层" },
       { floor: 5, rows: 11, cols: 14, mines: 40, label: "最终层" },
     ]);
-    
+
     function getRogueLevelSpec(floor) {
       const index = Math.max(0, Math.min(ROGUE_LEVELS.length - 1, Math.floor(floor) - 1));
       return ROGUE_LEVELS[index];
     }
-    
+
     function getRogueNeighbors(row, col, rows, cols) {
       const result = [];
       for (let rowOffset = -1; rowOffset <= 1; rowOffset++) {
@@ -1580,7 +1657,7 @@
       }
       return result;
     }
-    
+
     function createEmptyBoard(rows, cols) {
       return Array.from({ length: rows }, () =>
         Array.from({ length: cols }, () => createRogueEmptyCell()),
@@ -1769,12 +1846,12 @@
       });
       return level.sectors;
     }
-    
+
     function revealRogueFlood(board, row, col, rows, cols, onReveal) {
       const queue = [[row, col]];
       let index = 0;
       let revealed = 0;
-    
+
       while (index < queue.length) {
         const [currentRow, currentCol] = queue[index++];
         const cell = board[currentRow][currentCol];
@@ -1790,7 +1867,7 @@
           }
         }
       }
-    
+
       return revealed;
     }
     exports.ROGUE_LEVELS = ROGUE_LEVELS;
@@ -1822,7 +1899,7 @@
         description: "抵挡本层下一次踩雷",
       }),
     });
-    
+
     const UPGRADE_DEFINITIONS = Object.freeze([
       Object.freeze({ id: "storage", label: "储能核心", description: "最大能量 +1，并立即获得 1 点能量" }),
       Object.freeze({ id: "chain", label: "连锁能源", description: "连续安全揭开 3 次获得 1 点能量" }),
@@ -1832,15 +1909,15 @@
       Object.freeze({ id: "toolBoost:reactionShield", label: "工具增幅·反应护盾", description: "下一层反应护盾额外使用 1 次" }),
       Object.freeze({ id: "supply", label: "补给箱", description: "下一层三种工具各额外使用 1 次" }),
     ]);
-    
+
     function getToolDefinition(toolKey) {
       return TOOL_DEFINITIONS[toolKey] || null;
     }
-    
+
     function getUpgradeDefinition(upgradeId) {
       return UPGRADE_DEFINITIONS.find(({ id }) => id === upgradeId) || null;
     }
-    
+
     function getRewardOptions({ ownedUpgrades = [], rng = Math.random } = {}) {
       const owned = new Set(ownedUpgrades);
       const pool = UPGRADE_DEFINITIONS.filter(({ id }) => !owned.has(id)).map((option) => ({ ...option }));
@@ -1959,29 +2036,29 @@
         }),
       }),
     ]);
-    
+
     function cloneDefinition(definition) {
       return definition
         ? { ...definition, reward: { ...definition.reward } }
         : null;
     }
-    
+
     function randomIndex(rng, length) {
       const value = Number(rng?.());
       const normalized = Number.isFinite(value) ? Math.min(Math.max(value, 0), 0.999999999) : 0;
       return Math.floor(normalized * length);
     }
-    
+
     function getContractDefinition(contractId) {
       return cloneDefinition(
         CONTRACT_DEFINITIONS.find(({ id }) => id === contractId),
       );
     }
-    
+
     function getContractCatalog() {
       return CONTRACT_DEFINITIONS.map(cloneDefinition);
     }
-    
+
     function getContractOptions({ floor: _floor, rng = Math.random } = {}) {
       const pool = [...CONTRACT_DEFINITIONS];
       for (let index = pool.length - 1; index > 0; index -= 1) {
@@ -1990,7 +2067,7 @@
       }
       return pool.slice(0, 2).map(cloneDefinition);
     }
-    
+
     function getContractReward(contractId) {
       return getContractDefinition(contractId)?.reward ?? null;
     }
@@ -2030,15 +2107,15 @@
     function getContractLabel(contractId) {
       return getContractDefinition(contractId)?.label || contractId;
     }
-    
+
     function createRogueGame({ rng = Math.random, levelFactory = createRogueLevel } = {}) {
       let currentState = createRogueRunState();
       let selectedTool = null;
-    
+
       function getState() {
         return currentState;
       }
-    
+
       function inBounds(row, col) {
         return Number.isInteger(row)
           && Number.isInteger(col)
@@ -2047,13 +2124,13 @@
           && col >= 0
           && col < currentState.level.cols;
       }
-    
+
       function isBlocked() {
         return currentState.status === "won"
           || currentState.status === "lost"
           || currentState.status === "reward";
       }
-    
+
       function clearNotice() {
         currentState.notice = "";
       }
@@ -2279,7 +2356,7 @@
         if (sectors) options.sectors = sectors;
         return levelFactory(options);
       }
-    
+
       function reset() {
         currentState = createRogueRunState();
         currentState.level = createLevel(1);
@@ -2287,7 +2364,7 @@
         selectedTool = null;
         return "continue";
       }
-    
+
       function energyThreshold() {
         return currentState.upgrades.includes("chain") ? 3 : 4;
       }
@@ -2360,7 +2437,7 @@
         }
         return revealed;
       }
-    
+
       function completeLevelIfReady() {
         if (currentState.level.safeCellsRemaining > 0) return "continue";
         currentState.level.ended = true;
@@ -2380,7 +2457,7 @@
         currentState.notice = [contractNotice, "关卡完成，请选择一项强化。"].filter(Boolean).join(" ");
         return "reward";
       }
-    
+
       function hitMine(cell) {
         if (cell.neutralized) return "continue";
         cell.neutralized = true;
@@ -2411,7 +2488,7 @@
         }
         return "hit";
       }
-    
+
       function reveal(row, col) {
         if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
         const level = currentState.level;
@@ -2436,7 +2513,7 @@
         revealSafeArea(row, col);
         return completeLevelIfReady();
       }
-    
+
       function chord(row, col) {
         if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
         const level = currentState.level;
@@ -2457,7 +2534,7 @@
         }
         return completeLevelIfReady();
       }
-    
+
       function cycleMark(row, col) {
         if (isBlocked() || currentState.selectedContract === null || !inBounds(row, col)) return "invalid";
         const cell = currentState.level.board[row][col];
@@ -2472,7 +2549,7 @@
         }
         return "continue";
       }
-    
+
       function canSelectTool(toolKey) {
         const definition = getToolDefinition(toolKey);
         return currentState.status === "playing"
@@ -2481,25 +2558,25 @@
           && currentState.energy >= definition.cost
           && !(toolKey === "reactionShield" && currentState.level.shieldActive);
       }
-    
+
       function selectTool(toolKey) {
         if (!canSelectTool(toolKey)) return false;
         selectedTool = toolKey;
         currentState.notice = `${getToolDefinition(toolKey).label}已就绪。`;
         return true;
       }
-    
+
       function cancelTool() {
         selectedTool = null;
         return "continue";
       }
-    
+
       function consumeTool(toolKey) {
         const definition = getToolDefinition(toolKey);
         currentState.energy -= definition.cost;
         currentState.level.activeToolUses[toolKey] -= 1;
       }
-    
+
       function useSelectedTool(row, col) {
         if (!selectedTool || !canSelectTool(selectedTool)) return "invalid";
         const toolKey = selectedTool;
@@ -2560,7 +2637,7 @@
         currentState.notice = ["拆雷装置拆穿了假旗，并揭开了安全区域。", safeNotice, contractNotice].filter(Boolean).join(" ");
         return completeLevelIfReady();
       }
-    
+
       function applyUpgrade(upgradeId) {
         if (upgradeId === "storage") {
           currentState.maxEnergy += 1;
@@ -2577,7 +2654,7 @@
           currentState.energy = Math.min(currentState.maxEnergy, currentState.energy + 1);
         }
       }
-    
+
       function chooseReward(upgradeId) {
         if (currentState.status !== "reward") return "invalid";
         const option = currentState.rewardOptions.find(({ id }) => id === upgradeId);
@@ -2594,7 +2671,7 @@
         selectedTool = null;
         return "continue";
       }
-    
+
       reset();
       return {
         getState,
@@ -2612,18 +2689,47 @@
     }
     exports.createRogueGame = createRogueGame;
   };
+  moduleFactories["src/core/games/rogue/index.js"] = function (exports, __require) {
+    const { createRogueGame: createRogueGame } = __require("src/rogue-game.js"); exports.createRogueGame = createRogueGame;
+    const { createRogueRunState: createRogueRunState } = __require("src/rogue-state.js"); exports.createRogueRunState = createRogueRunState;
+    const { createRogueLevel: createRogueLevel } = __require("src/rogue-level.js"); exports.createRogueLevel = createRogueLevel;
+    const { getRogueLevelSpec: getRogueLevelSpec } = __require("src/rogue-level.js"); exports.getRogueLevelSpec = getRogueLevelSpec;
+    const { getRogueNeighbors: getRogueNeighbors } = __require("src/rogue-level.js"); exports.getRogueNeighbors = getRogueNeighbors;
+    const { refreshRogueSectorStats: refreshRogueSectorStats } = __require("src/rogue-level.js"); exports.refreshRogueSectorStats = refreshRogueSectorStats;
+    const { revealRogueFlood: revealRogueFlood } = __require("src/rogue-level.js"); exports.revealRogueFlood = revealRogueFlood;
+    const { getContractDefinition: getContractDefinition } = __require("src/rogue-contracts.js"); exports.getContractDefinition = getContractDefinition;
+    const { getContractOptions: getContractOptions } = __require("src/rogue-contracts.js"); exports.getContractOptions = getContractOptions;
+    const { getContractReward: getContractReward } = __require("src/rogue-contracts.js"); exports.getContractReward = getContractReward;
+    const { getRewardOptions: getRewardOptions } = __require("src/rogue-items.js"); exports.getRewardOptions = getRewardOptions;
+    const { getToolDefinition: getToolDefinition } = __require("src/rogue-items.js"); exports.getToolDefinition = getToolDefinition;
+    const { getUpgradeDefinition: getUpgradeDefinition } = __require("src/rogue-items.js"); exports.getUpgradeDefinition = getUpgradeDefinition;
+    const { assignRogueSectorIds: assignRogueSectorIds } = __require("src/rogue-sectors.js"); exports.assignRogueSectorIds = assignRogueSectorIds;
+    const { calculateRogueSectorStats: calculateRogueSectorStats } = __require("src/rogue-sectors.js"); exports.calculateRogueSectorStats = calculateRogueSectorStats;
+    const { createRogueSectors: createRogueSectors } = __require("src/rogue-sectors.js"); exports.createRogueSectors = createRogueSectors;
+    const { getRogueSectorForColumn: getRogueSectorForColumn } = __require("src/rogue-sectors.js"); exports.getRogueSectorForColumn = getRogueSectorForColumn;
+    const { getRogueSectorId: getRogueSectorId } = __require("src/rogue-sectors.js"); exports.getRogueSectorId = getRogueSectorId;
+
+    function getRogueCoreStatus() {
+      return {
+        game: "rogue",
+        status: "bridge",
+        uiSource: "src/rogue-ui.js",
+      };
+    }
+    exports.getRogueCoreStatus = getRogueCoreStatus;
+  };
   moduleFactories["src/rogue-guide.js"] = function (exports, __require) {
     const { getContractCatalog: getContractCatalog } = __require("src/rogue-contracts.js");
     const { ROGUE_LEVELS: ROGUE_LEVELS } = __require("src/rogue-level.js");
     const { TOOL_DEFINITIONS: TOOL_DEFINITIONS, UPGRADE_DEFINITIONS: UPGRADE_DEFINITIONS } = __require("src/rogue-items.js");
     const { createRogueRunState: createRogueRunState } = __require("src/rogue-state.js");
-    
+
     const TOOL_GUIDANCE = {
       scoutPulse: "怎么用：先选中它，再点一个没有翻开的格子。效果：告诉你这个格子周围 3×3 范围里有几颗雷，但不会替你翻开格子，也不会告诉你每颗雷的具体位置。只有你点中的情报点会被收集。",
       defusalKit: "怎么用：先给一个格子插旗，再选中它并点击这面旗。效果：如果旗子插对了，雷会被拆掉；如果插错了，旗子会被清除，并翻开这片安全区域。没有插旗的格子不能使用它。",
       reactionShield: "怎么用：选中它后，再点一下棋盘就会开启。效果：本层下一次踩到雷时不会掉生命，但护盾会随即消失。同一时间只能开一个护盾，它不需要指定某个战区。",
     };
-    
+
     const CONTRACT_GUIDANCE = {
       noDamage: "在本层清空全部安全格时结算。护盾抵挡爆炸不算损失生命；实际受伤后本层契约立即失败。",
       reconnaissance: "直接揭开情报点，或把侦察目标落在情报点上即可完成；只把情报点包含在扫描范围内不算收集。",
@@ -2634,7 +2740,7 @@
       crossFire: "第一次成功使用有落点的工具会记录工具种类与战区；之后须在另一个战区使用另一种工具。重复同种工具、同区操作或启动护盾都不能凑齐条件。",
       safeInsertion: "在首次实际受伤前满足描述中的战区与安全格数量；空白区域自动展开的安全格也会计入。未完成时首次受伤即失败，护盾抵挡不算受伤。",
     };
-    
+
     const UPGRADE_GUIDANCE = {
       storage: "效果：能量上限加 1，并马上获得 1 点能量。",
       chain: "效果：连续成功翻开 3 次安全区域后获得 1 点能量；踩到雷会清空连击。",
@@ -2644,7 +2750,7 @@
       "toolBoost:reactionShield": "效果：下一层的反应护盾多 1 次使用机会。",
       supply: "效果：下一层的三种工具各多 1 次使用机会。",
     };
-    
+
     const SPECIAL_CELL_DEFINITIONS = Object.freeze([
       Object.freeze({
         id: "intel",
@@ -2659,7 +2765,7 @@
         effect: "怎么用：直接翻开它，或被拆雷装置触发。结果：能量最多恢复 1 点，并给当前剩余次数最少的工具补充 1 次。",
       }),
     ]);
-    
+
     const SECTION_DEFINITIONS = Object.freeze([
       { id: "overview", title: "快速开始", dataKey: "overview" },
       { id: "floors", title: "五层流程", dataKey: "floors" },
@@ -2670,7 +2776,7 @@
       { id: "illustrations", title: "道具效果图", dataKey: "illustrations" },
       { id: "tips", title: "操作方法", dataKey: "tips" },
     ]);
-    
+
     const ILLUSTRATION_ENTRIES = [
       ["tool", "scoutPulse", "侦察脉冲", "主动道具", "游戏内画面：选中道具后，棋盘上会圈出被扫描的 3×3 格子。"],
       ["tool", "defusalKit", "拆雷装置", "主动道具", "游戏内画面：先插旗，再对着旗子使用；真雷会被拆掉，假旗会变成安全区域。"],
@@ -2685,11 +2791,11 @@
       ["upgrade", "toolBoost:reactionShield", "工具增幅·反应护盾", "强化道具", "游戏内画面：下一层反应护盾的可用次数增加 1 次。"],
       ["upgrade", "supply", "补给箱", "强化道具", "游戏内画面：下一层侦察、拆雷、护盾三种工具各增加 1 次。"],
     ];
-    
+
     function clone(value) {
       return structuredClone(value);
     }
-    
+
     function getIllustrations() {
       return ILLUSTRATION_ENTRIES.map(([entityType, entityId, title, category, alt]) => ({
         id: `${entityType}-${entityId}`,
@@ -2702,7 +2808,7 @@
         caption: alt,
       }));
     }
-    
+
     function getRogueGuideCatalog() {
       const floors = ROGUE_LEVELS.map(clone);
       const tools = Object.values(TOOL_DEFINITIONS).map((tool) => ({ ...clone(tool), guidance: TOOL_GUIDANCE[tool.id] }));
@@ -2734,7 +2840,7 @@
         "契约排错：注意先后顺序、不同战区与不同工具这三个条件。护盾没有战区落点，不能用于跨区工具步骤；未完成契约仍可过层，但会扣除能量。",
         "收尾检查：每层目标是揭开全部安全格，不必标完或拆完所有雷；标错旗的安全格仍会阻止过层。先核对战区进度、工具次数和能量，再决定最后几步。",
       ];
-    
+
       return clone({
         sections: SECTION_DEFINITIONS,
         overview,
@@ -2747,7 +2853,7 @@
         tips,
       });
     }
-    
+
     function formatContractReward(reward, tools) {
       if (!reward) return "完成后获得行动奖励";
       if (reward.type === "energy") return `获得 ${reward.amount} 点能量`;
@@ -2758,11 +2864,11 @@
       }
       return "完成后获得行动奖励";
     }
-    
+
     function makeCards(items, makeCard) {
       return items.map((item) => makeCard(item));
     }
-    
+
     function getRogueGuideRenderSections(catalog = getRogueGuideCatalog()) {
       const data = {
         overview: {
@@ -2837,13 +2943,13 @@
           notes: catalog.tips,
         },
       };
-    
+
       return catalog.sections.map((section) => ({
         ...section,
         ...(data[section.dataKey] || {}),
       }));
     }
-    
+
     function appendGuideText(parent, tagName, text, className = "") {
       const element = document.createElement(tagName);
       if (className) element.className = className;
@@ -2851,13 +2957,13 @@
       parent.appendChild(element);
       return element;
     }
-    
+
     function renderRogueGuideCatalog({ chapterNav, contentRoot, catalog = getRogueGuideCatalog() }) {
       if (!chapterNav || !contentRoot) return;
       const sections = getRogueGuideRenderSections(catalog);
       chapterNav.replaceChildren();
       contentRoot.replaceChildren();
-    
+
       for (const sectionData of sections) {
         const sectionId = `rogueGuideSection-${sectionData.id}`;
         const chapter = document.createElement("a");
@@ -2865,7 +2971,7 @@
         chapter.href = `#${sectionId}`;
         chapter.textContent = sectionData.title;
         chapterNav.appendChild(chapter);
-    
+
         const section = document.createElement("section");
         section.className = "rogue-guide__section";
         section.id = sectionId;
@@ -2875,14 +2981,14 @@
         const heading = appendGuideText(section, "h3", sectionData.title, "rogue-guide__section-title");
         heading.id = headingId;
         if (sectionData.intro) appendGuideText(section, "p", sectionData.intro, "rogue-guide__intro");
-    
+
         if (sectionData.notes) {
           const list = document.createElement("ul");
           list.className = "rogue-guide__notes";
           for (const note of sectionData.notes) appendGuideText(list, "li", note);
           section.appendChild(list);
         }
-    
+
         if (sectionData.sectorMap) {
           const figure = document.createElement("figure");
           figure.className = "rogue-guide__sector-figure";
@@ -2907,7 +3013,7 @@
           appendGuideText(figure, "figcaption", sectionData.sectorMap.caption);
           section.appendChild(figure);
         }
-    
+
         if (sectionData.cards) {
           const cards = document.createElement("div");
           cards.className = "rogue-guide__cards";
@@ -2930,7 +3036,7 @@
           }
           section.appendChild(cards);
         }
-    
+
         if (sectionData.illustrations) {
           const gallery = document.createElement("div");
           gallery.className = "rogue-guide__gallery";
@@ -2949,20 +3055,20 @@
           }
           section.appendChild(gallery);
         }
-    
+
         contentRoot.appendChild(section);
       }
     }
-    
+
     function createRogueGuideDialogController({ dialog, trigger, closeButton }) {
       let restoreFocus = false;
-    
+
       function restoreTriggerFocus() {
         if (!restoreFocus) return;
         restoreFocus = false;
         trigger?.focus?.({ preventScroll: true });
       }
-    
+
       function close({ restoreFocus: restore = true } = {}) {
         if (!dialog?.open) return false;
         restoreFocus = restore;
@@ -2970,14 +3076,14 @@
         restoreTriggerFocus();
         return true;
       }
-    
+
       function open() {
         if (!dialog || dialog.open) return false;
         restoreFocus = true;
         dialog.showModal();
         return true;
       }
-    
+
       function handleGlobalKeydown(event) {
         if (!dialog?.open) return false;
         // Only global gameplay shortcuts are intercepted in capture phase.
@@ -2988,7 +3094,7 @@
         if (event.key === "Escape") close();
         return true;
       }
-    
+
       trigger?.addEventListener("click", open);
       closeButton?.addEventListener("click", () => close());
       dialog?.addEventListener("close", () => {
@@ -3005,10 +3111,10 @@
         if (event.clientX < bounds.left || event.clientX > bounds.right
           || event.clientY < bounds.top || event.clientY > bounds.bottom) close();
       });
-    
+
       return Object.freeze({ open, close, isOpen: () => Boolean(dialog?.open), handleGlobalKeydown });
     }
-    
+
     function createRogueGuide(elements = {}) {
       renderRogueGuideCatalog({
         chapterNav: elements.rogueGuideChapters,
@@ -3065,7 +3171,7 @@
       else labels.push(`数字 ${cell.count}`);
       return labels.join("，");
     }
-    
+
     function getRogueToolButtonState({ selected, disabled, uses, cost }) {
       return {
         pressed: selected,
@@ -3073,17 +3179,17 @@
         text: `${uses}次 · ${cost}能量`,
       };
     }
-    
+
     function getRoguePrimaryAction({ markMode, selectedTool, revealed }) {
       if (selectedTool) return "tool";
       if (markMode === "mark") return "mark";
       return revealed ? "chord" : "reveal";
     }
-    
+
     function getRogueToolSelectionAfterAction(selectedTool, result) {
       return result === "invalid" ? selectedTool : null;
     }
-    
+
     function getRogueToolButtonAction(selectedTool, toolKey) {
       return selectedTool === toolKey ? "cancel" : "select";
     }
@@ -3113,7 +3219,7 @@
       }
       return classes;
     }
-    
+
     function cellText(cell) {
       if (cell.flagged) return "🚩";
       if (cell.questioned) return "❓";
@@ -3124,7 +3230,7 @@
       if (cell.mine) return "💣";
       return cell.count ? String(cell.count) : "";
     }
-    
+
     function upgradeText(id) {
       if (id.startsWith("energy:")) return "+1 能量";
       return getUpgradeDefinition(id)?.label || id;
@@ -3235,25 +3341,25 @@
       let longPressTriggered = false;
       let boundHandlers = null;
       let restoreBoardFocus = false;
-    
+
       function setFocus(row, col) {
         focusedCell = [row, col];
         const button = elements.rogueBoard?.querySelector(`[data-row="${row}"][data-col="${col}"]`);
         if (button) button.focus({ preventScroll: true });
       }
-    
+
       function moveFocus(state, row, col, rowDelta, colDelta) {
         setFocus(
           Math.max(0, Math.min(state.level.rows - 1, row + rowDelta)),
           Math.max(0, Math.min(state.level.cols - 1, col + colDelta)),
         );
       }
-    
+
       function finishAction(result, row = null, col = null) {
         if (Number.isInteger(row) && Number.isInteger(col)) focusedCell = [row, col];
         boundHandlers?.onAction?.(result, row, col);
       }
-    
+
       function renderHud(state) {
         if (elements.rogueFloor) elements.rogueFloor.textContent = `${state.floor} / ${state.totalFloors}`;
         if (elements.rogueLives) elements.rogueLives.textContent = `❤️ ${state.lives} / ${state.maxLives}`;
@@ -3410,7 +3516,7 @@
           elements.rogueTools.appendChild(button);
         }
       }
-    
+
       function renderRewards(state) {
         if (!elements.rogueReward || !elements.rogueRewardOptions) return;
         const visible = state.status === "reward";
@@ -3434,7 +3540,7 @@
           elements.rogueRewardOptions.appendChild(button);
         }
       }
-    
+
       function renderResult(state) {
         if (!elements.rogueResult) return;
         const visible = state.status === "won" || state.status === "lost";
@@ -3443,7 +3549,7 @@
         if (elements.rogueResultTitle) elements.rogueResultTitle.textContent = state.status === "won" ? "战术通关" : "任务失败";
         if (elements.rogueResultText) elements.rogueResultText.textContent = `完成 ${Math.min(state.floor, state.totalFloors)} / ${state.totalFloors} 层，最终得分 ${state.score}。`;
       }
-    
+
       function render(state, handlers = boundHandlers || {}) {
         boundHandlers = handlers;
         renderHud(state);
@@ -3492,7 +3598,7 @@
               || ["reward", "won", "lost"].includes(state.status);
             button.disabled = boardDisabled;
             button.setAttribute("aria-disabled", String(boardDisabled));
-    
+
             button.addEventListener("click", () => {
               if (longPressTriggered) {
                 longPressTriggered = false;
@@ -3570,7 +3676,7 @@
         }
         restoreBoardFocus = false;
       }
-    
+
       function bindHandlers(handlers) {
         boundHandlers = handlers;
         elements.rogueResetButton?.addEventListener("click", () => finishAction(handlers.onReset?.()));
@@ -3581,7 +3687,7 @@
           }
         });
       }
-    
+
       return {
         render,
         bindHandlers,
@@ -3623,7 +3729,7 @@
     exports.getRogueContractProgressText = getRogueContractProgressText;
     exports.createRogueUI = createRogueUI;
   };
-  moduleFactories["src/2048-game.js"] = function (exports, __require) {
+  moduleFactories["src/core/games/2048/engine.js"] = function (exports, __require) {
     const BOARD_SIZE_2048 = 4;
     const CELL_COUNT_2048 = BOARD_SIZE_2048 * BOARD_SIZE_2048;
     const DIRECTIONS_2048 = new Set(["up", "down", "left", "right"]);
@@ -3871,8 +3977,49 @@
     exports.hasReachedTarget2048 = hasReachedTarget2048;
     exports.create2048Game = create2048Game;
   };
+  moduleFactories["src/platform/web/storage.js"] = function (exports, __require) {
+    function getDefaultStorage() {
+      try {
+        return globalThis.localStorage || null;
+      } catch {
+        return null;
+      }
+    }
+
+    function createWebStorage(storage = getDefaultStorage()) {
+      return {
+        getItem(key) {
+          try {
+            return typeof storage?.getItem === "function" ? storage.getItem(key) : null;
+          } catch {
+            return null;
+          }
+        },
+        setItem(key, value) {
+          try {
+            if (typeof storage?.setItem !== "function") return false;
+            storage.setItem(key, String(value));
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        removeItem(key) {
+          try {
+            if (typeof storage?.removeItem !== "function") return false;
+            storage.removeItem(key);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+      };
+    }
+    exports.createWebStorage = createWebStorage;
+  };
   moduleFactories["src/2048-ui.js"] = function (exports, __require) {
-    const { create2048Game: create2048Game } = __require("src/2048-game.js");
+    const { create2048Game: create2048Game } = __require("src/core/games/2048/engine.js");
+    const { createWebStorage: createWebStorage } = __require("src/platform/web/storage.js");
 
     const KEY_TO_DIRECTION_2048 = {
       ArrowUp: "up",
@@ -3955,7 +4102,7 @@
 
     function create2048UI(elements, options = {}) {
       const game = options.game || create2048Game();
-      const storage = options.storage || (typeof localStorage !== "undefined" ? localStorage : null);
+      const storage = options.storage || createWebStorage();
       const isActive = options.isActive || (() => true);
       let bestScore = readBestScore2048(storage);
       let touchStart = null;
@@ -4243,7 +4390,7 @@
         reader.readAsDataURL(file);
       });
     }
-    
+
     async function compressImageDataUrl(dataUrl) {
       const img = new Image();
       const ready = new Promise((resolve, reject) => {
@@ -4252,7 +4399,7 @@
       });
       img.src = dataUrl;
       await ready;
-    
+
       const maxSide = 1920;
       const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
       const w = Math.max(1, Math.round(img.width * scale));
@@ -4269,6 +4416,8 @@
     exports.compressImageDataUrl = compressImageDataUrl;
   };
   moduleFactories["src/storage.js"] = function (exports, __require) {
+    const { createWebStorage: createWebStorage } = __require("src/platform/web/storage.js");
+
     const DEFAULTS = {
       themeKey: "dark",
       backgroundUrl: "",
@@ -4276,40 +4425,38 @@
       modeKey: "classic",
       generationMode: "standard",
     };
-    
-    function loadSettings() {
+
+    function loadSettings(storage = createWebStorage()) {
       return {
-        themeKey: localStorage.getItem("minesweeper-theme") || DEFAULTS.themeKey,
-        backgroundUrl: localStorage.getItem("minesweeper-background") || DEFAULTS.backgroundUrl,
+        themeKey: storage.getItem("minesweeper-theme") || DEFAULTS.themeKey,
+        backgroundUrl: storage.getItem("minesweeper-background") || DEFAULTS.backgroundUrl,
         backgroundOpacity:
-          localStorage.getItem("minesweeper-background-opacity") || DEFAULTS.backgroundOpacity,
-        modeKey: localStorage.getItem("minesweeper-mode") || DEFAULTS.modeKey,
+          storage.getItem("minesweeper-background-opacity") || DEFAULTS.backgroundOpacity,
+        modeKey: storage.getItem("minesweeper-mode") || DEFAULTS.modeKey,
         generationMode:
-          localStorage.getItem("minesweeper-generation-mode") || DEFAULTS.generationMode,
+          storage.getItem("minesweeper-generation-mode") || DEFAULTS.generationMode,
       };
     }
-    
-    function saveThemeKey(themeKey) {
-      localStorage.setItem("minesweeper-theme", themeKey);
+
+    function saveThemeKey(themeKey, storage = createWebStorage()) {
+      storage.setItem("minesweeper-theme", themeKey);
     }
-    
-    function saveBackgroundUrl(backgroundUrl) {
-      try {
-        if (backgroundUrl) localStorage.setItem("minesweeper-background", backgroundUrl);
-        else localStorage.removeItem("minesweeper-background");
-      } catch {}
+
+    function saveBackgroundUrl(backgroundUrl, storage = createWebStorage()) {
+      if (backgroundUrl) storage.setItem("minesweeper-background", backgroundUrl);
+      else storage.removeItem("minesweeper-background");
     }
-    
-    function saveBackgroundOpacity(backgroundOpacity) {
-      localStorage.setItem("minesweeper-background-opacity", backgroundOpacity);
+
+    function saveBackgroundOpacity(backgroundOpacity, storage = createWebStorage()) {
+      storage.setItem("minesweeper-background-opacity", backgroundOpacity);
     }
-    
-    function saveModeKey(modeKey) {
-      localStorage.setItem("minesweeper-mode", modeKey);
+
+    function saveModeKey(modeKey, storage = createWebStorage()) {
+      storage.setItem("minesweeper-mode", modeKey);
     }
-    
-    function saveGenerationMode(generationMode) {
-      localStorage.setItem("minesweeper-generation-mode", generationMode);
+
+    function saveGenerationMode(generationMode, storage = createWebStorage()) {
+      storage.setItem("minesweeper-generation-mode", generationMode);
     }
     exports.loadSettings = loadSettings;
     exports.saveThemeKey = saveThemeKey;
@@ -4320,16 +4467,18 @@
   };
   moduleFactories["src/app.js"] = function (exports, __require) {
     const { CUSTOM_DIFFICULTY_CONFIG: CUSTOM_DIFFICULTY_CONFIG, DIFFICULTIES: DIFFICULTIES, HEX_DIFFICULTIES: HEX_DIFFICULTIES, MODES: MODES, RING_DIFFICULTIES: RING_DIFFICULTIES, SUDOKU_DIFFICULTIES: SUDOKU_DIFFICULTIES, THEMES: THEMES } = __require("src/config.js");
-    const { makeState: makeState } = __require("src/state.js");
+    const { makeState: makeState } = __require("src/core/games/minesweeper/state.js");
     const { createGameLogic: createGameLogic } = __require("src/game.js");
     const { createUI: createUI } = __require("src/ui.js");
-    const { createRogueGame: createRogueGame } = __require("src/rogue-game.js");
+    const { createRogueGame: createRogueGame } = __require("src/core/games/rogue/index.js");
     const { createRogueGuide: createRogueGuide } = __require("src/rogue-guide.js");
     const { createRogueUI: createRogueUI } = __require("src/rogue-ui.js");
     const { create2048UI: create2048UI } = __require("src/2048-ui.js");
     const { compressImageDataUrl: compressImageDataUrl, loadImageSource: loadImageSource } = __require("src/image.js");
     const { loadSettings: loadSettings, saveBackgroundOpacity: saveBackgroundOpacity, saveBackgroundUrl: saveBackgroundUrl, saveGenerationMode: saveGenerationMode, saveModeKey: saveModeKey, saveThemeKey: saveThemeKey } = __require("src/storage.js");
-    
+    const { createWebStorage: createWebStorage } = __require("src/platform/web/storage.js");
+    const { createWebClock: createWebClock } = __require("src/platform/web/clock.js");
+
     const elements = {
       boardEl: document.getElementById("board"),
       classicHud: document.getElementById("classicHud"),
@@ -4407,8 +4556,10 @@
       game2048Left: document.getElementById("game2048Left"),
       game2048Right: document.getElementById("game2048Right"),
     };
-    
-    const storage = loadSettings();
+
+    const webStorage = createWebStorage();
+    const webClock = createWebClock();
+    const storage = loadSettings(webStorage);
     const validModes = Object.keys(MODES);
     let modeKey = validModes.includes(storage.modeKey) ? storage.modeKey : "classic";
     let difficultyKey = elements.difficultySelect.value;
@@ -4416,46 +4567,46 @@
     let state = null;
     let noticeText = "";
     let victoryFireworksTimeout = null;
-    
+
     function isHexMode() {
       return modeKey === "hex";
     }
-    
+
     function isRingMode() {
       return modeKey === "ring";
     }
-    
+
     function isRogueMode() {
       return modeKey === "rogue";
     }
-    
+
     function getCatalog() {
       if (modeKey === "sudoku") return SUDOKU_DIFFICULTIES;
       if (modeKey === "hex") return HEX_DIFFICULTIES;
       if (modeKey === "ring") return RING_DIFFICULTIES;
       return DIFFICULTIES;
     }
-    
+
     function getCustomConfig() {
       return CUSTOM_DIFFICULTY_CONFIG[modeKey] || CUSTOM_DIFFICULTY_CONFIG.classic;
     }
-    
+
     function clampInt(value, min, max, fallback) {
       const number = Number.isFinite(value) ? Math.floor(value) : fallback;
       return Math.min(max, Math.max(min, Number.isFinite(number) ? number : fallback));
     }
-    
+
     function getCustomStorageKey(field) {
       return `minesweeper-custom-${modeKey}-${field}`;
     }
-    
+
     function readCustomValue(field, fallback) {
-      const modeValue = localStorage.getItem(getCustomStorageKey(field));
-      const legacyValue = modeKey === "classic" ? localStorage.getItem(`minesweeper-custom-${field}`) : null;
+      const modeValue = webStorage.getItem(getCustomStorageKey(field));
+      const legacyValue = modeKey === "classic" ? webStorage.getItem(`minesweeper-custom-${field}`) : null;
       const value = modeValue ?? legacyValue;
       return value === null ? fallback : Number(value);
     }
-    
+
     function getCustomFormValues() {
       const config = getCustomConfig();
       const [defaultRows, defaultCols, defaultMines] = config.defaults;
@@ -4465,7 +4616,7 @@
       const mines = clampInt(Number(elements.customMines.value), 1, maxMines, Math.min(defaultMines, maxMines));
       return { rows, cols, mines, maxMines };
     }
-    
+
     function syncCustomDifficultyForm() {
       const config = getCustomConfig();
       const [defaultRows, defaultCols, defaultMines] = config.defaults;
@@ -4488,7 +4639,7 @@
       elements.customMines.value = String(mines);
       elements.applyCustomDifficultyButton.textContent = `应用${MODES[modeKey].label}自定义`;
     }
-    
+
     function getDifficultySpec() {
       if (modeKey === "sudoku") return SUDOKU_DIFFICULTIES[difficultyKey] || SUDOKU_DIFFICULTIES.easy;
       if (difficultyKey === "custom") {
@@ -4497,25 +4648,25 @@
       }
       return getCatalog()[difficultyKey] || getCatalog().normal || getCatalog().easy;
     }
-    
+
     function formatDifficultyLabel(spec) {
       if (isRingMode()) return `${spec.name} ${spec.rows}圈 × ${spec.cols}格 · ${spec.mines}雷`;
       return `${spec.name} ${spec.rows}×${spec.cols} · ${spec.mines}雷`;
     }
-    
+
     function updateCustomDifficultyVisibility() {
       const visible = modeKey === "classic" && difficultyKey === "custom";
       elements.customDifficultyCard.hidden = !visible;
       elements.customDifficultyCard.setAttribute("aria-hidden", String(!visible));
     }
-    
+
     function updateGenerationModeVisibility() {
       const visible = modeKey === "classic";
       ui.setGenerationModeVisible(visible);
       if (!visible) generationMode = "standard";
       ui.setGenerationMode(generationMode);
     }
-    
+
     function normalizeDifficultySelection() {
       const catalog = getCatalog();
       if (!catalog[difficultyKey] && !(modeKey !== "sudoku" && difficultyKey === "custom")) difficultyKey = modeKey === "sudoku" ? "easy" : "normal";
@@ -4524,7 +4675,7 @@
       updateCustomDifficultyVisibility();
       return difficultyKey;
     }
-    
+
     function refreshDifficultyOptions() {
       const catalog = getCatalog();
       elements.difficultySelect.replaceChildren();
@@ -4543,7 +4694,7 @@
       }
       normalizeDifficultySelection();
     }
-    
+
     function getDifficultyRecordKey() {
       const prefix = modeKey === "hex" ? "hex" : isRingMode() ? "ring" : modeKey === "sudoku" ? "sudoku" : modeKey === "offset" ? "offset" : "classic";
       if (difficultyKey === "custom") {
@@ -4551,21 +4702,21 @@
       }
       return `minesweeper-best-${prefix}-${difficultyKey}`;
     }
-    
+
     function loadBestTime() {
-      const value = Number(localStorage.getItem(getDifficultyRecordKey()));
+      const value = Number(webStorage.getItem(getDifficultyRecordKey()));
       return Number.isFinite(value) && value > 0 ? value : null;
     }
-    
+
     function saveBestTime(seconds) {
-      localStorage.setItem(getDifficultyRecordKey(), seconds.toFixed(3));
+      webStorage.setItem(getDifficultyRecordKey(), seconds.toFixed(3));
     }
-    
+
     function renderBestTime() {
       const best = loadBestTime();
       elements.bestTimeEl.textContent = best === null ? "--" : best.toFixed(3);
     }
-    
+
     function renderHintText() {
       if (modeKey === "sudoku") {
         elements.gameHintEl.innerHTML = "数独扫雷：左键打叉，右键标雷。目标是按行、列、同色块和不相邻规则找出全部雷。";
@@ -4579,13 +4730,13 @@
         elements.gameHintEl.innerHTML = "左键揭开，右键/长按标记，点数字可快速展开，按 <kbd>R</kbd> 重开。";
       }
     }
-    
+
     function clearHint() {
       state.hint = null;
       noticeText = "";
       ui.setHintFeedback("");
     }
-    
+
     function syncGame(status) {
       if (status === "win") {
         state.ended = true;
@@ -4619,26 +4770,26 @@
         onStatus: syncGame,
       });
     }
-    
+
     function handleReveal(row, col) {
       clearHint();
       const result = game.reveal(row, col, () => ui.renderHud(state));
       if (state.notice) noticeText = state.notice;
       syncGame(result);
     }
-    
+
     function handleChord(row, col) {
       clearHint();
       const result = game.chord(row, col, () => ui.renderHud(state));
       syncGame(result);
     }
-    
+
     function handleCycleMark(row, col) {
       clearHint();
       const result = game.cycleMark(row, col);
       syncGame(result);
     }
-    
+
     function handleHint() {
       if (isRogueMode()) return;
       const hint = game.getHint();
@@ -4652,7 +4803,7 @@
         onStatus: syncGame,
       });
     }
-    
+
     function setRogueVisibility(visible) {
       if (!visible && rogueGuideController.close({ restoreFocus: false })) elements.modeSelect?.focus();
       if (elements.classicHud) elements.classicHud.hidden = visible;
@@ -4666,11 +4817,11 @@
           : "首点安全，理性推理，严谨通关。";
       }
     }
-    
+
     function renderRogue() {
       rogueUI.render(rogueGame.getState(), rogueHandlers);
     }
-    
+
     function resetRogueGame() {
       game.resetTimer();
       ui.resetTransientInputState();
@@ -4682,7 +4833,7 @@
       rogueUI.setMarkMode("reveal");
       renderRogue();
     }
-    
+
     function resetGame() {
       if (isRogueMode()) {
         resetRogueGame();
@@ -4706,7 +4857,7 @@
       renderHintText();
       renderBestTime();
     }
-    
+
     function clearVictoryFireworks() {
       if (victoryFireworksTimeout) {
         clearTimeout(victoryFireworksTimeout);
@@ -4714,7 +4865,7 @@
       }
       if (elements.fireworksLayer) elements.fireworksLayer.innerHTML = "";
     }
-    
+
     function launchVictoryFireworks() {
       if (!elements.fireworksLayer) return;
       clearVictoryFireworks();
@@ -4748,12 +4899,13 @@
       }
       victoryFireworksTimeout = setTimeout(clearVictoryFireworks, 3200);
     }
-    
+
     const ui = createUI(elements);
     const game = createGameLogic({
       getState: () => state,
       getDifficultySpec,
       getGenerationMode: () => generationMode,
+      clock: webClock,
     });
     const rogueUI = createRogueUI(elements);
     const rogueGame = createRogueGame({ rng: Math.random });
@@ -4775,6 +4927,7 @@
       leftButton: elements.game2048Left,
       rightButton: elements.game2048Right,
     }, {
+      storage: webStorage,
       isActive: () => window.__GAME_TABS__?.getCurrent() === "2048",
     });
     window.addEventListener("keydown", (event) => rogueGuideController.handleGlobalKeydown(event), true);
@@ -4805,7 +4958,7 @@
       onChooseReward: (upgradeId) => rogueGame.chooseReward(upgradeId),
       onAction: () => renderRogue(),
     };
-    
+
     ui.bindHandlers({
       onReset: resetGame,
       onHint: handleHint,
@@ -4816,7 +4969,7 @@
       },
       onModeChange: (value) => {
         modeKey = validModes.includes(value) ? value : "classic";
-        saveModeKey(modeKey);
+        saveModeKey(modeKey, webStorage);
         refreshDifficultyOptions();
         syncCustomDifficultyForm();
         updateGenerationModeVisibility();
@@ -4825,7 +4978,7 @@
       },
       onGenerationModeChange: (value) => {
         generationMode = value === "no-guess" && modeKey === "classic" ? "no-guess" : "standard";
-        saveGenerationMode(generationMode);
+        saveGenerationMode(generationMode, webStorage);
         ui.setGenerationMode(generationMode);
         resetGame();
       },
@@ -4833,9 +4986,9 @@
       onApplyCustomDifficulty: () => {
         if (modeKey === "sudoku") return;
         const { rows, cols, mines } = getCustomFormValues();
-        localStorage.setItem(getCustomStorageKey("rows"), String(rows));
-        localStorage.setItem(getCustomStorageKey("cols"), String(cols));
-        localStorage.setItem(getCustomStorageKey("mines"), String(mines));
+        webStorage.setItem(getCustomStorageKey("rows"), String(rows));
+        webStorage.setItem(getCustomStorageKey("cols"), String(cols));
+        webStorage.setItem(getCustomStorageKey("mines"), String(mines));
         elements.customRows.value = String(rows);
         elements.customCols.value = String(cols);
         elements.customMines.value = String(mines);
@@ -4845,35 +4998,35 @@
         resetGame();
       },
       onThemeChange: (value) => {
-        saveThemeKey(value);
+        saveThemeKey(value, webStorage);
         applyTheme(value);
       },
       onBackgroundUpload: async (file) => {
         if (!file || !file.type.startsWith("image/")) return;
         const raw = await loadImageSource(file);
         const compressed = await compressImageDataUrl(raw);
-        saveBackgroundUrl(compressed);
+        saveBackgroundUrl(compressed, webStorage);
         ui.applyBackground(compressed);
       },
       onClearBackground: () => {
         elements.bgUpload.value = "";
-        saveBackgroundUrl("");
+        saveBackgroundUrl("", webStorage);
         ui.applyBackground("");
       },
       onBackgroundOpacityChange: (value) => {
-        saveBackgroundOpacity(value);
+        saveBackgroundOpacity(value, webStorage);
         ui.applyBackgroundOpacity(value);
       },
     });
-    
+
     rogueUI.bindHandlers(rogueHandlers);
-    
+
     function applyTheme(themeKey) {
       const theme = THEMES[themeKey] || THEMES.dark;
       ui.setTheme(themeKey in THEMES ? themeKey : "dark");
       ui.applyTheme(themeKey, theme);
     }
-    
+
     function init() {
       applyTheme(storage.themeKey);
       ui.applyBackground(storage.backgroundUrl);
@@ -4889,7 +5042,7 @@
       rogueUI.setMarkMode("reveal");
       resetGame();
     }
-    
+
     init();
 
   };
