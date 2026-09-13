@@ -10,7 +10,7 @@ import {
 import { makeState } from "./core/games/minesweeper/state.js";
 import { createGameLogic } from "./game.js";
 import { createUI } from "./ui.js";
-import { createRogueGame } from "./rogue-game.js";
+import { createRogueGame } from "./core/games/rogue/index.js";
 import {
   createRogueGuide,
 } from "./rogue-guide.js";

@@ -157,7 +157,7 @@
 - Modify: `tests/core-boundaries.test.js`
 
 **Interfaces:**
-- Each game index exports a documented `create*Core` factory or an explicit `legacy` marker describing the current migration seam.
+- Each game index exports the pure modules already safe to reuse plus a documented `get*CoreStatus()` seam marker describing the remaining UI boundary.
 - The seams do not import DOM modules and do not expose `window.__XXX__` from the core tree.
 - The Web README records the remaining legacy adapter files and the required future extraction order.
 
@@ -170,9 +170,9 @@
   Run `node --test tests/core-boundaries.test.js`.
   Expected: the imports or named exports are missing.
 
-- [ ] **Step 3: Implement minimal explicit seam factories**
+- [ ] **Step 3: Implement minimal explicit extraction seams**
 
-  The factories return metadata and pure dependencies only; they must not instantiate DOM or timers. Document that Sudoku, Link-Link, and Rogue UI controllers remain under `src/` until their pure logic is extracted in separate tasks.
+  The Sudoku index exposes the extracted Sudoku minesweeper generator, the Link-Link index exposes level data and pure column-flow helpers, and the Rogue index exposes the already DOM-free engine through a temporary bridge. Each index also returns a status record from `get*CoreStatus()`; none of these modules instantiate DOM or timers. Document that the remaining Sudoku, Link-Link, and Rogue UI controllers stay under `src/` until their pure logic is extracted in separate tasks.
 
 - [ ] **Step 4: Run all focused tests**
 

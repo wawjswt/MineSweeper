@@ -7,6 +7,13 @@ import { create2048Game } from "../src/core/games/2048/engine.js";
 import { generateClassicBoard } from "../src/core/games/minesweeper/generator.js";
 import { analyzePosition } from "../src/core/games/minesweeper/solver.js";
 import { makeState } from "../src/core/games/minesweeper/state.js";
+import { generateSudokuMines, getSudokuCoreStatus } from "../src/core/games/sudoku/index.js";
+import {
+  LLK_LEVELS,
+  cloneLayout,
+  getLianliankanCoreStatus,
+} from "../src/core/games/lianliankan/index.js";
+import { getRogueCoreStatus } from "../src/core/games/rogue/index.js";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -58,4 +65,29 @@ test("Minesweeper core keeps the first-click neighborhood safe", () => {
     }
   }
   assert.equal(analyzePosition({ board: state.board, rows: 9, cols: 9, totalMines: 10 }).kind, "none");
+});
+
+test("legacy game seams identify remaining UI adapters explicitly", () => {
+  assert.deepEqual(getSudokuCoreStatus(), {
+    game: "sudoku",
+    status: "partial",
+    uiSource: "src/sudoku-game.js",
+  });
+  assert.deepEqual(getLianliankanCoreStatus(), {
+    game: "lianliankan",
+    status: "partial",
+    uiSource: "src/lianliankan-game.js",
+  });
+  assert.deepEqual(getRogueCoreStatus(), {
+    game: "rogue",
+    status: "bridge",
+    uiSource: "src/rogue-ui.js",
+  });
+});
+
+test("partial game cores expose pure data and generators", () => {
+  const sudoku = generateSudokuMines(9, { maxAttempts: 0, rng: () => 0.25 });
+  assert.equal(sudoku.mines.length, 9);
+  assert.equal(LLK_LEVELS.length, 5);
+  assert.equal(cloneLayout(1).length, LLK_LEVELS[0].rows * LLK_LEVELS[0].cols);
 });

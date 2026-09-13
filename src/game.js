@@ -1,6 +1,6 @@
 import { generateClassicBoard } from "./core/games/minesweeper/generator.js";
 import { analyzePosition } from "./core/games/minesweeper/solver.js";
-import { generateSudokuMines } from "./sudoku-minesweeper.js";
+import { generateSudokuMines } from "./core/games/sudoku/minesweeper.js";
 import { createWebClock } from "./platform/web/clock.js";
 
 function shuffle(list, rng) {
